@@ -316,7 +316,42 @@ _LOCATION_HINTS = (
     "serbi",
     "maqedoni",
 )
+_ROLE_PREFIXES = frozenset(
+    {
+        "trajneri",
+        "ministri",
+        "ministrja",
+        "deputetja",
+        "deputeti",
+        "drejtori",
+        "drejtoresha",
+        "rektori",
+        "kandidati",
+        "negociatori",
+        "ambasadori",
+        "mesuesja",
+        "themeluesja",
+        "zedhenesi",
+        "perzgjedhesi",
+        "kryeministri",
+        "presidentja",
+        "presidenti",
+        "kryetari",
+        "zedhenesja",
+    }
+)
 _ORG_HINTS = (
+    "komisioni",
+    "agjencia",
+    "instituti",
+    "kombetarja",
+    "spitali",
+    "bashkimi",
+    "kompania",
+    "festivali",
+    "kqz",
+    "kek",
+    "opozita",
     "kuvendi",
     "qeveria",
     "policia",
@@ -396,7 +431,13 @@ class FakeProvider:
         entities: list[dict[str, str]] = []
         for match in _NAME_SEQ.finditer(text):
             name = match.group(1).strip()
-            first = name.split()[0]
+            words = name.split()
+            while words and fold(words[0]) in _ROLE_PREFIXES:  # "Trajneri Blerta Zeqiri"
+                words = words[1:]
+            if not words:
+                continue
+            name = " ".join(words)
+            first = words[0]
             if first in _SENTENCE_START_STOP and len(name.split()) == 1:
                 continue
             key = fold(name)
