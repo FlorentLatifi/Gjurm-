@@ -1,6 +1,7 @@
 # CI/CD: every push and PR is linted, type-checked, tested (unit + PostgreSQL integration +
-# full-stack browser E2E) and security-scanned. Pushes to main additionally build, scan and
-# publish container images to GHCR and — when deployment is configured — deploy them.
+# full-stack browser E2E) and security-scanned. Pushes to the default branch (and v* tags)
+# additionally build, scan and publish container images to GHCR and — when deployment is
+# configured — deploy them.
 name: CI
 
 on:
@@ -15,7 +16,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
 
 jobs:
   backend:
@@ -153,7 +154,9 @@ jobs:
   images:
     name: Build, scan & publish images
     needs: [backend, frontend, security, e2e]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: >-
+      github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') ||
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -210,7 +213,9 @@ jobs:
     name: Deploy to production
     needs: [images]
     # Opt-in: set repository variable DEPLOY_ENABLED=true once the server and secrets exist.
-    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
