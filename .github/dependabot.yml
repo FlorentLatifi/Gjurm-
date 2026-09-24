@@ -1,19 +1,39 @@
-# Weekly dependency updates, grouped to keep PR noise low. CI (tests + audits) gates every update.
+# Weekly dependency updates. Minor/patch updates are grouped to keep PR noise low; majors arrive
+# as individual PRs. CI (tests + audits) gates every update. Majors that are known to be blocked
+# are ignored until the blocker is gone (re-check when bumping the blocker; docs/DECISIONS.md).
 version: 2
 updates:
   - package-ecosystem: uv
     directory: /backend
     schedule: { interval: weekly }
     groups:
-      python: { patterns: ["*"] }
+      python: { patterns: ["*"], update-types: [minor, patch] }
   - package-ecosystem: npm
     directory: /frontend
     schedule: { interval: weekly }
     groups:
-      npm: { patterns: ["*"] }
+      npm: { patterns: ["*"], update-types: [minor, patch] }
+    ignore:
+      # eslint-plugin-jsx-a11y 6.10.2 peers eslint <= 9 (npm ci fails with ERESOLVE on 10).
+      - dependency-name: eslint
+        update-types: [version-update:semver-major]
+      - dependency-name: "@eslint/js"
+        update-types: [version-update:semver-major]
+      # typescript-eslint 8.x peers typescript < 6.1.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+      # Types follow the Node runtime (22 LTS in CI and the build image), not the newest Node.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
   - package-ecosystem: docker
     directories: [/backend, /frontend]
     schedule: { interval: weekly }
+    ignore:
+      # Runtimes move between LTS lines deliberately (odd Node majors are never LTS).
+      - dependency-name: node
+        update-types: [version-update:semver-major]
+      - dependency-name: python
+        update-types: [version-update:semver-major, version-update:semver-minor]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
