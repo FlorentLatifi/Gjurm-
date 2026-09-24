@@ -465,7 +465,7 @@ class FakeProvider:
             "sentiment": label,
             "sentiment_score": round(score, 3),
             "event_type": "other",
-            "summary_en": f"[demo heuristic] {headline}"[:380],
+            "summary_en": f"[headline, no AI summary] {headline}"[:380],
             "entities": entities[:8],
             "countries": countries[:4],
             "confidence": 0.3,

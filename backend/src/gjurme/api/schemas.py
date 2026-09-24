@@ -356,6 +356,10 @@ class ArticleDetail(Model):
     author: str | None
     duplicate_of_id: int | None
     enriched_at: datetime | None
+    analysis_method: Literal["ai", "rules"] | None = Field(
+        None, description="How topics, tone and entities were assigned: an LLM or keyword rules"
+    )
+    analysis_model: str | None = Field(None, description="LLM model id when analysis_method=ai")
     source_slug: str
     source_name: str
     source_url: str
@@ -385,6 +389,16 @@ class SourceHealth(Model):
     consecutive_failures: int
 
 
+class AnalysisMode(Model):
+    mode: Literal["ai", "rules", "mixed", "none"] = Field(
+        description="How articles of the last 30 days were analysed (LLM, keyword rules, or both)"
+    )
+    rule_based_share: float | None = Field(
+        description="Share of analysed articles (last 30 days) that used keyword rules"
+    )
+    model: str | None = Field(description="Most used LLM model, if any")
+
+
 class PublicStatus(Model):
     status: Literal["ok", "degraded", "stale"]
     last_run_at: datetime | None
@@ -395,6 +409,7 @@ class PublicStatus(Model):
     articles_last_24h: int
     enrichment_backlog: int
     sources: list[SourceHealth]
+    analysis: AnalysisMode
     demo_data: bool
     version: str
 

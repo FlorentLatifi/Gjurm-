@@ -12,9 +12,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from gjurme.api.app import create_app
 from gjurme.config import Settings
-from gjurme.db.models import Article, PipelineRun
+from gjurme.db.models import Article, Enrichment, PipelineRun
 from gjurme.enrichment.schema import EnrichmentOutput
-from gjurme.enrichment.service import apply_output
+from gjurme.enrichment.service import apply_output, requeue
 from gjurme.ingestion.normalize import normalize_key, sha256_hex
 from gjurme.runtime_settings import ENRICHMENT_PAUSE, RUN_REQUEST, get_setting
 from tests.integration.helpers import add_source
@@ -411,6 +411,53 @@ def test_public_status(client: TestClient, dataset: dict[str, Any]) -> None:
     body = client.get("/api/v1/status").json()
     assert body["last_run_status"] == "succeeded" and body["status"] in ("ok", "degraded")
     assert body["minutes_since_success"] < 10
+
+
+def _current_enrichment(s: Session, article_id: int, provider: str, model: str) -> None:
+    s.add(
+        Enrichment(
+            article_id=article_id,
+            provider=provider,
+            model=model,
+            prompt_version="v1.0",
+            schema_version="test",
+            status="succeeded",
+            attempt=1,
+            input_hash=sha256_hex(str(article_id), provider),
+            is_current=True,
+        )
+    )
+
+
+def test_analysis_method_is_disclosed(
+    client: TestClient, db: sessionmaker[Session], dataset: dict[str, Any]
+) -> None:
+    """Rule-based (keyword) analysis must be labelled as such everywhere the public sees it."""
+    assert client.get("/api/v1/status").json()["analysis"] == {
+        "mode": "none",
+        "rule_based_share": None,
+        "model": None,
+    }
+    with db() as s, s.begin():
+        ids = s.scalars(select(Article.id).where(~Article.is_hidden).order_by(Article.id)).all()
+        rules_id, ai_id = ids[0], ids[1]
+        _current_enrichment(s, rules_id, "fake", "fake")
+        _current_enrichment(s, ai_id, "anthropic", "claude-sonnet-5")
+        for other in ids[2:5]:
+            _current_enrichment(s, other, "fake", "fake")
+    analysis = client.get("/api/v1/status").json()["analysis"]
+    assert analysis == {"mode": "mixed", "rule_based_share": 0.8, "model": "claude-sonnet-5"}
+
+    rules = client.get(f"/api/v1/articles/{rules_id}").json()
+    assert (rules["analysis_method"], rules["analysis_model"]) == ("rules", None)
+    ai = client.get(f"/api/v1/articles/{ai_id}").json()
+    assert (ai["analysis_method"], ai["analysis_model"]) == ("ai", "claude-sonnet-5")
+
+    # Once an API key exists, rule-based analyses can be queued for the LLM in one step.
+    with db() as s, s.begin():
+        assert requeue(s, provider="fake") == 4
+        statuses = s.scalars(select(Article.enrichment_status).where(Article.id == ai_id)).all()
+    assert statuses == ["succeeded"]
 
 
 def test_openapi_documents_every_public_route(client: TestClient) -> None:

@@ -67,6 +67,42 @@ def _f(value: Any, digits: int = 3) -> float | None:
     return None if value is None else round(float(value), digits)
 
 
+# Enrichment provider that assigns topics/tone/entities with keyword rules instead of an LLM
+# (enrichment/providers.py:FakeProvider). Everything the public sees must say which one was used.
+RULES_PROVIDER = "fake"
+
+
+def analysis_method(provider: str) -> str:
+    return "rules" if provider == RULES_PROVIDER else "ai"
+
+
+def analysis_mode(session: Session, today: date, days: int = 30) -> dict[str, Any]:
+    """How the articles of the last ``days`` were analysed: by an LLM, keyword rules, or both."""
+    row = session.execute(
+        text("""
+        SELECT count(*) FILTER (WHERE e.provider = :rules) AS rules, count(*) AS total,
+               mode() WITHIN GROUP (ORDER BY e.model) FILTER (WHERE e.provider <> :rules) AS model
+        FROM core.enrichments e JOIN core.articles a ON a.id = e.article_id
+        WHERE e.is_current AND NOT a.is_hidden
+          AND a.published_date >= CAST(:today AS date) - :days
+    """),
+        {"rules": RULES_PROVIDER, "days": days, "today": today},
+    ).one()
+    if not row.total:
+        mode = "none"
+    elif row.rules == 0:
+        mode = "ai"
+    elif row.rules == row.total:
+        mode = "rules"
+    else:
+        mode = "mixed"
+    return {
+        "mode": mode,
+        "rule_based_share": _f(row.rules / row.total) if row.total else None,
+        "model": row.model,
+    }
+
+
 # =============================================================================================
 # Overview
 # =============================================================================================
@@ -762,9 +798,11 @@ def article_detail(session: Session, article_id: int) -> dict[str, Any] | None:
                a.enrichment_status, a.enrichment_confidence, a.feed_categories, a.author,
                a.duplicate_of_id, a.enriched_at,
                s.slug AS source_slug, s.name AS source_name, s.homepage_url AS source_url,
-               t.slug AS topic_slug, t.name_en AS topic_name
+               t.slug AS topic_slug, t.name_en AS topic_name,
+               en.provider AS analysis_provider, en.model AS analysis_model
         FROM core.articles a JOIN core.sources s ON s.id = a.source_id
         LEFT JOIN core.topics t ON t.id = a.primary_topic_id
+        LEFT JOIN core.enrichments en ON en.article_id = a.id AND en.is_current
         WHERE a.id = :id AND NOT a.is_hidden
     """,
         {"id": article_id},
@@ -774,6 +812,10 @@ def article_detail(session: Session, article_id: int) -> dict[str, Any] | None:
     art = rows[0]
     art["sentiment_score"] = _f(art["sentiment_score"])
     art["enrichment_confidence"] = _f(art["enrichment_confidence"])
+    provider = art.pop("analysis_provider")
+    art["analysis_method"] = None if provider is None else analysis_method(provider)
+    if art["analysis_method"] != "ai":
+        art["analysis_model"] = None
     art["topics"] = _rows(
         session,
         """

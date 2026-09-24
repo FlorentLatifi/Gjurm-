@@ -561,8 +561,13 @@ def requeue(
     older_than_prompt: str | None = None,
     article_ids: list[int] | None = None,
     include_failed: bool = False,
+    provider: str | None = None,
 ) -> int:
-    """Mark articles for re-enrichment (new prompt/model, or manual reprocess)."""
+    """Mark articles for re-enrichment (new prompt/model, or manual reprocess).
+
+    ``provider`` selects articles whose current analysis came from that provider, e.g. ``fake``
+    (keyword rules) to re-analyse them with Claude once an API key is configured.
+    """
     conditions = []
     if article_ids:
         conditions.append(Article.id.in_(article_ids))
@@ -573,6 +578,11 @@ def requeue(
         conditions.append(Article.id.in_(current_versions))
     if include_failed:
         conditions.append(Article.enrichment_status.in_(("failed", "skipped")))
+    if provider:
+        by_provider = select(Enrichment.article_id).where(
+            Enrichment.is_current.is_(True), Enrichment.provider == provider
+        )
+        conditions.append(Article.id.in_(by_provider))
     if not conditions:
         raise ValueError("requeue needs at least one selector")
     result = session.execute(

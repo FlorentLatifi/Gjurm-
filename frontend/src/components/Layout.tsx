@@ -82,6 +82,23 @@ function DemoBanner() {
   );
 }
 
+/** Says plainly when topics, tone and names come from keyword rules rather than an AI model. */
+function AnalysisBanner() {
+  const { data } = useStatus();
+  if (!data || data.demo_data) return null; // the demo banner already explains the demo data
+  const { mode, rule_based_share } = data.analysis;
+  if (mode !== "rules" && mode !== "mixed") return null;
+  return (
+    <div className="banner" role="note">
+      <strong>Rule-based analysis.</strong>{" "}
+      {mode === "rules"
+        ? "Topics, tone and names on this site are currently assigned by keyword rules, not by an AI model."
+        : `${Math.round((rule_based_share ?? 0) * 100)}% of recent articles were analysed by keyword rules, not by an AI model.`}{" "}
+      Treat them as rough indications. <Link to="/about#analysis">How this works</Link>
+    </div>
+  );
+}
+
 export function Layout() {
   const location = useLocation();
   const firstRender = useRef(true);
@@ -125,6 +142,7 @@ export function Layout() {
       </header>
       <main id="main" tabIndex={-1}>
         <DemoBanner />
+        <AnalysisBanner />
         <Outlet />
       </main>
       <footer className="site-footer">

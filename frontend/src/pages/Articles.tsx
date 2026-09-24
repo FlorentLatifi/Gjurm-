@@ -153,8 +153,13 @@ export function ArticlePage() {
         )}
       </div>
       <section className="card" aria-labelledby="ai-heading">
-        <h2 id="ai-heading">AI analysis</h2>
-        <p className="card__question">Generated automatically — it can be wrong. Report errors via the Methodology page.</p>
+        <h2 id="ai-heading">{a.analysis_method === "rules" ? "Rule-based analysis" : "AI analysis"}</h2>
+        <p className="card__question">
+          {a.analysis_method === "rules"
+            ? "Assigned by keyword rules, not by an AI model — treat topics, tone and names as rough."
+            : `Generated automatically${a.analysis_model ? ` by ${a.analysis_model}` : ""} — it can be wrong.`}{" "}
+          Report errors via the Methodology page.
+        </p>
         {a.enrichment_status !== "succeeded" ? (
           <p style={{ marginTop: 10 }}>This article has not been analysed yet ({a.enrichment_status}).</p>
         ) : (
@@ -175,7 +180,11 @@ export function ArticlePage() {
               )) : "—"}
             </dd>
             <dt>Countries</dt><dd style={{ margin: 0 }}>{a.countries.join(", ") || "—"}</dd>
-            <dt>Confidence</dt><dd style={{ margin: 0 }}>{formatPercent(a.enrichment_confidence)} (model self-assessment)</dd>
+            <dt>Confidence</dt>
+            <dd style={{ margin: 0 }}>
+              {formatPercent(a.enrichment_confidence)}{" "}
+              {a.analysis_method === "rules" ? "(fixed value of the keyword rules)" : "(model self-assessment)"}
+            </dd>
           </dl>
         )}
       </section>

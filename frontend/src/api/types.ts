@@ -193,6 +193,9 @@ export interface ArticleDetail extends ArticleSummary {
   feed_categories: string[];
   author: string | null;
   enriched_at: string | null;
+  /** How topics, tone and names were assigned: an LLM ("ai") or keyword rules ("rules"). */
+  analysis_method: "ai" | "rules" | null;
+  analysis_model: string | null;
   source_url: string;
   topics: { slug: string; name_en: string; is_primary: boolean }[];
   entities: EntityRef[];
@@ -224,8 +227,15 @@ export interface PublicStatus {
     last_success_at: string | null;
     consecutive_failures: number;
   }[];
+  analysis: AnalysisMode;
   demo_data: boolean;
   version: string;
+}
+
+export interface AnalysisMode {
+  mode: "ai" | "rules" | "mixed" | "none";
+  rule_based_share: number | null;
+  model: string | null;
 }
 
 export interface TaxonomyTopic {
