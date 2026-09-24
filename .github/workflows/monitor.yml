@@ -1,0 +1,43 @@
+# External uptime & freshness monitor ("dead man's switch").
+# Runs from GitHub's infrastructure, so it still fires when the server itself is down — the case
+# the in-app alerting cannot cover. A failed run notifies the repository owner (GitHub e-mail).
+# Enable by setting the repository variable PUBLIC_URL (e.g. https://gjurme.example.com).
+name: Uptime monitor
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: vars.PUBLIC_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      URL: ${{ vars.PUBLIC_URL }}
+    steps:
+      - name: Site, API and database reachable
+        run: |
+          curl -fsS --retry 3 --retry-delay 10 -o /dev/null "$URL/"
+          curl -fsS --retry 3 --retry-delay 10 "$URL/health/ready"
+      - name: Pipeline is fresh
+        run: |
+          body="$(curl -fsS --retry 3 --retry-delay 10 "$URL/api/v1/status")"
+          echo "$body" | jq '{status, last_success_at, minutes_since_success, articles_last_24h}'
+          status="$(echo "$body" | jq -r .status)"
+          if [ "$status" = "stale" ]; then
+            echo "::error::Pipeline has not completed a run recently (status=stale)"
+            exit 1
+          fi
+      - name: TLS certificate valid for > 14 days
+        run: |
+          host="${URL#https://}"; host="${host%%/*}"
+          expiry="$(echo | openssl s_client -servername "$host" -connect "$host:443" 2>/dev/null \
+                    | openssl x509 -noout -enddate | cut -d= -f2)"
+          days=$(( ( $(date -d "$expiry" +%s) - $(date +%s) ) / 86400 ))
+          echo "certificate expires in $days days ($expiry)"
+          [ "$days" -gt 14 ] || { echo "::error::TLS certificate expires in $days days"; exit 1; }
