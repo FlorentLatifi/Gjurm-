@@ -146,8 +146,25 @@ Switching models is configuration only (`LLM_MODEL`). The model is part of `inpu
   ```
   History is kept. The new row becomes `is_current` and the old one stays for comparison. The daily budget applies to reprocessing too.
 
+## Free mode: keyword rules
+
+Without an API key the pipeline can run the keyword-rule provider in production (`LLM_PROVIDER=fake` with `ALLOW_FAKE_LLM_IN_PRODUCTION=true`; "fake" is the internal name). It assigns:
+- the topic, from lists of Albanian keyword stems;
+- the tone, from positive and negative word lists;
+- names, from capitalised word sequences, with role words stripped;
+- a fixed confidence of 0.3;
+- no summary: the field holds `[headline, no AI summary] …`.
+
+It costs nothing and is **much less accurate**, so it is always disclosed:
+- `GET /api/v1/status` → `analysis: {mode: "ai" | "rules" | "mixed" | "none", rule_based_share, model}`, computed over the last 30 days;
+- a banner on every page when the mode is `rules` or `mixed` (except on demo data, which has its own banner);
+- each article page says *Rule-based analysis* or *AI analysis (model)*, from the provider of its current enrichment;
+- the methodology page states the current mode.
+
+**Switching to Claude later:** set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`, remove the flag, restart the scheduler, then `gjurme enrich-requeue --provider fake`. The rule-based results are re-analysed within the daily budget, newest first.
+
 ## Testing without a key
 
 - **FakeProvider** (`LLM_PROVIDER=fake`): deterministic keyword heuristics for development, the demo and tests. It is refused in staging and production unless explicitly allowed.
 - **Wire-level test** (`tests/integration/test_anthropic_wire.py`): runs the *real* `AnthropicProvider` and SDK against a local HTTP server that implements the Messages API contract. It checks the request body (model, cached system block, `output_config`, thinking), the parsing of usage, cost and request id, refusal and `max_tokens` handling, 401/403/404 → fatal, and 429/529 → retried by the SDK, then a retryable failure.
-- **Live check** (`.github/workflows/sources.yml`, job `live-pipeline`): runs ingest, process and enrich against the real feeds on GitHub's runners. Enrichment runs with the real API when the repository secret `ANTHROPIC_API_KEY` exists, and with the FakeProvider otherwise.
+- **Live check and quality review** (`.github/workflows/sources.yml`, job `live-pipeline`): runs ingest, process and enrich against the real feeds on GitHub's runners. When the repository secret `ANTHROPIC_API_KEY` exists, Claude analyses the newest articles, 8 by default or 1–50 via *Run workflow → enrich_limit*, under a hard budget of $0.02 per article (at most $1). The job then publishes a **review report** in the run summary and as the `live-pipeline-stats` artifact: every result next to its headline (topic, tone, names, names dropped by grounding, summary, confidence), plus totals for calls, tokens, cache hits, cost per article and latency. Without the secret it uses the keyword rules.

@@ -3,8 +3,8 @@
 | Layer | Tool | Count | Runs |
 |---|---|---|---|
 | Backend unit | pytest | 126 | CI `backend` job, locally `uv run pytest tests/unit` |
-| Backend integration (real PostgreSQL 16) | pytest | 92 | CI `backend` job (Postgres service container) |
-| Frontend unit / component | Vitest + Testing Library | 21 | CI `frontend` job |
+| Backend integration (real PostgreSQL 16) | pytest | 93 | CI `backend` job (Postgres service container) |
+| Frontend unit / component | Vitest + Testing Library | 23 | CI `frontend` job |
 | End-to-end (full Docker stack, demo data, real browser) | Playwright + axe-core | 20 scenarios × 2 viewports = 40 | CI `e2e` job |
 | Live sources (real feeds on GitHub runners) | `gjurme` CLI in a workflow | 1 pipeline run | *Source validation* workflow (weekly + manual) |
 | Performance (365k articles) | `backend/scripts/benchmark.py` | 19 queries | manual ([below](#performance)) |

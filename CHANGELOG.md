@@ -4,6 +4,15 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Added
+- **$0 launch path:** multi-arch images (amd64 + arm64) built natively on GitHub's free arm64 runners, and a step-by-step Oracle Cloud Always Free + DuckDNS guide ([ADR-018](docs/DECISIONS.md#adr-018-a-0-launch-path-oracle-always-free--keyword-rule-analysis)).
+- **Honest rule-based mode:** `/api/v1/status` reports the analysis mode, the site shows a banner, and each article page labels its analysis as *AI* or *rule-based*. `gjurme enrich-requeue --provider fake` re-analyses rule-based results with Claude once a key is added.
+- **Claude quality test:** the *Source validation* workflow takes `enrich_limit` (1–50, hard budget) and publishes a review report of every result with tokens and cost.
+
+### Fixed
+- Server bootstrap no longer enables UFW on Oracle Cloud Ubuntu images, which Oracle warns can prevent boot. It opens 80/443 in Oracle's own iptables rules instead (tested for idempotency and with `iptables-restore --test`).
+- The keyword-rule "summary" is labelled `[headline, no AI summary]` instead of `[demo heuristic]`.
+
 ## [1.0.0] — release candidate, not yet deployed
 
 First complete version: pipeline, analytics, API, dashboard, operations and documentation.
