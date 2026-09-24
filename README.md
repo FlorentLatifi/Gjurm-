@@ -2,7 +2,7 @@
 
 **AI-powered news intelligence for Albanian-language media.** GJURMË (*"trace, footprint"*) reads Kosovo and Albanian news feeds every 15 minutes, removes duplicates, uses Claude to classify each story (topic, tone, people, organizations, places, and a one-line English summary), and turns the result into a public dashboard: what dominates coverage, who is suddenly in the news, and how outlets differ.
 
-> **Status:** V1 is complete and tested (CI green on GitHub: lint, strict types, 218 backend tests on PostgreSQL, 21 frontend tests, 40 end-to-end browser tests, security scans). **It is not deployed yet.** Deployment is scripted and rehearsed locally; it needs a server, a domain and an Anthropic API key ([DEPLOYMENT.md](docs/DEPLOYMENT.md), [LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md)).
+> **Status:** V1 is complete and tested (CI green on GitHub: lint, strict types, 219 backend tests on PostgreSQL, 23 frontend tests, 40 end-to-end browser tests, security scans). **It is not deployed yet.** Deployment is scripted and rehearsed locally. It can run for **$0**: on an Oracle Cloud Always Free ARM server with a free subdomain, with keyword-rule analysis that the site discloses until a Claude API key is added ([DEPLOYMENT.md](docs/DEPLOYMENT.md#oracle-cloud), [LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md)).
 
 ## What it does
 

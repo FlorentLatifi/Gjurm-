@@ -26,7 +26,7 @@ GJURMË is a public, read-only analytics site with one operator. There are no us
 | Secret leakage | Secrets only via environment (`.env`, chmod 600, never committed), typed as `SecretStr` (never logged or serialized). **gitleaks** scans the full history on every push. GitHub secrets are scoped to the `production` environment. | CI `security` job |
 | Vulnerable dependencies | Lockfiles (`uv.lock`, `package-lock.json`) installed frozen; `pip-audit` and `npm audit` in CI; **Trivy** fails the image build on fixable HIGH/CRITICAL, which it did on the official Caddy image, so Caddy is now built from source with patched Go and dependencies ([ADR-017](DECISIONS.md#adr-017-build-caddy-from-source-when-upstream-lags-on-fixes)); Dependabot weekly | `.github/workflows/ci.yml`, `.github/dependabot.yml` |
 | Container escape / lateral movement | Both images run as a non-root user (UID 10001); Caddy holds only `CAP_NET_BIND_SERVICE` (verified: `CapEff 0x400`, `NoNewPrivs 1`). Read-only root filesystem, `cap_drop: ALL`, `no-new-privileges`, tmpfs `/tmp`, memory limits. The database is on an internal network with no route out; the API has no internet egress; only Caddy publishes ports. | Dockerfiles, `deploy/docker-compose.prod.yml` |
-| Server compromise via SSH | Key-only SSH, root login without password disabled, fail2ban, ufw (22/80/443 only), unattended security upgrades | `deploy/scripts/bootstrap-server.sh` |
+| Server compromise via SSH | Key-only SSH, root login without password disabled, fail2ban, host firewall with only 22/80/443 (ufw; on Oracle Cloud, Oracle's iptables `rules.v4` plus the VCN Security List), unattended security upgrades | `deploy/scripts/bootstrap-server.sh` |
 | Unsafe production configuration | The app refuses to start in staging/production with a short admin token, a `*` CORS origin, the fake LLM provider or the default database password; demo seeding refuses to run there | `config.py`, `demo.py` |
 | Supply chain of the deploy | Images are built only by CI, tagged by commit SHA, scanned before push; the server never builds. The bootstrap script is fetched pinned to a commit and read before running. | CI, `DEPLOYMENT.md` |
 
@@ -67,5 +67,5 @@ Please open a private security advisory on the GitHub repository (Security → R
 - [ ] Anthropic key has a spend limit in the Anthropic console, as a second cap next to `LLM_DAILY_BUDGET_USD`.
 - [ ] GitHub `production` environment holds the deploy secrets (not repository-wide), optionally with required reviewers.
 - [ ] `curl -sI https://$DOMAIN` shows HSTS and CSP; `/metrics` returns 404; `/api/v1/admin/runs` without a token returns 401.
-- [ ] `ufw status` shows only 22/80/443; `ssh root@server` with a password fails.
+- [ ] The host firewall allows only 22/80/443 (`ufw status`, or on Oracle `sudo iptables -L INPUT -n`, plus the Security List); `ssh root@server` with a password fails.
 - [ ] Off-site backup configured, or the risk of single-host backups consciously accepted.
