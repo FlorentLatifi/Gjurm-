@@ -6,6 +6,11 @@ name: Source validation
 
 on:
   workflow_dispatch:
+    inputs:
+      enrich_limit:
+        description: "Articles to analyse with Claude when ANTHROPIC_API_KEY is set (1-50; budget capped at $0.02 each, max $1)"
+        type: number
+        default: 8
   schedule:
     - cron: "17 6 * * 1" # weekly, Monday 06:17 UTC
   push:
@@ -51,8 +56,9 @@ jobs:
           retention-days: 90
 
   # End-to-end run of the real pipeline against the live feeds (fresh database every time).
-  # Uses the zero-cost heuristic LLM unless the repository has an ANTHROPIC_API_KEY secret, in
-  # which case a handful of articles are enriched by Claude under a hard $0.10 budget.
+  # Uses the zero-cost keyword rules unless the repository has an ANTHROPIC_API_KEY secret, in
+  # which case the newest articles (8 by default, up to 50 on manual runs) are analysed by Claude
+  # under a hard budget, and a review report of every result is published for a quality check.
   live-pipeline:
     needs: validate
     runs-on: ubuntu-latest
@@ -91,9 +97,54 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           LLM_PROVIDER: anthropic
-          LLM_DAILY_BUDGET_USD: "0.10"
-          ENRICH_MAX_PER_RUN: "8"
-        run: uv run gjurme run --stages enrich,quality | tee "$RUNNER_TEMP/run-enrich.json"
+          LIMIT: ${{ inputs.enrich_limit || 8 }}
+        run: |
+          if ! [[ "$LIMIT" =~ ^[0-9]+$ ]] || (( LIMIT < 1 || LIMIT > 50 )); then
+            echo "::error::enrich_limit must be between 1 and 50"; exit 1
+          fi
+          export ENRICH_MAX_PER_RUN="$LIMIT"
+          LLM_DAILY_BUDGET_USD="$(python3 -c "print(min(1.0, $LIMIT * 0.02))")"
+          export LLM_DAILY_BUDGET_USD
+          echo "Analysing up to $LIMIT articles with a hard budget of \$$LLM_DAILY_BUDGET_USD"
+          uv run gjurme run --stages enrich,quality | tee "$RUNNER_TEMP/run-enrich.json"
+      - name: Claude quality review (every result, tokens and cost)
+        if: env.HAS_LLM_KEY == 'true'
+        env:
+          PGPASSWORD: ci-only-password
+        run: |
+          review="$RUNNER_TEMP/claude-quality-review.md"
+          q() { psql -h localhost -U gjurme -d gjurme -P pager=off -c "$1"; }
+          {
+            echo "## Claude quality review"
+            echo
+            echo "Check each row against its headline: topic, tone, names (persons/orgs/places), summary."
+            echo "\`dropped\` = names the grounding check removed because they are not in the text."
+            echo
+            echo '```'
+            q "SELECT count(*) AS calls, count(*) FILTER (WHERE status = 'succeeded') AS ok,
+                      round(sum(cost_usd), 4) AS usd_total, round(avg(cost_usd), 5) AS usd_per_call,
+                      sum(input_tokens) AS input_tok, sum(cache_read_tokens) AS cache_read_tok,
+                      sum(cache_write_tokens) AS cache_write_tok, sum(output_tokens) AS output_tok,
+                      round(avg(latency_ms)) AS avg_ms
+               FROM core.enrichments WHERE provider = 'anthropic';"
+            q "SELECT status, left(error, 160) AS error FROM core.enrichments
+               WHERE provider = 'anthropic' AND status <> 'succeeded';"
+            q "SELECT s.slug, left(a.title, 90) AS title, t.slug AS topic,
+                      a.sentiment_label || ' ' || a.sentiment_score AS tone,
+                      (SELECT string_agg(e.name || ' [' || left(e.type, 3) || ']', ', '
+                                         ORDER BY e.type, e.name)
+                         FROM core.article_entities ae JOIN core.entities e ON e.id = ae.entity_id
+                        WHERE ae.article_id = a.id) AS names,
+                      en.quality_flags -> 'entities_ungrounded' AS dropped,
+                      left(a.summary_en, 160) AS summary, a.enrichment_confidence AS conf
+               FROM core.enrichments en JOIN core.articles a ON a.id = en.article_id
+               JOIN core.sources s ON s.id = a.source_id
+               LEFT JOIN core.topics t ON t.id = a.primary_topic_id
+               WHERE en.is_current AND en.provider = 'anthropic'
+               ORDER BY a.published_at DESC;"
+            echo '```'
+          } > "$review"
+          cat "$review" >> "$GITHUB_STEP_SUMMARY"
       - name: Enrich (heuristic, no key configured)
         if: env.HAS_LLM_KEY != 'true'
         env:
@@ -123,5 +174,8 @@ jobs:
         if: always()
         with:
           name: live-pipeline-stats
-          path: ${{ runner.temp }}/run-*.json
+          path: |
+            ${{ runner.temp }}/run-*.json
+            ${{ runner.temp }}/claude-quality-review.md
+          if-no-files-found: ignore
           retention-days: 30
