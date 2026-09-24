@@ -13,7 +13,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import desc, select, text, update
 
 from gjurme import __version__
-from gjurme.api.deps import DB, AppSettings
+from gjurme.analytics import queries as q
+from gjurme.api.deps import DB, AppSettings, local_today
 from gjurme.api.schemas import Health, PublicStatus
 from gjurme.api.security import client_ip, require_admin
 from gjurme.db.models import AlertEvent, Article, PipelineRun, Source
@@ -110,6 +111,7 @@ def public_status(db: DB, settings: AppSettings) -> Any:
         "articles_last_24h": counts.new_24h,
         "enrichment_backlog": counts.backlog,
         "sources": sources,
+        "analysis": q.analysis_mode(db, local_today(settings)),
         "demo_data": demo,
         "version": __version__,
     }

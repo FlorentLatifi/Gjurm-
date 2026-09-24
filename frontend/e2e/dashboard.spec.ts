@@ -64,10 +64,12 @@ test.describe("GJURMË dashboard", () => {
     await expect(page.getByRole("region", { name: "Mentions per day" })).toBeVisible();
   });
 
-  test("article detail shows AI analysis and a link to the original", async ({ page }) => {
+  test("article detail discloses how it was analysed and links to the original", async ({ page }) => {
     await page.goto("/articles");
     await page.getByRole("link", { name: /^Analysis details for/ }).first().click();
-    await expect(page.getByRole("heading", { name: "AI analysis" })).toBeVisible();
+    // The demo dataset is analysed by keyword rules, not an LLM, and the page must say so.
+    await expect(page.getByRole("heading", { name: "Rule-based analysis" })).toBeVisible();
+    await expect(page.getByText(/Assigned by keyword rules, not by an AI model/)).toBeVisible();
     await expect(page.getByRole("link", { name: /Read the full article on/ })).toHaveAttribute("target", "_blank");
   });
 

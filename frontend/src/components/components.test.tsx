@@ -5,8 +5,9 @@ import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 
 import { ApiError } from "../api/client";
-import type { ArticleSummary } from "../api/types";
+import type { ArticleSummary, PublicStatus } from "../api/types";
 import { Card } from "./Card";
+import { Layout } from "./Layout";
 import { SentimentBar } from "./charts";
 import { ArticleList, RankList } from "./lists";
 import { StatTile } from "./StatTile";
@@ -137,5 +138,38 @@ describe("RankList & SentimentBar", () => {
   it("describes the tone mix in text for screen readers", () => {
     render(<SentimentBar negative={1} neutral={2} positive={1} />);
     expect(screen.getByRole("img")).toHaveAccessibleName("25% negative, 50% neutral, 25% positive");
+  });
+});
+
+describe("Analysis disclosure banner", () => {
+  const status = (analysis: PublicStatus["analysis"], demo = false): PublicStatus => ({
+    status: "ok",
+    last_run_at: null,
+    last_run_status: "succeeded",
+    last_success_at: new Date().toISOString(),
+    minutes_since_success: 3,
+    scheduler_heartbeat_at: null,
+    articles_last_24h: 10,
+    enrichment_backlog: 0,
+    sources: [],
+    analysis,
+    demo_data: demo,
+    version: "test",
+  });
+  const serve = (body: PublicStatus) =>
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("says plainly when recent articles were analysed by keyword rules", async () => {
+    serve(status({ mode: "mixed", rule_based_share: 0.25, model: "claude-sonnet-5" }));
+    wrap(<Layout />);
+    expect(await screen.findByText(/25% of recent articles were analysed by keyword rules/)).toBeInTheDocument();
+  });
+
+  it("is absent when an AI model did the analysis", async () => {
+    serve(status({ mode: "ai", rule_based_share: 0, model: "claude-sonnet-5" }));
+    wrap(<Layout />);
+    await screen.findAllByText(/updated/i);
+    expect(screen.queryByText(/keyword rules/)).not.toBeInTheDocument();
   });
 });

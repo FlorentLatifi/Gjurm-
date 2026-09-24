@@ -37,7 +37,16 @@ export function AboutPage() {
           different outlets are kept — each outlet’s coverage counts — and linked as the same story.</li>
       </ul>
 
-      <h2>2. AI analysis</h2>
+      <h2 id="analysis">2. AI analysis</h2>
+      {status.data && status.data.analysis.mode !== "ai" && status.data.analysis.mode !== "none" && (
+        <p className="banner" role="note">
+          <strong>Current mode:</strong>{" "}
+          {status.data.analysis.mode === "rules" ? "all" : `${Math.round((status.data.analysis.rule_based_share ?? 0) * 100)}% of`}{" "}
+          recent articles were analysed by <em>keyword rules</em> instead of the language model described
+          below: topics and tone come from lists of Albanian keywords, names from capitalised words,
+          and there is no summary. This is much less accurate. Every article page says which method was used.
+        </p>
+      )}
       <ul>
         <li>Each headline + excerpt is analysed by a large language model (Anthropic Claude) that returns
           a structured record: primary topic (from a fixed list of {taxonomy.data?.length ?? 19} topics),

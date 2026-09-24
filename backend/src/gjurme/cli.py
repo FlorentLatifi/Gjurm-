@@ -281,6 +281,10 @@ def enrich_requeue(
     older_than_version: Annotated[str | None, typer.Option(help="Prompt version cut-off")] = None,
     failed: Annotated[bool, typer.Option(help="Requeue failed/skipped articles")] = False,
     article_id: Annotated[list[int] | None, typer.Option("--article-id")] = None,
+    provider: Annotated[
+        str | None,
+        typer.Option(help="Articles analysed by this provider, e.g. 'fake' (keyword rules)"),
+    ] = None,
 ) -> None:
     """Mark articles for re-enrichment (new prompt/model, post-outage recovery)."""
     _settings()
@@ -289,7 +293,11 @@ def enrich_requeue(
 
     with session_scope() as s:
         n = requeue(
-            s, older_than_prompt=older_than_version, article_ids=article_id, include_failed=failed
+            s,
+            older_than_prompt=older_than_version,
+            article_ids=article_id,
+            include_failed=failed,
+            provider=provider,
         )
     typer.echo(f"requeued {n} articles")
 
