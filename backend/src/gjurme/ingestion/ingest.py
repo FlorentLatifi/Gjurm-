@@ -151,8 +151,7 @@ def store_fetch_result(
         if result.status == "ok":
             source.etag = result.etag
             source.last_modified = result.last_modified
-        if source.verification_status == "failing":
-            source.verification_status = "verified"
+        source.verification_status = "verified"  # proven by a successful fetch
     else:
         source.consecutive_failures += 1
         if source.consecutive_failures >= failure_threshold and source.is_active:

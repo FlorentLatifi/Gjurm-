@@ -1,6 +1,7 @@
 # Verifies every registered RSS source from a network with open egress and publishes the
-# evidence (format, item count, field coverage, timestamps, discovered alternatives).
-# This is how feed URLs are *verified* rather than assumed — see docs/SOURCES.md.
+# evidence (format, item count, field coverage, timestamps, discovered alternatives), then runs
+# the real pipeline against the live feeds. This is how feed URLs are *verified* rather than
+# assumed — see docs/SOURCES.md.
 name: Source validation
 
 on:
@@ -48,3 +49,79 @@ jobs:
           name: source-report
           path: ${{ runner.temp }}/source-report.*
           retention-days: 90
+
+  # End-to-end run of the real pipeline against the live feeds (fresh database every time).
+  # Uses the zero-cost heuristic LLM unless the repository has an ANTHROPIC_API_KEY secret, in
+  # which case a handful of articles are enriched by Claude under a hard $0.10 budget.
+  live-pipeline:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gjurme
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: gjurme
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gjurme" --health-interval 5s --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://gjurme:ci-only-password@localhost:5432/gjurme
+      GJURME_ENV: test
+      LOG_FORMAT: text
+      HAS_LLM_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --frozen --no-dev
+      - run: uv run gjurme db upgrade
+      - name: Ingest + process live feeds
+        run: uv run gjurme run --stages ingest,process | tee "$RUNNER_TEMP/run-ingest.json"
+      - name: Enrich (Claude, capped)
+        if: env.HAS_LLM_KEY == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LLM_PROVIDER: anthropic
+          LLM_DAILY_BUDGET_USD: "0.10"
+          ENRICH_MAX_PER_RUN: "8"
+        run: uv run gjurme run --stages enrich,quality | tee "$RUNNER_TEMP/run-enrich.json"
+      - name: Enrich (heuristic, no key configured)
+        if: env.HAS_LLM_KEY != 'true'
+        env:
+          LLM_PROVIDER: fake
+        run: uv run gjurme run --stages enrich,quality | tee "$RUNNER_TEMP/run-enrich.json"
+      - name: Sample of stored articles
+        if: always()
+        run: |
+          {
+            echo "## Live pipeline sample"
+            echo
+            echo '```'
+            PGPASSWORD=ci-only-password psql -h localhost -U gjurme -d gjurme -c "
+              SELECT s.slug, count(*) AS articles, min(a.published_at)::timestamp(0) AS oldest,
+                     max(a.published_at)::timestamp(0) AS newest,
+                     count(*) FILTER (WHERE a.enrichment_status = 'succeeded') AS enriched
+              FROM core.articles a JOIN core.sources s ON s.id = a.source_id
+              GROUP BY s.slug ORDER BY s.slug;"
+            PGPASSWORD=ci-only-password psql -h localhost -U gjurme -d gjurme -c "
+              SELECT s.slug, left(a.title, 90) AS title, t.slug AS topic, a.sentiment_label
+              FROM core.articles a JOIN core.sources s ON s.id = a.source_id
+              LEFT JOIN core.topics t ON t.id = a.primary_topic_id
+              ORDER BY a.published_at DESC LIMIT 15;"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: live-pipeline-stats
+          path: ${{ runner.temp }}/run-*.json
+          retention-days: 30
