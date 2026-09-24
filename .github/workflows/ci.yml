@@ -1,0 +1,245 @@
+# CI/CD: every push and PR is linted, type-checked, tested (unit + PostgreSQL integration +
+# full-stack browser E2E) and security-scanned. Pushes to main additionally build, scan and
+# publish container images to GHCR and — when deployment is configured — deploy them.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  backend:
+    name: Backend (lint, types, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gjurme_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/gjurme_test
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Lint (ruff, incl. bandit security rules)
+        run: uv run ruff check src tests
+      - name: Format
+        run: uv run ruff format --check src tests
+      - name: Types (mypy --strict)
+        run: uv run mypy
+      - name: Tests (unit + integration, migrations drift check)
+        run: uv run pytest --cov=gjurme --cov-report=term --cov-report=xml:coverage.xml --cov-fail-under=85
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          retention-days: 14
+
+  frontend:
+    name: Frontend (lint, types, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --coverage
+      - run: npm run build
+
+  security:
+    name: Security (secrets, dependencies)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # scan the full history for leaked secrets
+      - name: Secret scanning (gitleaks)
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest \
+            detect --source /repo --redact --no-banner -v
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Python dependency audit (pip-audit)
+        working-directory: backend
+        run: |
+          uv export --frozen --no-dev --no-hashes --no-emit-project --format requirements-txt > /tmp/requirements.txt
+          uvx pip-audit --strict -r /tmp/requirements.txt
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: npm audit (production dependencies)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+  e2e:
+    name: End-to-end (Docker stack + Playwright)
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RATE_LIMIT_PER_MINUTE: "100000" # one runner IP plays thousands of "users"
+      RATE_LIMIT_SEARCH_PER_MINUTE: "100000"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Start stack with demo data
+        run: |
+          docker compose --profile demo up -d --build --wait db api web
+          docker compose --profile demo up demo --exit-code-from demo
+      - name: Smoke test through the edge
+        run: |
+          for path in /health/ready /api/v1/status "/api/v1/analytics/overview?days=7" /; do
+            curl -fsS -o /dev/null -w "%{http_code} $path\n" "http://localhost:8080$path"
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/metrics)" = "404"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Playwright
+        working-directory: frontend
+        env:
+          E2E_BASE_URL: http://localhost:8080
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 14
+      - name: Container logs
+        if: failure()
+        run: docker compose logs --tail 200
+
+  images:
+    name: Build, scan & publish images
+    needs: [backend, frontend, security, e2e]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        component: [api, web]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Image name (GHCR requires lowercase)
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gjurme-${{ matrix.component }}" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v6
+        id: meta
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,format=long,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.component == 'api' && 'backend' || 'frontend' }}
+          build-args: |
+            VERSION=${{ github.sha }}
+          load: true
+          tags: ${{ env.IMAGE }}:scan
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+      - name: Vulnerability scan (fixable HIGH/CRITICAL fail the build)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:scan
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.component == 'api' && 'backend' || 'frontend' }}
+          build-args: |
+            VERSION=${{ github.sha }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+
+  deploy:
+    name: Deploy to production
+    needs: [images]
+    # Opt-in: set repository variable DEPLOY_ENABLED=true once the server and secrets exist.
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://${{ vars.DOMAIN }}
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false # never interrupt a running deploy
+    steps:
+      - uses: actions/checkout@v7
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Upload deployment files
+        env:
+          TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+        run: |
+          scp deploy/docker-compose.prod.yml deploy/scripts/deploy.sh "$TARGET:/opt/gjurme/"
+          scp -r deploy/backup "$TARGET:/opt/gjurme/"
+      - name: Deploy (health-verified, auto-rollback)
+        env:
+          TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+        run: ssh "$TARGET" "cd /opt/gjurme && ./deploy.sh ${{ github.sha }}"
+      - name: Post-deploy smoke test
+        run: |
+          curl -fsS "https://${{ vars.DOMAIN }}/health/ready"
+          curl -fsS "https://${{ vars.DOMAIN }}/api/v1/status" | tee /dev/stderr | grep -q '"version"'
