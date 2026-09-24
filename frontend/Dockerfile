@@ -2,7 +2,7 @@
 # Web edge image: the built SPA served by Caddy, which also terminates TLS and proxies /api.
 
 # ---------------------------------------------------------------- build the SPA
-FROM node:22-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 # Optional extra CA bundle for builds behind a TLS-intercepting proxy (see backend/Dockerfile).
