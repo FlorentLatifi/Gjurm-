@@ -274,6 +274,7 @@ def topic_detail(session: Session, slug: str, rng: Range) -> dict[str, Any] | No
              c AS (SELECT a.published_date AS day, count(*) AS n, avg(a.sentiment_score) AS s
                    FROM core.articles a JOIN core.sources s ON s.id = a.source_id
                    JOIN core.article_topics at ON at.article_id = a.id AND at.topic_id = :topic_id
+                    AND at.published_date BETWEEN :start AND :end
                    WHERE {WHERE} GROUP BY 1)
         SELECT days.day, coalesce(c.n, 0) AS articles, c.s AS avg_sentiment
         FROM days LEFT JOIN c USING (day) ORDER BY days.day
@@ -286,9 +287,10 @@ def topic_detail(session: Session, slug: str, rng: Range) -> dict[str, Any] | No
         SELECT e.id, e.name, e.type, count(*) AS mentions
         FROM core.articles a JOIN core.sources s ON s.id = a.source_id
         JOIN core.article_topics at ON at.article_id = a.id AND at.topic_id = :topic_id
+                    AND at.published_date BETWEEN :start AND :end
         JOIN core.article_entities ae ON ae.article_id = a.id
         JOIN core.entities e ON e.id = ae.entity_id
-        WHERE {WHERE} GROUP BY e.id, e.name, e.type ORDER BY mentions DESC, e.name LIMIT 15
+        WHERE {WHERE} GROUP BY e.id, e.name, e.type ORDER BY mentions DESC, e.name, e.id LIMIT 15
     """,
         p,
     )
@@ -298,7 +300,8 @@ def topic_detail(session: Session, slug: str, rng: Range) -> dict[str, Any] | No
         SELECT s.slug, s.name, count(*) AS articles, avg(a.sentiment_score) AS avg_sentiment
         FROM core.articles a JOIN core.sources s ON s.id = a.source_id
         JOIN core.article_topics at ON at.article_id = a.id AND at.topic_id = :topic_id
-        WHERE {WHERE} GROUP BY s.slug, s.name ORDER BY articles DESC
+                    AND at.published_date BETWEEN :start AND :end
+        WHERE {WHERE} GROUP BY s.slug, s.name ORDER BY articles DESC, s.slug
     """,
         p,
     )
@@ -324,28 +327,44 @@ def top_entities(
 ) -> list[dict[str, Any]]:
     prev = rng.previous()
     key = normalize_key(q) if q else None
+    # Type/name filters apply before aggregation; the join is omitted when there is nothing to
+    # filter (it would cost one lookup per mention). Only fixed SQL fragments are composed.
+    entity_filter = (
+        """JOIN core.entities e ON e.id = ae.entity_id
+               AND (CAST(:etype AS text) IS NULL OR e.type = :etype)
+               AND (CAST(:key AS text) IS NULL OR e.normalized_key LIKE '%' || :key || '%')"""
+        if entity_type or key
+        else ""
+    )
     rows = _rows(
         session,
         f"""
-        WITH cur AS (
-          SELECT ae.entity_id, count(*) AS n, avg(a.sentiment_score) AS avg_sentiment,
-                 count(DISTINCT a.source_id) AS sources
+        -- Two-level aggregate (entity, source) -> entity instead of count(DISTINCT): hashable,
+        -- no sort spill. The previous period is only computed for the page being returned.
+        WITH per_source AS (
+          SELECT ae.entity_id, a.source_id, count(*) AS n,
+                 sum(a.sentiment_score) AS s_sum, count(a.sentiment_score) AS s_n
           FROM core.articles a JOIN core.sources s ON s.id = a.source_id
           JOIN core.article_entities ae ON ae.article_id = a.id
-          WHERE {WHERE} GROUP BY 1),
+               AND ae.published_date BETWEEN :start AND :end
+          {entity_filter}
+          WHERE {WHERE} GROUP BY 1, 2),
+        page AS (
+          SELECT e.id, e.name, e.type, sum(p.n)::int AS mentions,
+                 sum(p.s_sum) / nullif(sum(p.s_n), 0) AS avg_sentiment, count(*) AS sources
+          FROM per_source p JOIN core.entities e ON e.id = p.entity_id
+          GROUP BY e.id ORDER BY mentions DESC, e.name, e.id LIMIT :limit OFFSET :offset),
         prev AS (
           SELECT ae.entity_id, count(*) AS n
           FROM core.articles a JOIN core.sources s ON s.id = a.source_id
           JOIN core.article_entities ae ON ae.article_id = a.id
+               AND ae.published_date BETWEEN :pstart AND :pend
+               AND ae.entity_id IN (SELECT id FROM page)
           WHERE a.published_date BETWEEN :pstart AND :pend AND NOT a.is_hidden
             AND (:all_sources OR s.slug = ANY(:sources)) GROUP BY 1)
-        SELECT e.id, e.name, e.type, cur.n AS mentions, coalesce(prev.n, 0) AS previous,
-               cur.avg_sentiment, cur.sources
-        FROM cur JOIN core.entities e ON e.id = cur.entity_id
-        LEFT JOIN prev ON prev.entity_id = cur.entity_id
-        WHERE (CAST(:etype AS text) IS NULL OR e.type = :etype)
-          AND (CAST(:key AS text) IS NULL OR e.normalized_key LIKE '%' || :key || '%')
-        ORDER BY mentions DESC, e.name LIMIT :limit OFFSET :offset
+        SELECT page.*, coalesce(prev.n, 0) AS previous
+        FROM page LEFT JOIN prev ON prev.entity_id = page.id
+        ORDER BY page.mentions DESC, page.name, page.id
     """,
         {
             **rng.params(),
@@ -382,14 +401,18 @@ def entity_spikes(
         WITH recent AS (
           SELECT ae.entity_id, count(*) AS x
           FROM core.article_entities ae JOIN core.articles a ON a.id = ae.article_id
-          WHERE a.published_at > :as_of - interval '24 hours' AND a.published_at <= :as_of
+          WHERE ae.published_date >= CAST(:as_of AS date) - 2
+            AND a.published_at > :as_of - interval '24 hours' AND a.published_at <= :as_of
             AND NOT a.is_hidden
-          GROUP BY 1),
+          GROUP BY 1 HAVING count(*) >= :min),
+        -- Baseline only for candidates that can qualify (not for every entity).
         base AS (
           SELECT ae.entity_id, a.published_at::date AS d, count(*) AS n
           FROM core.article_entities ae JOIN core.articles a ON a.id = ae.article_id
-          WHERE a.published_at > :as_of - make_interval(days => :bdays + 1)
+          WHERE ae.published_date >= CAST(:as_of AS date) - (:bdays + 3)
+            AND a.published_at > :as_of - make_interval(days => :bdays + 1)
             AND a.published_at <= :as_of - interval '24 hours' AND NOT a.is_hidden
+            AND ae.entity_id IN (SELECT entity_id FROM recent)
           GROUP BY 1, 2),
         stats AS (
           SELECT entity_id, sum(n)::numeric / :bdays AS mean,
@@ -401,8 +424,7 @@ def entity_spikes(
                (r.x - coalesce(st.mean, 0)) / greatest(coalesce(st.std, 0), 1) AS z
         FROM recent r JOIN core.entities e ON e.id = r.entity_id
         LEFT JOIN stats st ON st.entity_id = r.entity_id
-        WHERE r.x >= :min
-        ORDER BY z DESC, r.x DESC LIMIT :limit
+        ORDER BY z DESC, r.x DESC, e.name, e.id LIMIT :limit
     """,
         {"as_of": as_of, "bdays": baseline_days, "min": min_mentions, "limit": limit},
     )
@@ -443,6 +465,7 @@ def entity_detail(session: Session, entity_id: int, rng: Range) -> dict[str, Any
              c AS (SELECT a.published_date AS day, count(*) AS n, avg(a.sentiment_score) AS s
                    FROM core.articles a JOIN core.sources s ON s.id = a.source_id
                    JOIN core.article_entities ae ON ae.article_id = a.id AND ae.entity_id = :eid
+                    AND ae.published_date BETWEEN :start AND :end
                    WHERE {WHERE} GROUP BY 1)
         SELECT days.day, coalesce(c.n, 0) AS mentions, c.s AS avg_sentiment
         FROM days LEFT JOIN c USING (day) ORDER BY days.day
@@ -458,8 +481,9 @@ def entity_detail(session: Session, entity_id: int, rng: Range) -> dict[str, Any
         JOIN core.sources s ON s.id = a.source_id
         JOIN core.article_entities o ON o.article_id = me.article_id AND o.entity_id <> me.entity_id
         JOIN core.entities e ON e.id = o.entity_id
-        WHERE me.entity_id = :eid AND {WHERE}
-        GROUP BY e.id, e.name, e.type ORDER BY together DESC, e.name LIMIT 12
+        WHERE me.entity_id = :eid AND me.published_date BETWEEN :start AND :end
+          AND o.published_date BETWEEN :start AND :end AND {WHERE}
+        GROUP BY e.id, e.name, e.type ORDER BY together DESC, e.name, e.id LIMIT 12
     """,
         p,
     )
@@ -469,8 +493,9 @@ def entity_detail(session: Session, entity_id: int, rng: Range) -> dict[str, Any
         SELECT t.slug, t.name_en, count(*) AS articles
         FROM core.articles a JOIN core.sources s ON s.id = a.source_id
         JOIN core.article_entities ae ON ae.article_id = a.id AND ae.entity_id = :eid
+                    AND ae.published_date BETWEEN :start AND :end
         JOIN core.topics t ON t.id = a.primary_topic_id
-        WHERE {WHERE} GROUP BY t.slug, t.name_en ORDER BY articles DESC
+        WHERE {WHERE} GROUP BY t.slug, t.name_en ORDER BY articles DESC, t.slug
     """,
         p,
     )
@@ -480,7 +505,8 @@ def entity_detail(session: Session, entity_id: int, rng: Range) -> dict[str, Any
         SELECT s.slug, s.name, count(*) AS articles, avg(a.sentiment_score) AS avg_sentiment
         FROM core.articles a JOIN core.sources s ON s.id = a.source_id
         JOIN core.article_entities ae ON ae.article_id = a.id AND ae.entity_id = :eid
-        WHERE {WHERE} GROUP BY s.slug, s.name ORDER BY articles DESC
+                    AND ae.published_date BETWEEN :start AND :end
+        WHERE {WHERE} GROUP BY s.slug, s.name ORDER BY articles DESC, s.slug
     """,
         p,
     )
@@ -505,17 +531,21 @@ def co_occurrence(
     return _rows(
         session,
         f"""
+        -- Count pairs on ids first; names are joined only for the returned pairs.
+        WITH pairs AS (
+          SELECT x.entity_id AS a_id, y.entity_id AS b_id, count(*) AS together
+          FROM core.articles a JOIN core.sources s ON s.id = a.source_id
+          JOIN core.article_entities x ON x.article_id = a.id
+               AND x.published_date BETWEEN :start AND :end
+          JOIN core.article_entities y ON y.article_id = a.id AND x.entity_id < y.entity_id
+               AND y.published_date BETWEEN :start AND :end
+          WHERE {WHERE}
+          GROUP BY 1, 2 HAVING count(*) >= :min)
         SELECT e1.id AS a_id, e1.name AS a_name, e1.type AS a_type,
-               e2.id AS b_id, e2.name AS b_name, e2.type AS b_type, count(*) AS together
-        FROM core.articles a JOIN core.sources s ON s.id = a.source_id
-        JOIN core.article_entities x ON x.article_id = a.id
-        JOIN core.article_entities y ON y.article_id = a.id AND x.entity_id < y.entity_id
-        JOIN core.entities e1 ON e1.id = x.entity_id
-        JOIN core.entities e2 ON e2.id = y.entity_id
-        WHERE {WHERE}
-        GROUP BY e1.id, e1.name, e1.type, e2.id, e2.name, e2.type
-        HAVING count(*) >= :min
-        ORDER BY together DESC, e1.name, e2.name LIMIT :limit
+               e2.id AS b_id, e2.name AS b_name, e2.type AS b_type, p.together
+        FROM pairs p JOIN core.entities e1 ON e1.id = p.a_id
+        JOIN core.entities e2 ON e2.id = p.b_id
+        ORDER BY p.together DESC, e1.name, e2.name, e1.id, e2.id LIMIT :limit
     """,
         {**rng.params(), "limit": limit, "min": min_count},
     )
@@ -564,7 +594,7 @@ def sentiment_series(session: Session, rng: Range, group_by: str | None = None) 
         FROM core.articles a JOIN core.sources s ON s.id = a.source_id
         LEFT JOIN core.topics t ON t.id = a.primary_topic_id
         WHERE {WHERE} AND a.sentiment_score IS NOT NULL AND {key} IS NOT NULL
-        GROUP BY 1 ORDER BY average
+        GROUP BY 1 ORDER BY average, 1
     """,
         rng.params(),
     )
@@ -650,7 +680,7 @@ def sources_compare(session: Session, rng: Range) -> list[dict[str, Any]]:
         FROM core.sources s LEFT JOIN per ON per.source_id = s.id
         WHERE (:all_sources OR s.slug = ANY(:sources))
           AND (per.n IS NOT NULL OR s.is_active)
-        ORDER BY articles DESC, s.name
+        ORDER BY articles DESC, s.name, s.slug
     """,
         rng.params(),
     )
@@ -696,7 +726,8 @@ def search_articles(
               WHERE at.article_id = a.id AND t.slug = :topic))
         AND (CAST(:eid AS bigint) IS NULL OR EXISTS (
               SELECT 1 FROM core.article_entities ae
-              WHERE ae.article_id = a.id AND ae.entity_id = :eid))
+              WHERE ae.article_id = a.id AND ae.entity_id = :eid
+                AND ae.published_date BETWEEN :start AND :end))
     """
     total = session.execute(
         text(f"""
@@ -756,7 +787,7 @@ def article_detail(session: Session, article_id: int) -> dict[str, Any] | None:
         """
         SELECT e.id, e.name, e.type FROM core.article_entities ae
         JOIN core.entities e ON e.id = ae.entity_id WHERE ae.article_id = :id
-        ORDER BY e.type, e.name""",
+        ORDER BY e.type, e.name, e.id""",
         {"id": article_id},
     )
     art["related"] = _rows(
@@ -766,7 +797,7 @@ def article_detail(session: Session, article_id: int) -> dict[str, Any] | None:
         FROM core.articles a JOIN core.sources s ON s.id = a.source_id
         WHERE NOT a.is_hidden AND a.id <> :id AND (
               a.duplicate_of_id = coalesce(:root, :id) OR a.id = coalesce(:root, :id))
-        ORDER BY a.published_at LIMIT 10""",
+        ORDER BY a.published_at, a.id LIMIT 10""",
         {"id": article_id, "root": art["duplicate_of_id"]},
     )
     return art

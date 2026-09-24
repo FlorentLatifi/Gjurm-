@@ -84,3 +84,62 @@ def test_demo_seed_through_real_pipeline(db, settings) -> None:  # type: ignore[
         db, settings.model_copy(update={"enrich_max_per_run": 10_000}), FakeProvider()
     )
     assert stats.failed == {} and stats.succeeded + stats.cached == processed.accepted
+
+
+def test_bridge_published_date_triggers(session) -> None:  # type: ignore[no-untyped-def]
+    """Migration 0002 is expand-only: an insert that omits published_date (as the previous
+    release does) is completed by the trigger from the parent article, and a later correction
+    of the article's date is propagated."""
+    from datetime import UTC, date, datetime
+
+    from gjurme.db.models import Article, Entity
+    from tests.integration.helpers import add_source
+
+    src = add_source(session, "trg")
+    art = Article(
+        source_id=src.id,
+        url="https://trg.example.com/1",
+        canonical_url="x",
+        url_hash="h" * 64,
+        title="t",
+        title_normalized="t",
+        title_hash="t",
+        language="sq",
+        published_at=datetime(2026, 3, 1, 10, tzinfo=UTC),
+        published_date=date(2026, 3, 1),
+        content_hash="c",
+    )
+    ent = Entity(type="person", name="Test Person", normalized_key="test person")
+    session.add_all([art, ent])
+    session.flush()
+    session.execute(
+        text("INSERT INTO core.article_entities (article_id, entity_id) VALUES (:a, :e)"),
+        {"a": art.id, "e": ent.id},
+    )
+    session.execute(
+        text(
+            "INSERT INTO core.article_topics (article_id, topic_id, is_primary) "
+            "VALUES (:a, 1, true)"
+        ),
+        {"a": art.id},
+    )
+    got = session.execute(
+        text(
+            "SELECT (SELECT published_date FROM core.article_entities WHERE article_id = :a), "
+            "(SELECT published_date FROM core.article_topics WHERE article_id = :a)"
+        ),
+        {"a": art.id},
+    ).one()
+    assert got == (date(2026, 3, 1), date(2026, 3, 1))
+    # A corrected article date propagates to the bridge copies (no silent drift).
+    session.execute(
+        text("UPDATE core.articles SET published_date = '2026-03-02' WHERE id = :a"), {"a": art.id}
+    )
+    got = session.execute(
+        text(
+            "SELECT (SELECT published_date FROM core.article_entities WHERE article_id = :a), "
+            "(SELECT published_date FROM core.article_topics WHERE article_id = :a)"
+        ),
+        {"a": art.id},
+    ).one()
+    assert got == (date(2026, 3, 2), date(2026, 3, 2))

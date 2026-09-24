@@ -169,7 +169,12 @@ def client(db: sessionmaker[Session], api_settings: Settings) -> TestClient:
 def test_health_and_ready(client: TestClient) -> None:
     assert client.get("/health").json()["status"] == "ok"
     ready = client.get("/health/ready").json()
-    assert ready["database"] is True and ready["migrations"] == "0001"
+    from alembic.script import ScriptDirectory
+
+    from gjurme.cli import alembic_config
+
+    head = ScriptDirectory.from_config(alembic_config("")).get_current_head()
+    assert ready["database"] is True and ready["migrations"] == head
 
 
 def test_ready_reports_database_down(api_settings: Settings) -> None:
@@ -225,6 +230,11 @@ def test_entities_list_detail_and_search(client: TestClient, dataset: dict[str, 
     people = client.get("/api/v1/entities", params={"type": "person", "days": 7}).json()
     assert [p["name"] for p in people] == ["Drita Berisha"]
     assert people[0]["mentions"] == 6  # hidden article not counted
+    # Unfiltered ranking takes a different SQL path (no entity join); numbers must agree.
+    everyone = client.get("/api/v1/entities", params={"days": 7}).json()
+    assert next(e for e in everyone if e["name"] == "Drita Berisha") == people[0]
+    mentions = [e["mentions"] for e in everyone]
+    assert mentions == sorted(mentions, reverse=True) and len(everyone) > 1
     found = client.get("/api/v1/entities", params={"q": "prizr"}).json()
     assert found[0]["name"] == "Prizren"
     detail = client.get(f"/api/v1/entities/{found[0]['id']}", params={"days": 7}).json()

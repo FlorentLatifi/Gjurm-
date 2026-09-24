@@ -33,6 +33,11 @@ def build_engine(
         with dbapi_conn.cursor() as cur:
             cur.execute(f"SET statement_timeout = {int(statement_timeout_ms)}")
             cur.execute("SET TIME ZONE 'UTC'")
+            # psycopg prepares a statement after 5 executions and PostgreSQL may then switch to
+            # a generic plan, which cannot fold the optional filters (`:x IS NULL OR ...`) or
+            # use date-range selectivity: analytics queries measured ~2x slower. Re-planning
+            # with the real parameters costs ~1 ms (docs/TESTING.md#performance).
+            cur.execute("SET plan_cache_mode = force_custom_plan")
         dbapi_conn.commit()
 
     return engine
