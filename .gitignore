@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+*.tsbuildinfo
+
+# Secrets / local config — never commit
+.env
+.env.*
+!.env.example
+deploy/.env
+*.pem
+*.key
+
+# Runtime data
+backups/
+*.dump
+*.log
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
