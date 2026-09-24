@@ -232,6 +232,12 @@ class ArticleTopic(Base):
     __tablename__ = "article_topics"
     __table_args__ = (
         Index("ix_article_topics_topic_article", "topic_id", "article_id"),
+        Index(
+            "ix_article_topics_date_topic",
+            "published_date",
+            "topic_id",
+            postgresql_include=["article_id"],
+        ),
         {"schema": "core"},
     )
 
@@ -240,6 +246,10 @@ class ArticleTopic(Base):
     )
     topic_id: Mapped[int] = mapped_column(ForeignKey("core.topics.id"), primary_key=True)
     is_primary: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # Copy of the article's published_date (migration 0002) so windowed queries range-scan the
+    # bridge instead of its whole history. Written by the app; DB triggers fill it for writers
+    # that omit it and propagate corrections of the article's date.
+    published_date: Mapped[date] = mapped_column(Date, nullable=False)
 
 
 class ArticleEntity(Base):
@@ -248,6 +258,12 @@ class ArticleEntity(Base):
     __tablename__ = "article_entities"
     __table_args__ = (
         Index("ix_article_entities_entity_article", "entity_id", "article_id"),
+        Index(
+            "ix_article_entities_date_entity",
+            "published_date",
+            "entity_id",
+            postgresql_include=["article_id"],
+        ),
         {"schema": "core"},
     )
 
@@ -257,6 +273,7 @@ class ArticleEntity(Base):
     entity_id: Mapped[int] = mapped_column(
         ForeignKey("core.entities.id", ondelete="CASCADE"), primary_key=True
     )
+    published_date: Mapped[date] = mapped_column(Date, nullable=False)  # see ArticleTopic
 
 
 class Enrichment(Base):

@@ -60,7 +60,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "DTZ", "N802", "PT018", "RUF012", "PT022"]
-"src/gjurme/migrations/**" = ["E501", "UP", "I"]
+"src/gjurme/migrations/**" = ["E501", "UP", "I", "S608"]
 
 [tool.mypy]
 python_version = "3.11"

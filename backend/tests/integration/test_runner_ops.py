@@ -245,3 +245,22 @@ def test_dispatcher_records_delivery_failure(db, settings) -> None:
     with db() as s, s.begin():
         [event] = dispatcher.dispatch(s, [Alert("k", "warning", "T", "M")])
     assert not event.delivered and event.delivery_error == "HTTP 500"
+
+
+def test_engine_session_defaults(engine) -> None:  # type: ignore[no-untyped-def]
+    """Every app connection gets the guard rails and always plans with real parameters."""
+    from gjurme.db.session import build_engine
+    from tests.conftest import TEST_DATABASE_URL
+
+    eng = build_engine(TEST_DATABASE_URL, statement_timeout_ms=1234)
+    try:
+        with eng.connect() as conn:
+            got = conn.execute(
+                text(
+                    "SELECT current_setting('plan_cache_mode'), current_setting('TimeZone'), "
+                    "current_setting('statement_timeout')"
+                )
+            ).one()
+    finally:
+        eng.dispose()
+    assert tuple(got) == ("force_custom_plan", "UTC", "1234ms")

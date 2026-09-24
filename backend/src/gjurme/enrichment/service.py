@@ -292,7 +292,7 @@ def _upsert_entities(session: Session, output: EnrichmentOutput) -> list[int]:
 def apply_output(session: Session, article_id: int, output: EnrichmentOutput) -> None:
     """Make ``output`` the article's current analysis (denormalized fields + bridges)."""
     now = datetime.now(UTC)
-    session.execute(
+    published_date = session.execute(
         update(Article)
         .where(Article.id == article_id)
         .values(
@@ -307,17 +307,25 @@ def apply_output(session: Session, article_id: int, output: EnrichmentOutput) ->
             summary_en=output.summary_en,
             enrichment_confidence=round(output.confidence, 3),
         )
-    )
+        .returning(Article.published_date)
+    ).scalar_one()
+    # Bridges carry the article's date for windowed index scans (migration 0002).
     session.execute(delete(ArticleTopic).where(ArticleTopic.article_id == article_id))
     topic_rows = [
         {
             "article_id": article_id,
             "topic_id": TOPIC_BY_SLUG[output.primary_topic].id,
             "is_primary": True,
+            "published_date": published_date,
         }
     ]
     topic_rows += [
-        {"article_id": article_id, "topic_id": TOPIC_BY_SLUG[s].id, "is_primary": False}
+        {
+            "article_id": article_id,
+            "topic_id": TOPIC_BY_SLUG[s].id,
+            "is_primary": False,
+            "published_date": published_date,
+        }
         for s in output.secondary_topics
     ]
     session.execute(insert(ArticleTopic).values(topic_rows).on_conflict_do_nothing())
@@ -326,7 +334,12 @@ def apply_output(session: Session, article_id: int, output: EnrichmentOutput) ->
     if entity_ids:
         session.execute(
             insert(ArticleEntity)
-            .values([{"article_id": article_id, "entity_id": eid} for eid in entity_ids])
+            .values(
+                [
+                    {"article_id": article_id, "entity_id": eid, "published_date": published_date}
+                    for eid in entity_ids
+                ]
+            )
             .on_conflict_do_nothing()
         )
 
