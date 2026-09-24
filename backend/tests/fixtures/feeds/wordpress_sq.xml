@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+	<title>Portali Test</title>
+	<link>https://portali.example.com</link>
+	<description>Lajmet e fundit</description>
+	<language>sq</language>
+	<lastBuildDate>Wed, 24 Sep 2026 10:05:00 +0000</lastBuildDate>
+	<item>
+		<title>Kuvendi i Kosovës miraton buxhetin për vitin 2027</title>
+		<link>https://portali.example.com/lajme/kuvendi-miraton-buxhetin/?utm_source=rss&amp;utm_medium=feed</link>
+		<dc:creator><![CDATA[Redaksia]]></dc:creator>
+		<pubDate>Wed, 24 Sep 2026 09:30:00 +0000</pubDate>
+		<category><![CDATA[Politikë]]></category>
+		<category><![CDATA[Lajme]]></category>
+		<guid isPermaLink="false">https://portali.example.com/?p=101</guid>
+		<description><![CDATA[<p>Deputetët e Kuvendit të Kosovës miratuan sot buxhetin me 61 vota &#8220;për&#8221;.</p><p>The post <a href="https://portali.example.com/lajme/kuvendi-miraton-buxhetin/">Kuvendi i Kosovës miraton buxhetin për vitin 2027</a> appeared first on <a href="https://portali.example.com">Portali Test</a>.</p>]]></description>
+		<content:encoded><![CDATA[<p>Full article text that we must never store.</p>]]></content:encoded>
+	</item>
+	<item>
+		<title>Aksident në magjistralen Prishtinë–Ferizaj, plagosen dy persona</title>
+		<link>https://portali.example.com/lajme/aksident-magjistrale/</link>
+		<dc:creator><![CDATA[Arta Çollaku]]></dc:creator>
+		<pubDate>Wed, 24 Sep 2026 11:15:00 +0200</pubDate>
+		<category><![CDATA[Aksidente]]></category>
+		<guid isPermaLink="false">https://portali.example.com/?p=102</guid>
+		<description><![CDATA[Policia e Kosovës njoftoi se aksidenti ndodhi rreth orës 10:00 […]]]></description>
+	</item>
+	<item>
+		<title>FC Prishtina fiton derbin në minutën e fundit</title>
+		<link>https://portali.example.com/sport/prishtina-fiton-derbin/</link>
+		<pubDate>Tue, 23 Sep 2026 20:45:00 +0000</pubDate>
+		<category><![CDATA[Sport]]></category>
+		<guid isPermaLink="false">https://portali.example.com/?p=103</guid>
+		<description><![CDATA[Golin e fitores e shënoi sulmuesi në minutën e 94-t.]]></description>
+	</item>
+</channel>
+</rss>

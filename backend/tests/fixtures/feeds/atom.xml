@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+  <title>Regional News</title>
+  <link href="https://regional.example.org/"/>
+  <updated>2026-09-24T08:00:00Z</updated>
+  <id>urn:uuid:regional-news</id>
+  <entry>
+    <title>Kosovo and Serbia negotiators meet in Brussels</title>
+    <link href="https://regional.example.org/2026/09/24/dialogue-brussels/"/>
+    <id>tag:regional.example.org,2026:1001</id>
+    <updated>2026-09-24T07:30:00+02:00</updated>
+    <summary>EU-facilitated talks resumed on energy and missing persons.</summary>
+    <author><name>Staff</name></author>
+  </entry>
+  <entry>
+    <title>North Macedonia opens new border crossing with Albania</title>
+    <link href="https://regional.example.org/2026/09/23/border-crossing/"/>
+    <id>tag:regional.example.org,2026:1002</id>
+    <updated>2026-09-23T15:00:00Z</updated>
+    <summary>The crossing near Ohrid is expected to cut waiting times.</summary>
+  </entry>
+</feed>
