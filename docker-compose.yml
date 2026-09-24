@@ -1,0 +1,105 @@
+# Local full stack: Postgres + migrations + API + scheduler + Caddy/SPA, built from source.
+#
+#   docker compose up --build                       # live pipeline (needs internet; see .env.example)
+#   docker compose --profile demo up --build        # + synthetic demo dataset, no API key needed
+#   open http://localhost:8080
+#
+# Production uses deploy/docker-compose.prod.yml (pre-built images from GHCR, HTTPS, backups).
+name: gjurme
+
+x-app: &app
+  build:
+    context: ./backend
+  image: gjurme-api:local
+  env_file:
+    - path: .env
+      required: false
+  environment: &app-env
+    GJURME_ENV: ${GJURME_ENV:-development}
+    DATABASE_URL: postgresql+psycopg://gjurme:${POSTGRES_PASSWORD:-gjurme}@db:5432/gjurme
+    LOG_FORMAT: ${LOG_FORMAT:-json}
+    LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+    CORS_ORIGINS: http://localhost:8080
+  networks: [data]
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gjurme
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gjurme}
+      POSTGRES_DB: gjurme
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gjurme -d gjurme"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [data]
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    command: ["gjurme", "db", "upgrade"]
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+    healthcheck: { disable: true }
+
+  api:
+    <<: *app
+    environment:
+      <<: *app-env
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-300}
+      RATE_LIMIT_SEARCH_PER_MINUTE: ${RATE_LIMIT_SEARCH_PER_MINUTE:-90}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [data, edge]
+
+  scheduler:
+    <<: *app
+    command: ["gjurme", "scheduler"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "gjurme", "healthcheck", "--component", "scheduler"]
+      interval: 60s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    networks: [data, egress]
+
+  demo:
+    <<: *app
+    profiles: [demo]
+    command: ["gjurme", "demo", "seed", "--days", "45"]
+    environment:
+      <<: *app-env
+      LLM_PROVIDER: fake
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: "no"
+    healthcheck: { disable: true }
+
+  web:
+    build:
+      context: ./frontend
+    image: gjurme-web:local
+    environment:
+      SITE_ADDRESS: ":80"
+    ports:
+      - "8080:80"
+    depends_on: [api]
+    networks: [edge]
+    restart: unless-stopped
+
+networks:
+  data:
+    internal: true # database network: no route to the internet
+  edge: {}
+  egress: {} # only the scheduler talks to feeds and the LLM API
+
+volumes:
+  pgdata:
