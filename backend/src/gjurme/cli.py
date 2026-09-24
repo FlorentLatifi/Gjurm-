@@ -333,6 +333,41 @@ def scheduler() -> None:
     sched.run_forever()
 
 
+@app.command()
+def healthcheck(
+    component: Annotated[str, typer.Option(help="api | scheduler | db")] = "db",
+    max_age_minutes: Annotated[int, typer.Option(help="Scheduler heartbeat max age")] = 5,
+) -> None:
+    """Container health probe. Exit 0 = healthy, 1 = unhealthy (used by Docker HEALTHCHECK)."""
+    settings = get_settings()
+    from datetime import UTC, datetime
+
+    from sqlalchemy import create_engine, text
+
+    try:
+        engine = create_engine(settings.database_url, connect_args={"connect_timeout": 5})
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+            if component == "scheduler":
+                row = conn.execute(
+                    text("SELECT value->>'at' FROM ops.settings WHERE key = 'scheduler_heartbeat'")
+                ).scalar()
+                if row is None:
+                    typer.echo("no heartbeat yet", err=True)
+                    raise typer.Exit(1)
+                age = (datetime.now(UTC) - datetime.fromisoformat(row)).total_seconds() / 60
+                if age > max_age_minutes:
+                    typer.echo(f"heartbeat is {age:.1f} min old", err=True)
+                    raise typer.Exit(1)
+        engine.dispose()
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        typer.echo(f"unhealthy: {type(exc).__name__}: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo("ok")
+
+
 @app.command("alert-test")
 def alert_test() -> None:
     """Send a test alert through the configured webhook."""

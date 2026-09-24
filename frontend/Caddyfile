@@ -1,0 +1,58 @@
+# GJURMË edge: automatic HTTPS (Let's Encrypt), static SPA, reverse proxy to the API.
+# SITE_ADDRESS: your domain (e.g. gjurme.example.com) in production, ":80" for local HTTP.
+{
+	email {$ACME_EMAIL:admin@localhost}
+	admin off
+}
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=(), interest-cohort=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		# Set only when the upstream did not (the API sends its own, stricter CSP)
+		?Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+		-Server
+	}
+
+	# Metrics are for the internal network only. (Inside a handle block: Caddy orders
+	# `handle` before a bare `respond`, so the SPA fallback would otherwise win.)
+	@internal path /metrics /metrics/*
+	handle @internal {
+		respond 404
+	}
+
+	handle /api/* {
+		reverse_proxy api:8000 {
+			health_uri /health
+			health_interval 10s
+			# During API restarts/deploys, hold requests for up to 10 s until an upstream is
+			# healthy instead of failing them immediately with 503.
+			lb_try_duration 10s
+			lb_try_interval 250ms
+		}
+	}
+	handle /health* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		root * /srv
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@html path / /index.html
+		header @html Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

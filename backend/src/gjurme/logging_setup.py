@@ -68,4 +68,10 @@ def configure_logging(level: str = "INFO", fmt: str = "json") -> None:
     # Third-party noise: keep warnings, drop per-request chatter.
     for noisy in ("httpx", "httpcore", "anthropic", "urllib3", "httpx2"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
+    # uvicorn installs its own plain-text handlers; route its records through the JSON handler
+    # instead so every line in the container log is structured. Requests are logged by the app.
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        uv_logger = logging.getLogger(name)
+        uv_logger.handlers[:] = []
+        uv_logger.propagate = True
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
