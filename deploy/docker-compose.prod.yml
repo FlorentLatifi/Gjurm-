@@ -1,0 +1,168 @@
+# Production stack for a single VPS (see docs/DEPLOYMENT.md).
+#
+#   cd /opt/gjurme && IMAGE_TAG=<git-sha> docker compose -f docker-compose.prod.yml up -d
+#
+# Images are built and pushed to GHCR by CI (.github/workflows/ci.yml); the server never builds.
+# Secrets live in /opt/gjurme/.env (chmod 600) — see deploy/.env.example.
+name: gjurme
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" } # bounded disk use for container logs
+
+x-hardening: &hardening
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  read_only: true
+  tmpfs: [/tmp]
+
+x-app: &app
+  <<: *hardening
+  image: ${IMAGE_REGISTRY:-ghcr.io/florentlatifi/gjurme}-api:${IMAGE_TAG:?IMAGE_TAG must be set}
+  env_file: [.env]
+  environment: &app-env
+    GJURME_ENV: production
+    DATABASE_URL: postgresql+psycopg://gjurme:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/gjurme
+    PUBLIC_BASE_URL: https://${DOMAIN:?DOMAIN must be set}
+    CORS_ORIGINS: https://${DOMAIN}
+    EXPOSE_DOCS: "true"
+  logging: *logging
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gjurme
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: gjurme
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - max_connections=60
+      - -c
+      - log_min_duration_statement=500 # slow-query log (ms) → docker logs db
+      - -c
+      - idle_in_transaction_session_timeout=60000
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gjurme -d gjurme"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 1g
+    networks: [data]
+    logging: *logging
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    command: ["gjurme", "db", "upgrade"]
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+    healthcheck: { disable: true }
+    networks: [data]
+
+  api:
+    <<: *app
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    mem_limit: 512m
+    networks: [data, edge] # no internet egress: the API only talks to the DB
+
+  scheduler:
+    <<: *app
+    command: ["gjurme", "scheduler"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    stop_grace_period: 10m # finish the current run before stopping (deploys never cut a batch)
+    healthcheck:
+      test: ["CMD", "gjurme", "healthcheck", "--component", "scheduler"]
+      interval: 60s
+      timeout: 15s
+      start_period: 90s
+      retries: 3
+    mem_limit: 512m
+    networks: [data, egress]
+
+  web:
+    <<: *hardening
+    image: ${IMAGE_REGISTRY:-ghcr.io/florentlatifi/gjurme}-web:${IMAGE_TAG}
+    cap_add: [NET_BIND_SERVICE] # bind :80/:443 as non-root
+    environment:
+      SITE_ADDRESS: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL must be set (Let's Encrypt account)}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - caddy_data:/data # certificates — must persist across deploys
+      - caddy_config:/config
+    depends_on: [api]
+    mem_limit: 256m
+    networks: [edge]
+    logging: *logging
+    restart: unless-stopped
+
+  backup:
+    image: postgres:16-alpine
+    user: "70:70" # postgres user in the alpine image
+    <<: *hardening
+    environment:
+      PGHOST: db
+      PGUSER: gjurme
+      PGDATABASE: gjurme
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_DIR: /backups
+      BACKUP_HOUR_UTC: ${BACKUP_HOUR_UTC:-2}
+      RETAIN_DAILY: ${RETAIN_DAILY:-7}
+      RETAIN_WEEKLY: ${RETAIN_WEEKLY:-4}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+    command: ["/bin/sh", "/scripts/backup-loop.sh"]
+    volumes:
+      - ./backup:/scripts:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [data, egress] # egress only for the failure webhook
+    logging: *logging
+    restart: unless-stopped
+
+  # Optional off-site copy (Backblaze B2 / S3 / Hetzner Storage Box …) via rclone:
+  #   docker compose --profile offsite up -d  (after creating ./rclone/rclone.conf)
+  backup-offsite:
+    image: rclone/rclone:1
+    profiles: [offsite]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          rclone sync /backups "$${RCLONE_REMOTE}" --transfers 2 --log-level INFO || echo "offsite sync failed"
+          sleep 21600
+        done
+    environment:
+      RCLONE_REMOTE: ${RCLONE_REMOTE:-offsite:gjurme-backups}
+      RCLONE_CONFIG: /config/rclone/rclone.conf
+    volumes:
+      - ${BACKUP_DIR:-./backups}:/backups:ro
+      - ./rclone:/config/rclone:ro
+    networks: [egress]
+    logging: *logging
+    restart: unless-stopped
+
+networks:
+  data:
+    internal: true # the database network has no route to the internet
+  edge: {}
+  egress: {}
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
