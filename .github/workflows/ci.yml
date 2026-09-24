@@ -163,6 +163,7 @@ jobs:
       contents: read
       packages: write
     strategy:
+      fail-fast: false # a failed scan of one image must not cancel (and hide) the other's result
       matrix:
         component: [api, web]
     steps:

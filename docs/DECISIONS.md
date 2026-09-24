@@ -78,6 +78,11 @@ Short records of the decisions that shape the system: context, the decision, and
 **Decision.** A deterministic `FakeProvider` for development, the demo and CI. A wire-level test that runs the real SDK against a local server implementing the Messages API contract. A live workflow that switches to the real API when the `ANTHROPIC_API_KEY` secret exists.
 **Consequences.** Request shape, parsing, error mapping and cost accounting are tested in CI. Output *quality* on real Albanian news is not, until a key is available.
 
+## ADR-017: Build Caddy from source when upstream lags on fixes
+**Context.** The first image build on CI failed Trivy: the official `caddy:2-alpine` (v2.11.4, the latest release) ships a binary built with Go 1.26.3 and older `golang.org/x/crypto`, `x/net`, `x/text` and gRPC. That is 17 HIGH findings, all with fixed versions available. The same scan reproduced locally.
+**Decision.** The web image builds the *same* Caddy release in a `golang:1.26-alpine` stage (Go 1.26.8) with the fixed module versions pinned (`go get …@version`), and copies the binary into the official image layout. The scan gate was not weakened: no `.trivyignore`, no severity change. The image also now runs as an unprivileged user with only `cap_net_bind_service`.
+**Consequences.** Local Trivy: 17 → 0 fixable HIGH/CRITICAL. Local full-stack E2E passes (40/40), and HTTPS with certificate storage works as the unprivileged user. Costs about a minute of build time. The pins must be revisited on each Caddy release and dropped once upstream includes the fixes.
+
 ---
 
 ## Deltas from the blueprint
