@@ -88,8 +88,11 @@ class Settings(BaseSettings):
     cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:5173"]
     )
-    rate_limit_per_minute: int = Field(default=120, ge=1)
-    rate_limit_search_per_minute: int = Field(default=30, ge=1)
+    # Per client IP. One dashboard view fans out ~8 API calls and many readers can share one IP
+    # (offices, mobile carriers' NAT), so limits are sized for bursts of real browsing while still
+    # stopping bulk scraping. Measured in docs/TESTING.md (e2e suite tripped the old 120/30).
+    rate_limit_per_minute: int = Field(default=300, ge=1)
+    rate_limit_search_per_minute: int = Field(default=90, ge=1)
     api_cache_ttl_seconds: int = Field(default=120, ge=0)
     trust_proxy_headers: bool = False
     expose_docs: bool = True

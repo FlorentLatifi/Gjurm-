@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en" data-theme="">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GJURMË — Albanian & Balkan News Intelligence</title>
+    <meta
+      name="description"
+      content="GJURMË tracks what Albanian and Balkan media report: AI-classified topics, people and organisations in the news, tone over time and how outlets differ — always linking to the original articles."
+    />
+    <meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="GJURMË" />
+    <meta property="og:title" content="GJURMË — Albanian & Balkan News Intelligence" />
+    <meta
+      property="og:description"
+      content="What is Albanian-language news talking about? Topics, entities and tone across outlets, updated every 15 minutes."
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <script>
+      // Apply the stored theme before first paint (no flash). Storage may be unavailable.
+      try {
+        const t = localStorage.getItem("gjurme-theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch (_) {}
+    </script>
+  </head>
+  <body>
+    <noscript>GJURMË needs JavaScript to render its interactive charts. The data is also available via the public API at /api/docs.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
