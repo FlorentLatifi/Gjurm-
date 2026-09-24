@@ -12,7 +12,9 @@ RUN --mount=type=cache,target=/root/.npm --mount=type=secret,id=ca_bundle,requir
 COPY . .
 ARG VITE_PUBLIC_URL=""
 ARG VITE_API_BASE=""
-ENV VITE_PUBLIC_URL=${VITE_PUBLIC_URL} VITE_API_BASE=${VITE_API_BASE}
+ARG VITE_CONTACT_URL=""
+ENV VITE_PUBLIC_URL=${VITE_PUBLIC_URL} VITE_API_BASE=${VITE_API_BASE} \
+    VITE_CONTACT_URL=${VITE_CONTACT_URL}
 RUN npm run build
 
 # ---------------------------------------------------------------- build Caddy

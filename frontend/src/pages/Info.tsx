@@ -5,6 +5,13 @@ import { Card } from "../components/Card";
 import { formatDateTime, formatInt, formatRelative } from "../lib/format";
 import { useTitle } from "../lib/useTitle";
 
+// Where correction and removal requests go. Set VITE_CONTACT_URL at build time (e.g. a mailto:
+// address) so people do not have to post removal requests publicly; GitHub issues are public.
+const CONTACT_URL = /^(mailto:|https:\/\/)/.test(import.meta.env.VITE_CONTACT_URL ?? "")
+  ? (import.meta.env.VITE_CONTACT_URL as string)
+  : "https://github.com/FlorentLatifi/Gjurm-/issues";
+const CONTACT_IS_EMAIL = CONTACT_URL.startsWith("mailto:");
+
 export function AboutPage() {
   useTitle("Methodology", "How GJURMË collects, analyses and presents news data, and its limitations.");
   const taxonomy = useTaxonomy();
@@ -76,10 +83,18 @@ export function AboutPage() {
       <h2 id="contact">6. Corrections, removal requests &amp; privacy</h2>
       <p>
         Publishers or individuals can request correction or removal of any item; we hide it from all
-        pages and statistics. Please open an issue at{" "}
-        <a href="https://github.com/FlorentLatifi/Gjurm-/issues" rel="noopener noreferrer">the project repository</a>{" "}
-        with the article link. GJURMË uses no cookies, no trackers and no analytics; server logs keep
-        no raw IP addresses.
+        pages and statistics.{" "}
+        {CONTACT_IS_EMAIL ? (
+          <>Write to <a href={CONTACT_URL}>{CONTACT_URL.slice("mailto:".length)}</a> with the article link.</>
+        ) : (
+          <>
+            Please open an issue at{" "}
+            <a href={CONTACT_URL} rel="noopener noreferrer">the project repository</a> with the
+            article link (issues are public).
+          </>
+        )}{" "}
+        GJURMË uses no cookies, no trackers and no analytics; server logs keep no full IP addresses
+        (they are truncated before being written).
       </p>
       <p>
         Developers: the full data is available through the documented <a href="/api/docs">public API</a>.

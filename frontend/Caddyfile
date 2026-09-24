@@ -51,8 +51,17 @@
 		file_server
 	}
 
+	# Access log without full visitor IPs (privacy promise on the About page): IPv4 addresses are
+	# truncated to /16 and IPv6 to /32; the forwarded-for header is dropped.
 	log {
 		output stdout
-		format json
+		format filter {
+			wrap json
+			fields {
+				request>remote_ip ip_mask 16 32
+				request>client_ip ip_mask 16 32
+				request>headers>X-Forwarded-For delete
+			}
+		}
 	}
 }

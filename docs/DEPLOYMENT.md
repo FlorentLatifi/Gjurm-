@@ -95,7 +95,8 @@ In GitHub → Settings:
 | | `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan` |
 | Repository variables | `DEPLOY_ENABLED` | `true` (the deploy job is skipped until set) |
 | | `DOMAIN` | `gjurme.example.com` |
-| | `PUBLIC_URL` | `https://gjurme.example.com` (enables the uptime monitor) |
+| | `PUBLIC_URL` | `https://gjurme.example.com`. Enables the uptime monitor and is built into the SPA (canonical, Open Graph, sitemap). |
+| | `CONTACT_URL` | `mailto:…` for correction/removal requests on the About page. The default is public GitHub issues. |
 | Repository secrets (optional) | `ANTHROPIC_API_KEY` | lets the weekly *Source validation* live job enrich with the real model |
 
 From then on, every push to the default branch runs: tests → E2E → image build → Trivy scan → push to GHCR → SSH deploy → post-deploy smoke test. Images and deploy are keyed to the repository's **default branch** (currently the development branch; if you create `main` and make it the default, nothing needs to change).

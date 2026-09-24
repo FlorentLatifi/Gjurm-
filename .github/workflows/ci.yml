@@ -189,6 +189,8 @@ jobs:
           context: ${{ matrix.component == 'api' && 'backend' || 'frontend' }}
           build-args: |
             VERSION=${{ github.sha }}
+            VITE_PUBLIC_URL=${{ vars.PUBLIC_URL }}
+            VITE_CONTACT_URL=${{ vars.CONTACT_URL }}
           load: true
           tags: ${{ env.IMAGE }}:scan
           cache-from: type=gha,scope=${{ matrix.component }}
@@ -205,6 +207,8 @@ jobs:
           context: ${{ matrix.component == 'api' && 'backend' || 'frontend' }}
           build-args: |
             VERSION=${{ github.sha }}
+            VITE_PUBLIC_URL=${{ vars.PUBLIC_URL }}
+            VITE_CONTACT_URL=${{ vars.CONTACT_URL }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
