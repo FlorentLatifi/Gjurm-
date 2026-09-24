@@ -378,6 +378,11 @@ _ORG_HINTS = (
 )
 _NAME_SEQ = re.compile(r"\b([A-ZÇË][\wçëÇË-]+(?:\s+(?:e|i|të)?\s*[A-ZÇË][\wçëÇË-]+){0,3})")
 _SENTENCE_START_STOP = {
+    "Sipas",
+    "Edhe",
+    "Por",
+    "Kur",
+    "Tani",
     "Në",
     "Ne",
     "Për",
@@ -432,14 +437,13 @@ class FakeProvider:
         for match in _NAME_SEQ.finditer(text):
             name = match.group(1).strip()
             words = name.split()
-            while words and fold(words[0]) in _ROLE_PREFIXES:  # "Trajneri Blerta Zeqiri"
+            # Drop leading roles ("Trajneri Blerta Zeqiri") and sentence-initial function words
+            # ("Sipas Agjencisë …" = "according to the agency …").
+            while words and (fold(words[0]) in _ROLE_PREFIXES or words[0] in _SENTENCE_START_STOP):
                 words = words[1:]
             if not words:
                 continue
             name = " ".join(words)
-            first = words[0]
-            if first in _SENTENCE_START_STOP and len(name.split()) == 1:
-                continue
             key = fold(name)
             if any(key.startswith(h) for h in _LOCATION_HINTS):
                 etype = "location"
