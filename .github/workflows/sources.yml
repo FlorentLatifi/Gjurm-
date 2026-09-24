@@ -1,0 +1,50 @@
+# Verifies every registered RSS source from a network with open egress and publishes the
+# evidence (format, item count, field coverage, timestamps, discovered alternatives).
+# This is how feed URLs are *verified* rather than assumed — see docs/SOURCES.md.
+name: Source validation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1" # weekly, Monday 06:17 UTC
+  push:
+    paths:
+      - "backend/src/gjurme/sources/**"
+      - "backend/src/gjurme/ingestion/**"
+      - ".github/workflows/sources.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sources-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --frozen --no-dev
+      - name: Validate sources
+        run: |
+          uv run gjurme sources validate \
+            --markdown "$RUNNER_TEMP/source-report.md" \
+            --json "$RUNNER_TEMP/source-report.json"
+      - name: Publish summary
+        if: always()
+        run: cat "$RUNNER_TEMP/source-report.md" >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: source-report
+          path: ${{ runner.temp }}/source-report.*
+          retention-days: 90
