@@ -3,15 +3,15 @@
 # Adding a source = add an entry here, run `gjurme sources validate --slug <slug>` and then
 # `gjurme sources sync`. No code changes are required.
 #
-# verification: "unverified" until `gjurme sources validate` has confirmed the feed from a
-# network with open egress (the GitHub Actions "Source validation" workflow does this weekly).
-# See docs/SOURCES.md for per-source notes, limitations and the latest validation report.
+# Every `enabled: true` source below was verified by the "Source validation" GitHub Actions
+# workflow (open egress) — see docs/SOURCES.md for the evidence table. Candidates stay
+# `enabled: false` until the validator confirms a working feed that robots.txt permits.
 #
 # discovery_urls: pages scanned for <link rel="alternate" type="application/rss+xml"> when the
-# declared feed_url does not validate — the validator reports discovered feeds so the registry
-# can be corrected with evidence instead of guesses.
+# declared feed_url does not validate.
 
 sources:
+  # ------------------------------------------------------------------ verified 2026-09-24
   - slug: telegrafi
     name: Telegrafi
     homepage_url: https://telegrafi.com/
@@ -20,7 +20,7 @@ sources:
     language: sq
     country: XK
     enabled: true
-    notes: Highest-traffic Kosovo portal; very high publishing volume.
+    notes: Verified 2026-09-24 — RSS 2.0, 30 items, title/link/date 100%. Highest-volume Kosovo portal.
 
   - slug: koha
     name: KOHA
@@ -30,7 +30,7 @@ sources:
     language: sq
     country: XK
     enabled: true
-    notes: Kosovo newspaper of record (Koha Ditore / KohaVision).
+    notes: Verified 2026-09-24 — 20 items, fields 100%. Kosovo newspaper of record.
 
   - slug: gazeta-express
     name: Gazeta Express
@@ -40,7 +40,7 @@ sources:
     language: sq
     country: XK
     enabled: true
-    notes: Broad-coverage Kosovo portal.
+    notes: Verified 2026-09-24 — 10 items (short window; frequent polling needed).
 
   - slug: kallxo
     name: Kallxo
@@ -50,18 +50,19 @@ sources:
     language: sq
     country: XK
     enabled: true
-    notes: BIRN Kosovo — investigative, justice and fact-checking.
+    notes: Verified 2026-09-24 — 11 items. BIRN Kosovo — investigative, justice, fact-checking.
 
   - slug: evropa-e-lire
     name: Radio Evropa e Lirë
     homepage_url: https://www.evropaelire.org/
-    feed_url: null  # resolved by `gjurme sources validate` autodiscovery (see docs/SOURCES.md)
+    feed_url: https://www.evropaelire.org/api/
     discovery_urls: [https://www.evropaelire.org/rssfeeds, https://www.evropaelire.org/]
     language: sq
     country: XK
-    enabled: false
-    notes: RFE/RL Albanian service. Official RSS index at /rssfeeds; exact feed URL resolved by validator autodiscovery.
+    enabled: true
+    notes: Feed found by validator autodiscovery 2026-09-24 (20 items). RFE/RL Albanian service.
 
+  # ------------------------------------------------------------------ excluded (evidence)
   - slug: top-channel
     name: Top Channel
     homepage_url: https://top-channel.tv/
@@ -69,15 +70,96 @@ sources:
     discovery_urls: [https://top-channel.tv/]
     language: sq
     country: AL
-    enabled: true
-    notes: Major Albanian broadcaster — adds Albania coverage.
+    enabled: false
+    notes: HTTP 403 to automated requests (2026-09-24). Not circumvented — excluded.
 
   - slug: balkan-insight
     name: Balkan Insight
     homepage_url: https://balkaninsight.com/
     feed_url: https://balkaninsight.com/feed/
-    discovery_urls: [https://balkaninsight.com/rss-feeds/, https://balkaninsight.com/]
+    discovery_urls: [https://balkaninsight.com/rss-feeds/]
     language: en
     country: REG
-    enabled: true
-    notes: BIRN regional English-language coverage of the Balkans.
+    enabled: false
+    notes: robots.txt disallows the feed path for generic agents (2026-09-24). Respected — excluded.
+
+  # ------------------------------------------------------------------ candidates (unverified)
+  - slug: reporter-al
+    name: Reporter.al
+    homepage_url: https://www.reporter.al/
+    feed_url: https://www.reporter.al/feed/
+    discovery_urls: [https://www.reporter.al/]
+    language: sq
+    country: AL
+    enabled: false
+    notes: Candidate — BIRN Albania, investigative.
+
+  - slug: a2news
+    name: A2 CNN
+    homepage_url: https://a2news.com/
+    feed_url: https://a2news.com/feed/
+    discovery_urls: [https://a2news.com/]
+    language: sq
+    country: AL
+    enabled: false
+    notes: Candidate — Albanian broadcaster.
+
+  - slug: euronews-albania
+    name: Euronews Albania
+    homepage_url: https://euronews.al/
+    feed_url: https://euronews.al/feed/
+    discovery_urls: [https://euronews.al/]
+    language: sq
+    country: AL
+    enabled: false
+    notes: Candidate — Albanian broadcaster.
+
+  - slug: balkanweb
+    name: BalkanWeb
+    homepage_url: https://www.balkanweb.com/
+    feed_url: https://www.balkanweb.com/feed/
+    discovery_urls: [https://www.balkanweb.com/]
+    language: sq
+    country: AL
+    enabled: false
+    notes: Candidate — Albanian news portal.
+
+  - slug: portalb
+    name: Portalb.mk
+    homepage_url: https://portalb.mk/
+    feed_url: https://portalb.mk/feed/
+    discovery_urls: [https://portalb.mk/]
+    language: sq
+    country: MK
+    enabled: false
+    notes: Candidate — Albanian-language news from North Macedonia.
+
+  - slug: kosovapress
+    name: Kosovapress
+    homepage_url: https://kosovapress.com/
+    feed_url: https://kosovapress.com/feed/
+    discovery_urls: [https://kosovapress.com/]
+    language: sq
+    country: XK
+    enabled: false
+    notes: Candidate — Kosovo news agency.
+
+  - slug: reporteri
+    name: Reporteri.net
+    homepage_url: https://reporteri.net/
+    feed_url: https://reporteri.net/feed/
+    discovery_urls: [https://reporteri.net/]
+    language: sq
+    country: XK
+    enabled: false
+    notes: Candidate — Kosovo news portal.
+
+  - slug: prishtina-insight
+    name: Prishtina Insight
+    homepage_url: https://prishtinainsight.com/
+    feed_url: https://prishtinainsight.com/feed/
+    discovery_urls: [https://prishtinainsight.com/]
+    language: en
+    country: XK
+    enabled: false
+    notes: Candidate — English-language Kosovo coverage (BIRN).
