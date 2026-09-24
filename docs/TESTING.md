@@ -95,6 +95,7 @@ Tests found real bugs, not only regressions. The notable ones:
 - On initial page load, focus management stole focus from the skip link; focus now moves only on client-side navigation.
 - axe-core found a 4.49:1 contrast ratio on muted text (AA needs 4.5:1); the token was darkened.
 - The E2E suite, which fans out ~8 API calls per page from one IP, tripped the original rate limits (120/min, 30/min for search). Real dashboard browsing looks the same, so the limits became 300/90 per minute. CI raises them further because a single runner plays thousands of "users".
+- The first CI image build failed Trivy with 17 fixable HIGH vulnerabilities inside the official Caddy binary. Caddy is now built from source with a patched toolchain; local rescan 0, local E2E 40/40 ([ADR-017](DECISIONS.md#adr-017-build-caddy-from-source-when-upstream-lags-on-fixes)).
 - A near-duplicate threshold of 0.75 merged different events that share place names. The threshold was recalibrated on real headlines ([ADR-008](DECISIONS.md#adr-008-l4-near-duplicate-rule-calibrated-on-real-headlines)).
 
 ## Performance
