@@ -34,9 +34,9 @@ GJURMË is a public, read-only analytics site with one operator. There are no us
 
 - No cookies, no analytics or tracking scripts, no third-party requests from the browser: system fonts, all assets served from the same origin, and the CSP (`default-src 'self'`) enforces it.
 - The theme preference is stored in `localStorage` on the visitor's device only.
-- Rate-limit state is kept in memory and not persisted. Visitor IPs appear in container access logs, which Docker rotates at 5 × 10 MB per container.
+- Rate-limit state is kept in memory and not persisted. The API writes no access log. Caddy's access log truncates visitor IPs (IPv4 /16, IPv6 /32) and drops `X-Forwarded-For` before writing, so the About page's "no full IP addresses" statement holds (verified in the running stack). Docker rotates logs at 5 × 10 MB per container.
 - Stored content is publisher metadata plus derived analysis. Excerpts (LLM input) are purged after 90 days and never published ([DATA_MODEL.md](DATA_MODEL.md#retention)).
-- People appear only as named entities from public news headlines. Takedown path: [OPERATIONS.md](OPERATIONS.md#takedown-request).
+- People appear only as named entities from public news headlines. Takedown path: [OPERATIONS.md](OPERATIONS.md#takedown-request). The About page's contact defaults to public GitHub issues; set the `CONTACT_URL` repository variable (e.g. `mailto:`) so removal requests can be made privately.
 
 ## Accepted risks
 
