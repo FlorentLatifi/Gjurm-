@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# One-time setup of a fresh Ubuntu 24.04 VPS for GJURMË. Run as root:
-#   curl -fsSL https://raw.githubusercontent.com/FlorentLatifi/Gjurm-/main/deploy/scripts/bootstrap-server.sh | bash
+# One-time setup of a fresh Ubuntu 24.04 VPS for GJURMË. Run as root, pinned to a reviewed commit
+# (never pipe a moving branch into a root shell):
+#   curl -fsSLO https://raw.githubusercontent.com/FlorentLatifi/Gjurm-/<commit-sha>/deploy/scripts/bootstrap-server.sh
+#   less bootstrap-server.sh && bash bootstrap-server.sh
 # Then: copy deploy/.env.example to /opt/gjurme/.env, fill it in (chmod 600), add the deploy key.
 set -euo pipefail
 DEPLOY_USER=${DEPLOY_USER:-deploy}
@@ -16,7 +18,8 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.
 apt-get update -y
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-# Unprivileged deploy user (CI connects as this user; it can only drive docker in APP_DIR)
+# Deploy user for CI (key-only SSH). Membership of the docker group is root-equivalent on this
+# host; that is accepted for a single-purpose server (docs/SECURITY.md#accepted-risks).
 id -u "$DEPLOY_USER" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$DEPLOY_USER"
 usermod -aG docker "$DEPLOY_USER"
 install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 750 "$APP_DIR" "$APP_DIR/backups" "$APP_DIR/backup" "$APP_DIR/rclone"
@@ -35,6 +38,13 @@ ufw --force enable
 sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
 sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
 systemctl reload ssh || systemctl reload sshd || true
+
+# Swap: container memory limits add up to ~2.3 GB, so a 2 GB server needs headroom for spikes
+if ! swapon --show | grep -q .; then
+  fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  sysctl -w vm.swappiness=10 && echo 'vm.swappiness=10' > /etc/sysctl.d/99-gjurme.conf
+fi
 
 # Automatic security updates; Docker log rotation defaults
 dpkg-reconfigure -f noninteractive unattended-upgrades

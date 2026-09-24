@@ -2,7 +2,7 @@
 
 > *Gjurmë* (Albanian): "trace, footprint". GJURMË traces what Albanian and Balkan media talk about, who is in the news, and how coverage shifts over time.
 
-This document is the plan the codebase was built against. Architecture details, the data model and operations each have their own documents (see the [docs index](#12-documentation-map)). Anything here that did not survive implementation is corrected in [DECISIONS.md](DECISIONS.md).
+This document is the plan the codebase was built against. Architecture details, the data model and operations each have their own documents (see the [docs index](#13-documentation-map)). Anything here that did not survive implementation is corrected in [DECISIONS.md](DECISIONS.md).
 
 ---
 
@@ -92,7 +92,7 @@ Why not microservices, Airflow or Kafka: there is one data source type, one data
 
 - **raw → core** happens in the *process* stage. It picks `raw.feed_items` where `processed_at IS NULL`, so a crash mid-stage just leaves items for the next run.
 - **core.articles → enrichments** happens in the *enrich* stage. It picks articles whose `enrichment_status` is `pending`, or `failed` with attempts left. Every attempt is stored.
-- Changing the prompt or model bumps `PROMPT_VERSION`. `gjurme enrich --reprocess --prompt-version X` re-enriches old articles and keeps history. Analytics read only the enrichment marked `is_current`.
+- Changing the prompt or model bumps `PROMPT_VERSION`. `gjurme enrich-requeue --older-than-version X` queues old articles for re-enrichment, and history is kept. Analytics read only the enrichment marked `is_current`.
 
 ### 3.2 Grain of the main tables
 
@@ -114,7 +114,7 @@ The ERD, DDL and sample SQL are in [DATA_MODEL.md](DATA_MODEL.md).
 
 ## 4. Sources
 
-Candidate list (all **unverified** until the validation workflow passes; see [SOURCES.md](SOURCES.md)):
+Candidate list at planning time. **Outcome of validation:** Telegrafi, KOHA, Gazeta Express, Kallxo and Radio Evropa e Lirë are verified and enabled; Top Channel (HTTP 403) and Balkan Insight (robots.txt) are excluded ([SOURCES.md](SOURCES.md)):
 
 | Source | Country | Language | Candidate feed | Why |
 |---|---|---|---|---|
@@ -169,7 +169,7 @@ flowchart TD
 | L1 | MVP | Feed entry key `(source, sha256(guid or canonical link))`. A refetched entry updates `last_seen_at` only. |
 | L2 | MVP | Canonical URL (lower-cased host, no fragment, tracking params removed, sorted query, no trailing slash) → `url_hash` unique. |
 | L3 | MVP | Same source + normalized-title hash within ±48 h → treated as the same article (slug edits, republishing). |
-| L4 | Advanced | Cross-source near-duplicates: trigram similarity of normalized titles ≥ 0.75 within 48 h → `duplicate_of_id` link. Both rows are kept, because each outlet's coverage counts, and a "unique stories" metric is exposed. |
+| L4 | Advanced | Cross-source near-duplicates: trigram similarity of normalized titles ≥ 0.8 **and** only noise words differ, within 48 h → `duplicate_of_id` link (threshold calibrated on real headlines, ADR-008). Both rows are kept, because each outlet's coverage counts, and a "unique stories" metric is exposed. |
 | L5 | Advanced | Enrichment cache: identical `(prompt_version, model, input_hash)` reuses the prior result at zero cost. |
 
 ---
@@ -284,7 +284,7 @@ Total expected run cost: VPS about $12–15, LLM capped at about $60 (at a $2/da
 | 19 Documentation | Docs | `README.md`, `docs/` | review | complete |
 | 20 Launch | Checklist | `docs/LAUNCH_CHECKLIST.md` | — | only owner actions remain |
 
-## 12. Documentation map
+## 13. Documentation map
 - [ARCHITECTURE.md](ARCHITECTURE.md) — components, flows, API surface
 - [DATA_MODEL.md](DATA_MODEL.md) — ERD, DDL, analytical SQL
 - [AI_ENRICHMENT.md](AI_ENRICHMENT.md) — prompt, schema, reliability, cost
