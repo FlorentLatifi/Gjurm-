@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+  <title>Broken & Co</title>
+  <item>
+    <title>Titulli me karakter të pavlefshëm &nbsp; dhe tag të pambyllur</title>
+    <link>https://broken.example.com/a/1</link>
+    <pubDate>Wed, 24 Sep 2026 08:00:00 +0000</pubDate>
+    <description>Përshkrimi <b>i pambyllur</description>
+  </item>
+  <item>
+    <title>Artikulli i dytë pa datë publikimi</title>
+    <link>https://broken.example.com/a/2</link>
+  </item>
+</channel>
