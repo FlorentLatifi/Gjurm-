@@ -8,8 +8,15 @@ set -euo pipefail
 DEPLOY_USER=${DEPLOY_USER:-deploy}
 APP_DIR=/opt/gjurme
 
+# Oracle Cloud (OCI) platform images ship their own iptables rules, including the rules that keep
+# the iSCSI boot volume reachable; Oracle warns that enabling UFW there can stop the instance from
+# booting. Detect them and edit those rules instead of using UFW.
+OCI_RULES=/etc/iptables/rules.v4
+if [[ -f "$OCI_RULES" ]] && grep -q '169.254.0.2' "$OCI_RULES"; then IS_OCI=1; else IS_OCI=0; fi
+
 apt-get update -y
-apt-get install -y ca-certificates curl ufw unattended-upgrades fail2ban
+apt-get install -y ca-certificates curl unattended-upgrades fail2ban
+[[ "$IS_OCI" == 1 ]] || apt-get install -y ufw
 # Docker Engine from Docker's official repository
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
@@ -26,13 +33,30 @@ install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 750 "$APP_DIR" "$APP_DIR/backu
 install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 700 "/home/$DEPLOY_USER/.ssh"
 
 # Firewall: SSH + HTTP(S) only. Postgres and the API are never published.
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow OpenSSH
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw allow 443/udp
-ufw --force enable
+# On OCI the cloud-side Security List must ALSO allow 80/443 (docs/DEPLOYMENT.md#oracle-cloud).
+oci_allow() { # insert an ACCEPT rule before the first INPUT REJECT of an iptables-save file
+  local file="$1" rule="$2"
+  grep -qxF -- "$rule" "$file" && return 0
+  awk -v r="$rule" '!done && /^-A INPUT -j REJECT/ { print r; done = 1 } { print }' "$file" > "$file.tmp"
+  grep -qxF -- "$rule" "$file.tmp" || { echo "no INPUT REJECT rule in $file; open ports by hand" >&2; exit 1; }
+  cat "$file.tmp" > "$file" && rm -f "$file.tmp"
+}
+if [[ "$IS_OCI" == 1 ]]; then
+  cp -n "$OCI_RULES" "$OCI_RULES.pre-gjurme"
+  oci_allow "$OCI_RULES" "-A INPUT -p tcp -m state --state NEW -m tcp --dport 80 -j ACCEPT"
+  oci_allow "$OCI_RULES" "-A INPUT -p tcp -m state --state NEW -m tcp --dport 443 -j ACCEPT"
+  oci_allow "$OCI_RULES" "-A INPUT -p udp -m udp --dport 443 -j ACCEPT"
+  iptables-restore --test < "$OCI_RULES" && iptables-restore < "$OCI_RULES"
+  # Docker's own chains are recreated by the Docker restart at the end of this script.
+else
+  ufw default deny incoming
+  ufw default allow outgoing
+  ufw allow OpenSSH
+  ufw allow 80/tcp
+  ufw allow 443/tcp
+  ufw allow 443/udp
+  ufw --force enable
+fi
 
 # SSH hardening: keys only
 sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
