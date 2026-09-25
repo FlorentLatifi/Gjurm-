@@ -137,6 +137,34 @@ class TestGrounding:
         _, dropped = ground_entities([EntityOut(name="Aleksandar Vučić", type="person")], self.TEXT)
         assert dropped
 
+    # Real headlines (live feed sample, 2026-09-25): short names whose inflected form shares
+    # fewer than 5 letters with the base form were wrongly dropped as hallucinations.
+    @pytest.mark.parametrize(
+        ("name", "etype", "headline"),
+        [
+            ("Kina", "location", "rritet presioni për konfrontimin me Kinën për mbështetjen"),
+            ("Haga", "location", "Çfarë strategjie mund ta ndjekë Qeveria për apelin në Hagë?"),
+            ("Xhaka", "person", "Mos e prisni fundin e Behramit, Shaqirit e Xhakës"),
+            ("Zvicra", "location", "thirrje për talentet kosovare në Zvicër"),
+            ("Irani", "location", "lidhjet e rrjeteve kriminale në Suedi me Iranin"),
+        ],
+    )
+    def test_short_inflected_names_grounded(self, name: str, etype: str, headline: str) -> None:
+        kept, dropped = ground_entities([EntityOut(name=name, type=etype)], headline)
+        assert kept and not dropped
+
+    @pytest.mark.parametrize(
+        ("name", "etype", "text"),
+        [
+            ("Kurti", "person", "Studentët nisin kursin e ri"),  # kur|ti vs kur|s: "ti" no ending
+            ("Rama", "person", "Rrugët gjatë muajit të Ramazanit"),  # rama|zanit: not an ending
+            ("Kina", "location", "Kinemaja e qytetit hapet sot"),  # kin|a vs kin|emaja
+        ],
+    )
+    def test_similar_words_do_not_ground_a_name(self, name: str, etype: str, text: str) -> None:
+        kept, dropped = ground_entities([EntityOut(name=name, type=etype)], text)
+        assert dropped and not kept
+
 
 class TestPricing:
     def test_cost_arithmetic(self) -> None:
