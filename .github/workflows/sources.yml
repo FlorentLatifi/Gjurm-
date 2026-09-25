@@ -96,11 +96,13 @@ jobs:
       - run: uv run gjurme db upgrade
       - name: Ingest + process live feeds
         run: uv run gjurme run --stages ingest,process | tee "$RUNNER_TEMP/run-ingest.json"
+      # Manual runs: export_headlines; pushes that change sources/ingestion: 30 by default, as a
+      # sanity check of what the feeds deliver.
       - name: Headline sample for an offline quality review (headlines only, never excerpts)
-        if: inputs.export_headlines > 0
+        if: inputs.export_headlines > 0 || github.event_name == 'push'
         env:
           PGPASSWORD: ci-only-password
-          N: ${{ inputs.export_headlines }}
+          N: ${{ inputs.export_headlines || 30 }}
         run: |
           if ! [[ "$N" =~ ^[0-9]+$ ]] || (( N < 1 || N > 60 )); then
             echo "::error::export_headlines must be between 1 and 60"; exit 1
