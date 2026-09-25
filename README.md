@@ -83,6 +83,7 @@ docs/       blueprint, architecture, data model, AI, sources, deployment, operat
 | [AI_ENRICHMENT](docs/AI_ENRICHMENT.md) | Prompt, schema, validation, reliability, cost model |
 | [SOURCES](docs/SOURCES.md) | Verified sources with evidence; how to add one |
 | [DEPLOYMENT](docs/DEPLOYMENT.md) | Hosting, costs, step-by-step deploy |
+| [NISJA](docs/NISJA.md) | Launch guide in Albanian: Claude quality test, then the free Oracle deploy |
 | [OPERATIONS](docs/OPERATIONS.md) | Runbook: alerts, checks, incidents, backups, secrets |
 | [SECURITY](docs/SECURITY.md) | Threats, controls, accepted risks |
 | [TESTING](docs/TESTING.md) | Test strategy, failure tests, performance measurements |
