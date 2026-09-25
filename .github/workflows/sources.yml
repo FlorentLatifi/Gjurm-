@@ -11,6 +11,10 @@ on:
         description: "Articles to analyse with Claude when ANTHROPIC_API_KEY is set (1-50; budget capped at $0.02 each, max $1)"
         type: number
         default: 8
+      export_headlines:
+        description: "Print a balanced sample of N headlines (no excerpts) for an offline quality review (0 = off, max 60)"
+        type: number
+        default: 0
   schedule:
     - cron: "17 6 * * 1" # weekly, Monday 06:17 UTC
   push:
@@ -92,6 +96,26 @@ jobs:
       - run: uv run gjurme db upgrade
       - name: Ingest + process live feeds
         run: uv run gjurme run --stages ingest,process | tee "$RUNNER_TEMP/run-ingest.json"
+      - name: Headline sample for an offline quality review (headlines only, never excerpts)
+        if: inputs.export_headlines > 0
+        env:
+          PGPASSWORD: ci-only-password
+          N: ${{ inputs.export_headlines }}
+        run: |
+          if ! [[ "$N" =~ ^[0-9]+$ ]] || (( N < 1 || N > 60 )); then
+            echo "::error::export_headlines must be between 1 and 60"; exit 1
+          fi
+          # Newest items spread across sources; only fields the public site shows anyway.
+          psql -h localhost -U gjurme -d gjurme -At -c "
+            SELECT json_agg(x ORDER BY x.source, x.published_at DESC) FROM (
+              SELECT a.id, s.slug AS source, a.published_at, a.title
+              FROM (SELECT *, row_number() OVER (PARTITION BY source_id ORDER BY published_at DESC) AS rn
+                    FROM core.articles) a
+              JOIN core.sources s ON s.id = a.source_id
+              ORDER BY a.rn, a.published_at DESC LIMIT $N) x;" > "$RUNNER_TEMP/headline-sample.json"
+          echo "HEADLINE_SAMPLE_BEGIN"
+          cat "$RUNNER_TEMP/headline-sample.json"
+          echo "HEADLINE_SAMPLE_END"
       - name: Enrich (Claude, capped)
         if: env.HAS_LLM_KEY == 'true'
         env:
