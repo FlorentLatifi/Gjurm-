@@ -184,7 +184,7 @@ Settings (all in `.env`, see `deploy/.env.example`):
 - `LLM_PRICE_INPUT_PER_MTOK` / `LLM_PRICE_OUTPUT_PER_MTOK`: 0 by default, so the daily budget never stops a free model and `ENRICH_MAX_PER_RUN` bounds each run. Set them for a paid endpoint and the budget applies as for Claude. Prices of known Claude models cannot be overridden.
 - Temperature is 0 and reasoning notes (`<think>…</think>`) are stripped.
 
-**Measure before switching.** *Actions → Free model quality → Run workflow* runs the live pipeline on GitHub's runner with Ollama and a model of your choice (default `gemma3:4b`, 1–40 articles, $0) and publishes the same review report as the Claude test, plus the time per article.
+**Measure before switching.** *Actions → Free model quality → Run workflow* runs the live pipeline on GitHub's runner with Ollama and a model of your choice (default `gemma3:4b`, 1–40 articles, $0) and publishes the same review report as the Claude test, plus the time per article. A push that changes the provider or the workflow compares `gemma3:4b`, `qwen3:4b` and `gemma3:12b` in parallel jobs.
 
 **One model at a time for comparisons.** Outlet comparisons are only fair when every article in the window was analysed by the same model and prompt. After a switch, re-analyse the window (`gjurme enrich-requeue --provider <old provider>`).
 

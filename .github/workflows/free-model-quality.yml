@@ -1,7 +1,8 @@
 # Quality test for a FREE local model: runs the real pipeline against the live feeds and has an
 # open-weight model, served by Ollama on GitHub's runner, analyse the newest articles. Costs $0 and
 # needs no key. The review report has the same shape as the Claude one in sources.yml, so the two
-# can be compared side by side. See docs/AI_ENRICHMENT.md#free-models.
+# can be compared side by side. Manual runs test one model; pushes that change the provider or
+# this workflow compare three. See docs/AI_ENRICHMENT.md#free-models.
 name: Free model quality
 
 on:
@@ -29,8 +30,16 @@ concurrency:
 
 jobs:
   local-model:
+    name: local-model (${{ matrix.model }})
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        model: >-
+          ${{ fromJSON(github.event_name == 'workflow_dispatch'
+          && format('["{0}"]', inputs.model)
+          || '["gemma3:4b", "qwen3:4b", "gemma3:12b"]') }}
     services:
       postgres:
         image: postgres:16-alpine
@@ -52,7 +61,7 @@ jobs:
       DATABASE_URL: postgresql+psycopg://gjurme:ci-only-password@localhost:5432/gjurme
       GJURME_ENV: test
       LOG_FORMAT: text
-      MODEL: ${{ inputs.model || 'gemma3:4b' }}
+      MODEL: ${{ matrix.model }}
       LIMIT: ${{ inputs.enrich_limit || 15 }}
     defaults:
       run:
@@ -136,7 +145,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: free-model-quality
+          name: free-model-quality-${{ strategy.job-index }}
           path: |
             ${{ runner.temp }}/run-enrich.json
             ${{ runner.temp }}/free-model-quality-review.md
