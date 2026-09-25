@@ -1,6 +1,7 @@
 #!/bin/sh
 # Disaster recovery: restore a dump over the live database. DESTRUCTIVE.
-# Run from the server:  docker compose -f docker-compose.prod.yml stop api scheduler
+# Run from the server:  export IMAGE_TAG=$(cat .deploy-state/current)
+#                       docker compose -f docker-compose.prod.yml stop api scheduler
 #                       docker compose -f docker-compose.prod.yml run --rm -e CONFIRM=yes \
 #                         backup sh /scripts/restore.sh /backups/daily/gjurme-<stamp>.dump
 #                       docker compose -f docker-compose.prod.yml up -d
