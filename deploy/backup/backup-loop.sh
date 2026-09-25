@@ -7,7 +7,7 @@ echo "backup loop started; daily at ${HOUR}:00 UTC"
 
 notify_restore_failed() { # best-effort, same payload shape as backup.sh (slack/discord/generic)
   [ -n "${ALERT_WEBHOOK_URL:-}" ] || return 0
-  msg="Weekly restore verification failed; the newest dump may not be restorable. See: docker compose logs backup"
+  msg="Weekly restore verification failed; the newest dump may not be restorable. See: docker compose -f docker-compose.prod.yml logs backup"
   wget -q -O /dev/null --timeout=10 --header "Content-Type: application/json" \
     --post-data "{\"key\":\"restore_verification_failed\",\"severity\":\"critical\",\"title\":\"Restore verification failed\",\"message\":\"$msg\",\"text\":\"[GJURMË] $msg\",\"content\":\"[GJURMË] $msg\"}" \
     "$ALERT_WEBHOOK_URL" || true

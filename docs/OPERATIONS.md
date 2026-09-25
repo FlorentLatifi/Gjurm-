@@ -3,8 +3,9 @@
 Commands assume you are on the server as the `deploy` user in `/opt/gjurme`, with:
 
 ```bash
-alias dc='docker compose -f docker-compose.prod.yml'
-alias gj='docker compose -f docker-compose.prod.yml exec scheduler gjurme'   # CLI inside the running image
+# The compose file requires IMAGE_TAG; deploy.sh records the running tag in .deploy-state/current.
+alias dc='IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml'
+alias gj='IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml exec scheduler gjurme'   # CLI inside the running image
 export TOKEN=$(grep ^ADMIN_API_TOKEN= .env | cut -d= -f2-)
 admin() { curl -fsS -H "Authorization: Bearer $TOKEN" "https://$DOMAIN/api/v1/admin/$1" "${@:2}"; }
 ```

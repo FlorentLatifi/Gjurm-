@@ -1,0 +1,153 @@
+# Quality test for a FREE local model: runs the real pipeline against the live feeds and has an
+# open-weight model, served by Ollama on GitHub's runner, analyse the newest articles. Costs $0 and
+# needs no key. The review report has the same shape as the Claude one in sources.yml, so the two
+# can be compared side by side. Manual runs test one model; pushes that change the provider or
+# this workflow compare three. See docs/AI_ENRICHMENT.md#free-models.
+name: Free model quality
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Ollama model tag (e.g. gemma3:4b, qwen3:4b, gemma3:12b)"
+        type: string
+        default: "gemma3:4b"
+      enrich_limit:
+        description: "Articles to analyse (1-40; CPU-only, roughly 20-60 s each)"
+        type: number
+        default: 15
+  push:
+    paths:
+      - "backend/src/gjurme/enrichment/providers.py"
+      - ".github/workflows/free-model-quality.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: free-model-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local-model:
+    name: local-model (${{ matrix.model }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        model: >-
+          ${{ fromJSON(github.event_name == 'workflow_dispatch'
+          && format('["{0}"]', inputs.model)
+          || '["gemma3:4b", "qwen3:4b", "gemma3:12b"]') }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gjurme
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: gjurme
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gjurme" --health-interval 5s --health-timeout 5s
+          --health-retries 10
+      ollama:
+        image: ollama/ollama:latest
+        env:
+          OLLAMA_CONTEXT_LENGTH: "8192"
+          OLLAMA_KEEP_ALIVE: "2h"
+        ports: ["11434:11434"]
+    env:
+      DATABASE_URL: postgresql+psycopg://gjurme:ci-only-password@localhost:5432/gjurme
+      GJURME_ENV: test
+      LOG_FORMAT: text
+      MODEL: ${{ matrix.model }}
+      LIMIT: ${{ inputs.enrich_limit || 15 }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Check inputs
+        run: |
+          if ! [[ "$MODEL" =~ ^[A-Za-z0-9._:/-]{1,80}$ ]]; then
+            echo "::error::invalid model tag"; exit 1
+          fi
+          if ! [[ "$LIMIT" =~ ^[0-9]+$ ]] || (( LIMIT < 1 || LIMIT > 40 )); then
+            echo "::error::enrich_limit must be between 1 and 40"; exit 1
+          fi
+      - name: Download the model
+        run: |
+          for _ in $(seq 30); do curl -fsS http://localhost:11434/api/version && break; sleep 2; done
+          echo
+          curl -fsS --max-time 1200 http://localhost:11434/api/pull \
+            -d "{\"model\": \"$MODEL\", \"stream\": false}"
+          echo
+          curl -fsS http://localhost:11434/api/tags
+      - run: uv sync --frozen --no-dev
+      - run: uv run gjurme db upgrade
+      - name: Ingest + process live feeds
+        run: uv run gjurme run --stages ingest,process
+      - name: Enrich with the local model
+        env:
+          LLM_PROVIDER: openai_compatible
+          LLM_BASE_URL: http://localhost:11434/v1
+          LLM_MODEL: ${{ env.MODEL }}
+          LLM_TIMEOUT_SECONDS: "600"
+          ENRICH_CONCURRENCY: "1"
+          ENRICH_CIRCUIT_BREAKER_THRESHOLD: "10"
+        run: |
+          export ENRICH_MAX_PER_RUN="$LIMIT"
+          uv run gjurme run --stages enrich,quality | tee "$RUNNER_TEMP/run-enrich.json"
+      - name: Quality review (every result)
+        if: always()
+        env:
+          PGPASSWORD: ci-only-password
+        run: |
+          review="$RUNNER_TEMP/free-model-quality-review.md"
+          q() { psql -h localhost -U gjurme -d gjurme -P pager=off -c "$1"; }
+          {
+            echo "## Free model quality review: \`$MODEL\`"
+            echo
+            echo "Check each row against its headline: topic, tone, names (persons/orgs/places), summary."
+            echo "\`dropped\` = names the grounding check removed because they are not in the text."
+            echo "Cost is \$0; \`avg_s\` is the time per article on a 4-core CPU without a GPU."
+            echo
+            echo '```'
+            q "SELECT count(*) AS calls, count(*) FILTER (WHERE status = 'succeeded') AS ok,
+                      count(*) FILTER (WHERE status = 'invalid') AS invalid_json,
+                      round(avg(latency_ms) / 1000.0, 1) AS avg_s,
+                      sum(input_tokens) AS input_tok, sum(output_tokens) AS output_tok
+               FROM core.enrichments WHERE provider = 'openai_compatible';"
+            q "SELECT status, left(error, 160) AS error FROM core.enrichments
+               WHERE provider = 'openai_compatible' AND status <> 'succeeded';"
+            q "SELECT s.slug, left(a.title, 90) AS title, t.slug AS topic,
+                      a.sentiment_label || ' ' || a.sentiment_score AS tone,
+                      (SELECT string_agg(e.name || ' [' || left(e.type, 3) || ']', ', '
+                                         ORDER BY e.type, e.name)
+                         FROM core.article_entities ae JOIN core.entities e ON e.id = ae.entity_id
+                        WHERE ae.article_id = a.id) AS names,
+                      en.quality_flags -> 'entities_ungrounded' AS dropped,
+                      left(a.summary_en, 160) AS summary, a.enrichment_confidence AS conf
+               FROM core.enrichments en JOIN core.articles a ON a.id = en.article_id
+               JOIN core.sources s ON s.id = a.source_id
+               LEFT JOIN core.topics t ON t.id = a.primary_topic_id
+               WHERE en.is_current AND en.provider = 'openai_compatible'
+               ORDER BY a.published_at DESC;"
+            echo '```'
+          } > "$review"
+          cat "$review" >> "$GITHUB_STEP_SUMMARY"
+          cat "$review"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: free-model-quality-${{ strategy.job-index }}
+          path: |
+            ${{ runner.temp }}/run-enrich.json
+            ${{ runner.temp }}/free-model-quality-review.md
+          if-no-files-found: ignore
+          retention-days: 30

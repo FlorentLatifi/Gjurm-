@@ -36,6 +36,17 @@ class Usage:
     cache_write_tokens: int = 0
 
 
+def register_price(model: str, input_per_mtok: float, output_per_mtok: float) -> None:
+    """Price a model that is not in the table (OpenAI-compatible provider: local or free tier).
+
+    Known models keep their published price, so a misconfigured override can never make the
+    budget guard under-estimate Claude.
+    """
+    if model in PRICES_PER_MTOK:
+        return
+    PRICES_PER_MTOK[model] = (Decimal(str(input_per_mtok)), Decimal(str(output_per_mtok)))
+
+
 def price_for(model: str) -> tuple[Decimal, Decimal]:
     return PRICES_PER_MTOK.get(model, FALLBACK_PRICE)
 

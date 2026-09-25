@@ -1,19 +1,24 @@
 """LLM providers behind a small protocol.
 
 ``AnthropicProvider`` is the production implementation (official ``anthropic`` SDK, JSON-schema
-structured outputs, prompt caching). ``FakeProvider`` is a deterministic, zero-cost heuristic used
-by tests, local development and demo data; production refuses it unless explicitly allowed.
+structured outputs, prompt caching). ``OpenAICompatibleProvider`` speaks the widely copied
+``/chat/completions`` format, which covers free options: a local model served by Ollama or
+llama.cpp, and the free tiers of hosted APIs. ``FakeProvider`` is a deterministic, zero-cost
+heuristic used by tests, local development and demo data; production refuses it unless explicitly
+allowed.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 import anthropic
+import httpx
 
 from gjurme.enrichment.pricing import Usage
 from gjurme.ingestion.normalize import fold
@@ -175,6 +180,214 @@ class AnthropicProvider:
             request_id=request_id,
             stop_reason=response.stop_reason,
         )
+
+
+# =============================================================================================
+# OpenAI-compatible chat completions — local models (Ollama, llama.cpp) and free hosted tiers
+# =============================================================================================
+ResponseFormat = Literal["json_schema", "json_object", "prompt"]
+
+# Reasoning models served locally (Qwen3, DeepSeek-R1 …) may prefix the answer with their notes.
+_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
+_RETRY_AFTER_CAP_SECONDS = 60.0
+
+
+def _schema_instruction(schema: dict[str, Any]) -> str:
+    return (
+        "\n\nRespond with one JSON object and nothing else. It must match this JSON schema:\n"
+        + json.dumps(schema, ensure_ascii=False)
+    )
+
+
+class OpenAICompatibleProvider:
+    """``POST {base_url}/chat/completions`` with structured output where the server supports it.
+
+    ``response_format`` picks how the JSON shape is enforced, because servers differ:
+    ``json_schema`` (constrained decoding: OpenAI, Ollama, llama.cpp, most hosted APIs),
+    ``json_object`` (valid JSON only; the schema goes in the prompt) or ``prompt`` (schema in the
+    prompt, nothing enforced). Either way the output then goes through the same parse, repair,
+    validation and grounding as Claude's.
+
+    Free tiers limit requests per minute: ``requests_per_minute`` spaces calls across the worker
+    threads, and 429/5xx/connection errors are retried with backoff (honouring ``Retry-After``).
+    Temperature is 0 so that the same article gets the same analysis, which comparisons between
+    outlets depend on.
+    """
+
+    name = "openai_compatible"
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        model: str,
+        max_output_tokens: int,
+        timeout_seconds: float,
+        max_retries: int,
+        api_key: str | None = None,
+        response_format: ResponseFormat = "json_schema",
+        requests_per_minute: int = 0,
+        transport: httpx.BaseTransport | None = None,
+        sleep: Any = time.sleep,
+    ) -> None:
+        headers = {"content-type": "application/json"}
+        if api_key:
+            headers["authorization"] = f"Bearer {api_key}"
+        self._client = httpx.Client(
+            base_url=base_url.rstrip("/"),
+            headers=headers,
+            timeout=timeout_seconds,
+            transport=transport,
+        )
+        self.model = model
+        self._max_tokens = max_output_tokens
+        self._max_retries = max_retries
+        self._format = response_format
+        self._interval = 60.0 / requests_per_minute if requests_per_minute > 0 else 0.0
+        self._next_slot = 0.0
+        self._lock = threading.Lock()
+        self._sleep = sleep
+
+    def _wait_for_slot(self) -> None:
+        if not self._interval:
+            return
+        with self._lock:
+            now = time.monotonic()
+            slot = max(now, self._next_slot)
+            self._next_slot = slot + self._interval
+        if slot > now:
+            self._sleep(slot - now)
+
+    def _request_body(self, system: str, user: str, schema: dict[str, Any]) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": self._max_tokens,
+            "temperature": 0,
+        }
+        if self._format == "json_schema":
+            body["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "article_analysis", "schema": schema, "strict": True},
+            }
+        else:
+            system = system + _schema_instruction(schema)
+            if self._format == "json_object":
+                body["response_format"] = {"type": "json_object"}
+        body["messages"] = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+        return body
+
+    def _post(self, body: dict[str, Any]) -> httpx.Response:
+        attempt = 0
+        while True:
+            self._wait_for_slot()
+            try:
+                response = self._client.post("/chat/completions", json=body)
+            except httpx.TimeoutException as exc:
+                error = LLMError("timeout", str(exc) or "request timed out", retryable=True)
+                retry_after = None
+            except httpx.TransportError as exc:
+                error = LLMError("connection", str(exc) or type(exc).__name__, retryable=True)
+                retry_after = None
+            else:
+                if response.status_code < 400:
+                    return response
+                error = _status_error(response)
+                retry_after = _retry_after_seconds(response)
+            if not error.retryable or attempt >= self._max_retries:
+                raise error
+            attempt += 1
+            self._sleep(retry_after if retry_after is not None else min(2.0**attempt, 30.0))
+
+    def complete(self, system: str, user: str, schema: dict[str, Any]) -> LLMResult:
+        started = time.monotonic()
+        response = self._post(self._request_body(system, user, schema))
+        latency_ms = int((time.monotonic() - started) * 1000)
+        request_id = response.headers.get("x-request-id")
+        try:
+            data = response.json()
+            choice = data["choices"][0]
+            text = choice["message"].get("content") or ""
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError) as exc:
+            raise LLMError(
+                "bad_response",
+                f"unexpected response shape: {response.text[:200]}",
+                retryable=True,
+                request_id=request_id,
+            ) from exc
+        request_id = request_id or data.get("id")
+        usage = _openai_usage(data.get("usage"))
+        text = _THINK_BLOCK.sub("", text).strip()
+        finish = choice.get("finish_reason")
+        if finish == "content_filter":
+            raise LLMError(
+                "refused",
+                "model declined to analyse this item",
+                retryable=False,
+                usage=usage,
+                raw_text=text,
+                request_id=request_id,
+            )
+        if finish == "length":
+            raise LLMError(
+                "truncated",
+                "output hit max_tokens",
+                retryable=True,
+                usage=usage,
+                raw_text=text,
+                request_id=request_id,
+            )
+        return LLMResult(
+            text=text,
+            model=data.get("model") or self.model,
+            usage=usage,
+            latency_ms=latency_ms,
+            request_id=request_id,
+            stop_reason=finish,
+        )
+
+
+def _status_error(response: httpx.Response) -> LLMError:
+    status = response.status_code
+    try:
+        detail = response.json().get("error", response.text)
+        if isinstance(detail, dict):
+            detail = detail.get("message", detail)
+    except (ValueError, AttributeError):
+        detail = response.text
+    message = f"HTTP {status}: {str(detail)[:300]}"
+    if status in (401, 403):
+        return LLMError("auth", message, retryable=False, fatal=True)
+    if status == 404:
+        return LLMError("not_found", message, retryable=False, fatal=True)
+    if status == 429:
+        return LLMError("rate_limited", message, retryable=True)
+    if status >= 500:
+        return LLMError("server_error", message, retryable=True)
+    return LLMError("bad_request", message, retryable=False)
+
+
+def _retry_after_seconds(response: httpx.Response) -> float | None:
+    value = response.headers.get("retry-after")
+    try:
+        return min(max(float(value), 0.0), _RETRY_AFTER_CAP_SECONDS) if value else None
+    except ValueError:
+        return None
+
+
+def _openai_usage(raw: Any) -> Usage:
+    if not isinstance(raw, dict):
+        return Usage()
+    prompt = int(raw.get("prompt_tokens") or 0)
+    details = raw.get("prompt_tokens_details")
+    cached = int(details.get("cached_tokens") or 0) if isinstance(details, dict) else 0
+    return Usage(
+        input_tokens=max(prompt - cached, 0),
+        output_tokens=int(raw.get("completion_tokens") or 0),
+        cache_read_tokens=cached,
+    )
 
 
 # =============================================================================================

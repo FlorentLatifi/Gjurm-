@@ -270,3 +270,43 @@ def test_fake_provider_end_to_end(db, settings) -> None:
     _articles(db, 5)
     stats = run_enrichment(db, settings, FakeProvider())
     assert stats.succeeded == 5 and stats.cost_usd == 0
+
+
+def test_local_model_end_to_end_is_free_and_counted_as_ai(db, settings) -> None:
+    """A local model over the OpenAI-compatible API: stored like Claude, priced at zero."""
+    import httpx
+
+    from gjurme.analytics.queries import analysis_mode
+    from gjurme.enrichment.pricing import register_price
+    from gjurme.enrichment.providers import OpenAICompatibleProvider
+
+    def answer(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": json.dumps(GOOD)}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 1900, "completion_tokens": 260},
+            },
+        )
+
+    register_price("local-test:4b", 0, 0)
+    provider = OpenAICompatibleProvider(
+        base_url="http://ollama:11434/v1",
+        model="local-test:4b",
+        max_output_tokens=1500,
+        timeout_seconds=5,
+        max_retries=0,
+        transport=httpx.MockTransport(answer),
+    )
+    ids = _articles(db, 3)
+    stats = run_enrichment(db, settings, provider)
+    assert stats.succeeded == 3 and stats.cost_usd == 0 and stats.entities_dropped_ungrounded == 3
+
+    with db() as s:
+        rows = s.scalars(select(Enrichment).where(Enrichment.article_id.in_(ids))).all()
+        assert {(r.provider, r.model, r.cost_usd) for r in rows} == {
+            ("openai_compatible", "local-test:4b", Decimal(0))
+        }
+        assert s.get(Article, ids[0]).enrichment_status == "succeeded"
+        mode = analysis_mode(s, date(2026, 9, 25))
+        assert mode["mode"] == "ai" and mode["model"] == "local-test:4b"
