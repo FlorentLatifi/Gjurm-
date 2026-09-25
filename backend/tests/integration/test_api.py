@@ -41,8 +41,11 @@ def make_article(
     entities: list[tuple[str, str]] | None = None,
     hidden: bool = False,
     hour: int = 10,
+    at: datetime | None = None,
 ) -> int:
-    published = datetime(day.year, day.month, day.day, hour, tzinfo=TZ).astimezone(UTC)
+    """``at`` (an exact moment) overrides ``day``/``hour`` for time-window tests."""
+    published = at or datetime(day.year, day.month, day.day, hour, tzinfo=TZ).astimezone(UTC)
+    day = published.astimezone(TZ).date()
     art = Article(
         source_id=source_id,
         url=f"https://x.example.com/{sha256_hex(title, str(day))}",
@@ -114,14 +117,17 @@ def dataset(db: sessionmaker[Session]) -> dict[str, Any]:
                 score=-0.6,
                 entities=[("Policia e Kosovës", "organization"), ("Prizren", "location")],
             )
-        # A person spiking today (6 mentions today, none before).
-        for i in range(6):
+        # A person spiking now: 6 mentions within the last 24 hours, none before. Relative to the
+        # current time (not fixed hours of "today"), so the test passes at any time of day.
+        now = datetime.now(UTC)
+        ids["spike_times"] = [now - timedelta(hours=i + 1) for i in range(6)]
+        for i, at in enumerate(ids["spike_times"]):
             make_article(
                 s,
                 a.id,
                 f"Drita Berisha deklaratë {i}",
                 t,
-                hour=8 + i,
+                at=at,
                 entities=[("Drita Berisha", "person"), ("KQZ", "organization")],
             )
         ids["hidden"] = make_article(
@@ -190,8 +196,10 @@ def test_overview_numbers(client: TestClient, dataset: dict[str, Any]) -> None:
     body = client.get("/api/v1/analytics/overview", params={"days": 7}).json()
     # 8 elections + 5 crime + 6 person + 1 visible = 20 in the last 7 days (hidden excluded)
     assert body["articles"] == 20
-    # elections i=0 and i=7 (7 % 7 == 0), crime i=0, 6 person articles, the visible one
-    assert body["today"] == 2 + 1 + 6 + 1
+    # elections i=0 and i=7 (7 % 7 == 0), crime i=0, the person articles dated today (all 6
+    # except shortly after midnight, when some of the last 24 hours fall on yesterday), the visible
+    spike_today = sum(at.astimezone(TZ).date() == today() for at in dataset["spike_times"])
+    assert body["today"] == 2 + 1 + spike_today + 1
     assert body["top_topic"]["slug"] == "elections"
     assert body["sentiment"]["negative"] == 5 and body["sentiment"]["positive"] == 8
     assert body["articles_total"] == 22  # hidden excluded
