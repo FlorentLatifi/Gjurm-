@@ -206,3 +206,54 @@ IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml
 ```
 
 Komanda e fundit i ri-analizon me Claude lajmet që i kishin analizuar rregullat, brenda kufirit ditor. Banneri "rule-based" zhduket vetë.
+
+---
+
+## AI falas (pa Claude)
+
+Aplikacioni mund të përdorë edhe modele AI falas, përmes `LLM_PROVIDER=openai_compatible`. Detajet teknike janë te [AI_ENRICHMENT.md](AI_ENRICHMENT.md#free-models).
+
+### 1. Mat cilësinë para se ta përdorësh (falas, pa server)
+
+GitHub → **Actions → Free model quality → Run workflow**:
+
+| Fusha | Vlera |
+|---|---|
+| `model` | `gemma3:4b` (provo edhe `qwen3:4b`) |
+| `enrich_limit` | `15` |
+
+Pas 10–20 minutash, te **Summary** e sheh për çdo lajm temën, tonin, emrat dhe përmbledhjen, si dhe sa sekonda iu desh modelit për një lajm. Krahasoje me raportin e Claude-it (Pjesa A) dhe me rregullat.
+
+### 2. Modeli lokal në serverin Oracle
+
+Modeli kërkon më shumë memorie se sa aplikacioni vetë. Në hapin B3 zgjidh **2 OCPU dhe 12 GB** (i gjithë limiti falas). Nëse VM-ja është krijuar me 4 GB, ndryshoja madhësinë te Oracle: *Instance → Edit → Shape*.
+
+Në server, te `/opt/gjurme`:
+
+```bash
+nano .env        # shto: COMPOSE_PROFILES=local-llm   (LLM_PROVIDER mbetet fake për momentin)
+./deploy.sh "$(cat .deploy-state/current)"
+alias dc='IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml'
+dc exec ollama ollama pull gemma3:4b         # shkarkimi zgjat disa minuta
+```
+
+Pastaj te `.env` hiq ose komento `LLM_PROVIDER=fake` dhe `ALLOW_FAKE_LLM_IN_PRODUCTION=true`, dhe shto:
+
+```env
+LLM_PROVIDER=openai_compatible
+LLM_BASE_URL=http://ollama:11434/v1
+LLM_MODEL=gemma3:4b
+LLM_TIMEOUT_SECONDS=600
+ENRICH_CONCURRENCY=1
+```
+
+```bash
+./deploy.sh "$(cat .deploy-state/current)"
+dc exec scheduler gjurme enrich-requeue --provider fake    # ri-analizo me modelin lajmet e rregullave
+```
+
+### 3. Kalimi te Claude më vonë
+
+Ndrysho vetëm `.env` (`LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `LLM_MODEL`, `LLM_DAILY_BUDGET_USD`), rinise me `./deploy.sh`, dhe ri-analizo me `dc exec scheduler gjurme enrich-requeue --provider openai_compatible`. Kontejnerin e modelit lokal e ndal duke hequr `COMPOSE_PROFILES=local-llm` dhe me `dc stop ollama`.
+
+**Kujdes:** krahasimet mes portaleve janë të drejta vetëm kur të gjitha lajmet janë analizuar me të njëjtin model. Prandaj, pas çdo ndërrimi, ri-analizo edhe lajmet e vjetra.

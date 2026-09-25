@@ -32,7 +32,7 @@ from gjurme.config import Settings
 from gjurme.db.models import Article, ArticleEntity, ArticleTopic, Enrichment, Entity, Source
 from gjurme.enrichment.budget import BudgetGuard, spent_today
 from gjurme.enrichment.grounding import ground_entities
-from gjurme.enrichment.pricing import Usage, cost_usd, estimate_call_cost
+from gjurme.enrichment.pricing import Usage, cost_usd, estimate_call_cost, register_price
 from gjurme.enrichment.prompt import (
     PROMPT_VERSION,
     SYSTEM_PROMPT,
@@ -40,7 +40,13 @@ from gjurme.enrichment.prompt import (
     input_hash,
     render_user_message,
 )
-from gjurme.enrichment.providers import AnthropicProvider, FakeProvider, LLMError, LLMProvider
+from gjurme.enrichment.providers import (
+    AnthropicProvider,
+    FakeProvider,
+    LLMError,
+    LLMProvider,
+    OpenAICompatibleProvider,
+)
 from gjurme.enrichment.schema import (
     OUTPUT_JSON_SCHEMA,
     SCHEMA_VERSION,
@@ -67,6 +73,24 @@ def build_provider(settings: Settings) -> LLMProvider:
         if settings.is_deployed and not settings.allow_fake_llm_in_production:
             raise ConfigurationError("fake LLM provider is not allowed in deployed environments")
         return FakeProvider()
+    if settings.llm_provider == "openai_compatible":
+        if not settings.llm_base_url:
+            raise ConfigurationError("LLM_BASE_URL is not set (e.g. http://ollama:11434/v1)")
+        register_price(
+            settings.llm_model,
+            settings.llm_price_input_per_mtok,
+            settings.llm_price_output_per_mtok,
+        )
+        return OpenAICompatibleProvider(
+            base_url=settings.llm_base_url,
+            model=settings.llm_model,
+            api_key=settings.llm_api_key.get_secret_value() if settings.llm_api_key else None,
+            max_output_tokens=settings.llm_max_output_tokens,
+            timeout_seconds=settings.llm_timeout_seconds,
+            max_retries=settings.llm_sdk_max_retries,
+            response_format=settings.llm_response_format,
+            requests_per_minute=settings.llm_requests_per_minute,
+        )
     if settings.anthropic_api_key is None or not settings.anthropic_api_key.get_secret_value():
         raise ConfigurationError("ANTHROPIC_API_KEY is not set (or set LLM_PROVIDER=fake)")
     return AnthropicProvider(
