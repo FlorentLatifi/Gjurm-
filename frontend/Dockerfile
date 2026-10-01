@@ -22,7 +22,7 @@ RUN npm run build
 # and golang.org/x/{crypto,net,text} / grpc (Trivy, 2026-09-24). Build the same Caddy release
 # with a patched toolchain and the fixed dependency versions instead of weakening the scan.
 # Re-evaluate on each Caddy release: once upstream ships the fixes, the pins can go.
-FROM golang:1.26-alpine AS caddy
+FROM golang:1.27-alpine AS caddy
 ARG CADDY_VERSION=v2.11.4
 WORKDIR /build
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
