@@ -245,7 +245,7 @@ jobs:
     steps:
       - name: Image name (GHCR requires lowercase)
         run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gjurme-${{ matrix.component }}" >> "$GITHUB_ENV"
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           path: ${{ runner.temp }}/digests
           pattern: digests-${{ matrix.component }}-*
