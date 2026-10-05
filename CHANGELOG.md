@@ -14,7 +14,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ### Changed
 - **Prompt v1.1:** clearer rules for Albanian name forms, what counts as an entity, entity types, quoted speakers, tone of mixed headlines and summaries, based on the free model's mistakes on live headlines ([AI_ENRICHMENT.md](docs/AI_ENRICHMENT.md#versioning-and-reprocessing)). Analyses made with v1.0 can be redone with `gjurme enrich-requeue --older-than-version v1.1`.
-- **Common nouns are no longer stored as names:** an entity with no capitalised word ("qytetarëve", "komandanti") is dropped before the grounding check and recorded as the quality flag `entities_not_proper`. On live headlines the free model listed 18 such words in 15 articles.
+- **Common nouns are no longer stored as names:** an entity with no capitalised word ("qytetarëve", "komandanti") is dropped before the grounding check and recorded as the quality flag `entities_not_proper`. On live headlines the free model listed 18 such words in 15 articles; with the filter, 4 slipped through (capitalised) and no real name was dropped. Measured results, including where v1.1 did not help a 4B model, are in [AI_ENRICHMENT.md](docs/AI_ENRICHMENT.md#versioning-and-reprocessing).
 
 ### Fixed
 - Keyword rules: location and organization hints written with `ë`/`ç` (*Shqipëri*, *Lëvizja*) never matched, because names are compared in folded form; the hints are now folded too.

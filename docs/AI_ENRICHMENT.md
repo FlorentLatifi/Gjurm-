@@ -140,7 +140,19 @@ Switching models is configuration only (`LLM_MODEL`). The model is part of `inpu
 - `PROMPT_VERSION = "v1.1"` (prompt.py) and `SCHEMA_VERSION = "2026-09-24.1"` (schema.py) are stored on every enrichment row, next to model, tokens, cost, latency, attempt number and the provider's request id.
 - Bump `PROMPT_VERSION` whenever the prompt text, the taxonomy or the schema changes.
 - v1.1 (2026-10-05) tightened the rules where the free model `gemma3:4b` failed on live headlines: Albanian names in base form ("Gjermaninë" → "Gjermania", "Policisë së Kosovës" → "Policia e Kosovës"); no common nouns, amounts or titles of works as entities; parliaments and courts are organizations and countries locations; quoted speakers ("Gjini: …") are listed; mixed headlines and "concerns" get a matching tone; summaries add no days, numbers or roles. The output schema is unchanged.
-- Measured on 15 live headlines with `gemma3:4b` (v1.0 and v1.1 each on that day's feeds): inflected name forms fell from 15 to 2, missed entities from 3 articles to 2 and wrong tone from 4 articles to 2. Common nouns listed as names rose from 6 to 18. Almost all were lower-case, so a code check now drops any entity with no capitalised word (`entities_not_proper` flag) instead of relying on the prompt.
+- Measured with `gemma3:4b` on three sets of 15 live headlines (each run sees that day's feeds, so the articles differ):
+
+  | Mistake | v1.0 | v1.1, no filter | v1.1 + filter |
+  |---|---|---|---|
+  | Inflected name forms ("Policisë së Kosovës") | 15 | 2 | 17 |
+  | Common nouns listed as names | 6 | 18 | 4 (3 more dropped by the filter, no real name lost) |
+  | Wrong entity type | 4 | 5 | 7 |
+  | Obvious entity missing (articles) | 3 | 2 | 2 |
+  | Wrong or weak tone (articles) | 4 | 2 | 2 |
+  | Wrong topic | 1 | 2 | 2 |
+  | Summary adds or distorts facts (articles) | 3–4 | 1 + 2 not in English | 5 (1 partly not in English) |
+
+  The capital-letter filter (`entities_not_proper`) works reliably. The prompt alone does not make a 4B model consistent: name forms improved on one set of headlines and not on the next, which had long protest stories full of institution names. Treat a small local model as a rough first pass. For per-outlet comparisons and the bias analysis, use Claude or a larger model.
 - Reprocess:
   ```bash
   gjurme enrich-requeue --older-than-version v1.1   # mark analyses made before v1.1 for re-enrichment
