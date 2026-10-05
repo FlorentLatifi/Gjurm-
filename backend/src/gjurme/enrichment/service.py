@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 from gjurme.config import Settings
 from gjurme.db.models import Article, ArticleEntity, ArticleTopic, Enrichment, Entity, Source
 from gjurme.enrichment.budget import BudgetGuard, spent_today
-from gjurme.enrichment.grounding import ground_entities
+from gjurme.enrichment.grounding import ground_entities, split_proper_names
 from gjurme.enrichment.pricing import Usage, cost_usd, estimate_call_cost, register_price
 from gjurme.enrichment.prompt import (
     PROMPT_VERSION,
@@ -111,6 +111,7 @@ class EnrichStats:
     cached: int = 0
     failed: Counter[str] = field(default_factory=Counter)
     entities_dropped_ungrounded: int = 0
+    entities_dropped_not_proper: int = 0
     cost_usd: Decimal = Decimal(0)
     input_tokens: int = 0
     output_tokens: int = 0
@@ -132,6 +133,7 @@ class EnrichStats:
             "failed": dict(self.failed),
             "failed_total": sum(self.failed.values()),
             "entities_dropped_ungrounded": self.entities_dropped_ungrounded,
+            "entities_dropped_not_proper": self.entities_dropped_not_proper,
             "cost_usd": float(self.cost_usd),
             "spent_today_usd": float(self.spent_today_usd),
             "input_tokens": self.input_tokens,
@@ -279,9 +281,13 @@ def call_llm(provider: LLMProvider, item: QueueItem, estimate: Decimal) -> CallO
         outcome.status, outcome.error, outcome.error_kind = "invalid", str(exc)[:1000], "invalid"
         return outcome
     source_text = f"{item.article.title}\n{item.article.excerpt or ''}"
-    kept, dropped = ground_entities(output.entities, source_text)
+    proper, common = split_proper_names(output.entities)
+    if common:
+        flags["entities_not_proper"] = [e.name for e in common]
+    kept, dropped = ground_entities(proper, source_text)
     if dropped:
         flags["entities_ungrounded"] = [e.name for e in dropped]
+    if common or dropped:
         output = output.model_copy(update={"entities": kept})
     outcome.output, outcome.flags = output, flags
     return outcome
@@ -501,6 +507,7 @@ def run_enrichment(
         if outcome.status == "succeeded":
             stats.succeeded += 1
             stats.entities_dropped_ungrounded += len(outcome.flags.get("entities_ungrounded", []))
+            stats.entities_dropped_not_proper += len(outcome.flags.get("entities_not_proper", []))
             consecutive_failures = 0
         else:
             stats.failed[outcome.error_kind or outcome.status] += 1

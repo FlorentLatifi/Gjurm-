@@ -77,6 +77,8 @@ API response
         · score contradicting the label (e.g. "negative" with +0.4, or "neutral" with |score| > 0.5)
           → replaced by the label's default score (the categorical judgement is trusted)
   └─ Pydantic EnrichmentOutput (extra="forbid", enums, lengths) → status=invalid on failure
+  └─ split_proper_names(): drop "entities" with no capitalised word (common nouns such as
+     "qytetarëve", "komandanti") → quality flag entities_not_proper
   └─ ground_entities(): drop entities not supported by the headline/excerpt
         · persons: every name token (≥ 3 chars) must appear
         · organizations / locations: at least half of the tokens
@@ -86,7 +88,7 @@ API response
   └─ persist: enrichments row (is_current) + denormalized fields on articles + bridges
 ```
 
-Every rejected or repaired item stays visible: `core.enrichments.status`, `error`, `raw_response` (for failures, kept 90 days) and `quality_flags` (e.g. `{"entities_ungrounded": [...], "sentiment_inconsistent": true}`). The `ungrounded_entity_rate_24h` and `low_confidence_rate_24h` data-quality checks track the trend.
+Every rejected or repaired item stays visible: `core.enrichments.status`, `error`, `raw_response` (for failures, kept 90 days) and `quality_flags` (e.g. `{"entities_ungrounded": [...], "entities_not_proper": [...], "sentiment_inconsistent": true}`). The `ungrounded_entity_rate_24h` and `low_confidence_rate_24h` data-quality checks track the trend.
 
 ## Reliability
 
@@ -138,6 +140,7 @@ Switching models is configuration only (`LLM_MODEL`). The model is part of `inpu
 - `PROMPT_VERSION = "v1.1"` (prompt.py) and `SCHEMA_VERSION = "2026-09-24.1"` (schema.py) are stored on every enrichment row, next to model, tokens, cost, latency, attempt number and the provider's request id.
 - Bump `PROMPT_VERSION` whenever the prompt text, the taxonomy or the schema changes.
 - v1.1 (2026-10-05) tightened the rules where the free model `gemma3:4b` failed on live headlines: Albanian names in base form ("Gjermaninë" → "Gjermania", "Policisë së Kosovës" → "Policia e Kosovës"); no common nouns, amounts or titles of works as entities; parliaments and courts are organizations and countries locations; quoted speakers ("Gjini: …") are listed; mixed headlines and "concerns" get a matching tone; summaries add no days, numbers or roles. The output schema is unchanged.
+- Measured on 15 live headlines with `gemma3:4b` (v1.0 and v1.1 each on that day's feeds): inflected name forms fell from 15 to 2, missed entities from 3 articles to 2 and wrong tone from 4 articles to 2. Common nouns listed as names rose from 6 to 18. Almost all were lower-case, so a code check now drops any entity with no capitalised word (`entities_not_proper` flag) instead of relying on the prompt.
 - Reprocess:
   ```bash
   gjurme enrich-requeue --older-than-version v1.1   # mark analyses made before v1.1 for re-enrichment

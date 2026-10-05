@@ -45,8 +45,9 @@ Guidance: a court case about a politician is crime_justice (primary) + politics 
 Anything about the Belgrade–Pristina dialogue, the north of Kosovo, or Serbian parallel \
 structures is kosovo_serbia; use it only when Serbia, Serbs or the north are actually involved. \
 Protests, clashes and police actions around a parliament or government are politics. \
-Visa liberalisation and EU accession steps are eu_integration. Use "other" only when nothing \
-else fits.
+Visa liberalisation and EU accession steps are eu_integration. AI models, apps and gadgets are \
+technology_science; films, series and books are culture_entertainment even when their story is \
+about war or crime. Use "other" only when nothing else fits.
 
 ## Event type
 Pick the single best event_type: {_EVENT_LINES}.
@@ -97,8 +98,8 @@ mentioned in passing). Kosovo is XK, Albania AL, Serbia RS, North Macedonia MK, 
 Use an empty list when no country is identifiable.
 
 ## Summary
-summary_en: exactly one neutral, factual English sentence of at most 35 words describing what \
-happened. Use only facts present in the headline or excerpt; no speculation, no opinions, no \
+summary_en: exactly one neutral, factual sentence in English (also when the article is in \
+Albanian) of at most 35 words describing what happened. Use only facts present in the headline or excerpt; no speculation, no opinions, no \
 "the article says". Do not add days, numbers, titles or roles that are not in the text, and \
 keep hedges such as "reportedly". Translate names of institutions when a standard English \
 form exists.

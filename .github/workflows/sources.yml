@@ -145,7 +145,8 @@ jobs:
             echo "## Claude quality review"
             echo
             echo "Check each row against its headline: topic, tone, names (persons/orgs/places), summary."
-            echo "\`dropped\` = names the grounding check removed because they are not in the text."
+            echo "\`dropped\` = names the grounding check removed because they are not in the text;"
+            echo "\`not_names\` = common nouns removed because no word is capitalised."
             echo
             echo '```'
             q "SELECT count(*) AS calls, count(*) FILTER (WHERE status = 'succeeded') AS ok,
@@ -163,6 +164,7 @@ jobs:
                          FROM core.article_entities ae JOIN core.entities e ON e.id = ae.entity_id
                         WHERE ae.article_id = a.id) AS names,
                       en.quality_flags -> 'entities_ungrounded' AS dropped,
+                      en.quality_flags -> 'entities_not_proper' AS not_names,
                       left(a.summary_en, 160) AS summary, a.enrichment_confidence AS conf
                FROM core.enrichments en JOIN core.articles a ON a.id = en.article_id
                JOIN core.sources s ON s.id = a.source_id
