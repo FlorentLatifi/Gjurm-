@@ -12,6 +12,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - **Honest rule-based mode:** `/api/v1/status` reports the analysis mode, the site shows a banner, and each article page labels its analysis as *AI* or *rule-based*. `gjurme enrich-requeue --provider fake` re-analyses rule-based results with Claude once a key is added.
 - **Claude quality test:** the *Source validation* workflow takes `enrich_limit` (1–50, hard budget) and publishes a review report of every result with tokens and cost.
 
+### Changed
+- **Prompt v1.1:** clearer rules for Albanian name forms, what counts as an entity, entity types, quoted speakers, tone of mixed headlines and summaries, based on the free model's mistakes on live headlines ([AI_ENRICHMENT.md](docs/AI_ENRICHMENT.md#versioning-and-reprocessing)). Analyses made with v1.0 can be redone with `gjurme enrich-requeue --older-than-version v1.1`.
+
 ### Fixed
 - Keyword rules: location and organization hints written with `ë`/`ç` (*Shqipëri*, *Lëvizja*) never matched, because names are compared in folded form; the hints are now folded too.
 - Manual `docker compose` commands on the server (the `dc`/`gj` aliases, backup, restore, off-site) failed with "IMAGE_TAG must be set"; they now read the running tag from `.deploy-state/current`.

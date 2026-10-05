@@ -135,11 +135,12 @@ Switching models is configuration only (`LLM_MODEL`). The model is part of `inpu
 
 ## Versioning and reprocessing
 
-- `PROMPT_VERSION = "v1.0"` (prompt.py) and `SCHEMA_VERSION = "2026-09-24.1"` (schema.py) are stored on every enrichment row, next to model, tokens, cost, latency, attempt number and the provider's request id.
+- `PROMPT_VERSION = "v1.1"` (prompt.py) and `SCHEMA_VERSION = "2026-09-24.1"` (schema.py) are stored on every enrichment row, next to model, tokens, cost, latency, attempt number and the provider's request id.
 - Bump `PROMPT_VERSION` whenever the prompt text, the taxonomy or the schema changes.
+- v1.1 (2026-10-05) tightened the rules where the free model `gemma3:4b` failed on live headlines: Albanian names in base form ("Gjermaninë" → "Gjermania", "Policisë së Kosovës" → "Policia e Kosovës"); no common nouns, amounts or titles of works as entities; parliaments and courts are organizations and countries locations; quoted speakers ("Gjini: …") are listed; mixed headlines and "concerns" get a matching tone; summaries add no days, numbers or roles. The output schema is unchanged.
 - Reprocess:
   ```bash
-  gjurme enrich-requeue --older-than-version v1.0   # mark older analyses for re-enrichment
+  gjurme enrich-requeue --older-than-version v1.1   # mark analyses made before v1.1 for re-enrichment
   gjurme enrich --limit 500                          # or let the scheduler work through it
   gjurme enrich-requeue --failed                     # retry failed/skipped articles
   gjurme enrich-requeue --article-id 123             # one article (also: POST /admin/articles/123/reenrich)
