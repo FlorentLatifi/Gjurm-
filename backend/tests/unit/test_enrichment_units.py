@@ -8,7 +8,7 @@ from decimal import Decimal
 import pytest
 
 from gjurme.enrichment.budget import BudgetGuard
-from gjurme.enrichment.grounding import ground_entities
+from gjurme.enrichment.grounding import ground_entities, split_proper_names
 from gjurme.enrichment.pricing import FALLBACK_PRICE, Usage, cost_usd, estimate_call_cost
 from gjurme.enrichment.prompt import (
     SYSTEM_PROMPT,
@@ -104,6 +104,23 @@ class TestSchema:
         assert props["primary_topic"]["enum"] == list(TOPIC_SLUGS)
         assert OUTPUT_JSON_SCHEMA["additionalProperties"] is False
         assert set(OUTPUT_JSON_SCHEMA["required"]) == set(VALID)
+
+
+class TestProperNames:
+    @pytest.mark.parametrize(
+        "name",
+        ["Prishtina", "Policia e Kosovës", "de Gaulle", "Seria 2", "KFOR", "“Heart of the Beast”"],
+    )
+    def test_kept(self, name: str) -> None:
+        kept, dropped = split_proper_names([EntityOut(name=name, type="organization")])
+        assert kept and not dropped
+
+    @pytest.mark.parametrize(
+        "name", ["qytetarëve", "komandanti", "fëmijëve të dëshmorëve", "qen", "autobusi"]
+    )
+    def test_dropped(self, name: str) -> None:
+        kept, dropped = split_proper_names([EntityOut(name=name, type="person")])
+        assert dropped and not kept
 
 
 class TestGrounding:

@@ -114,6 +114,25 @@ def test_successful_enrichment_persists_everything(db, settings: Settings) -> No
         assert enr.quality_flags == {"entities_ungrounded": ["Hashim Invented"]}
 
 
+def test_common_nouns_are_dropped_and_flagged(db, settings: Settings) -> None:
+    _articles(db, 1)
+    out = {
+        **GOOD,
+        "entities": [
+            {"name": "Prizren", "type": "location"},
+            {"name": "policët", "type": "person"},
+            {"name": "qytetarëve", "type": "person"},
+        ],
+    }
+    stats = run_enrichment(db, settings, ScriptedProvider([out]))
+    assert stats.succeeded == 1 and stats.entities_dropped_not_proper == 2
+    with db() as s:
+        assert set(s.scalars(select(Entity.name))) == {"Prizren"}
+        enr = s.scalar(select(Enrichment))
+        assert enr is not None
+        assert enr.quality_flags == {"entities_not_proper": ["policët", "qytetarëve"]}
+
+
 def test_entities_are_shared_across_articles(db, settings) -> None:
     _articles(db, 3)
     run_enrichment(db, settings, ScriptedProvider([GOOD]))
