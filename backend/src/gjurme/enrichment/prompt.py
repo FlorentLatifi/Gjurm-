@@ -99,10 +99,10 @@ Use an empty list when no country is identifiable.
 
 ## Summary
 summary_en: exactly one neutral, factual sentence in English (also when the article is in \
-Albanian) of at most 35 words describing what happened. Use only facts present in the headline or excerpt; no speculation, no opinions, no \
-"the article says". Do not add days, numbers, titles or roles that are not in the text, and \
-keep hedges such as "reportedly". Translate names of institutions when a standard English \
-form exists.
+Albanian) of at most 35 words describing what happened. Use only facts present in the \
+headline or excerpt; no speculation, no opinions, no "the article says". Do not add days, \
+numbers, titles or roles that are not in the text, and keep hedges such as "reportedly". \
+Translate names of institutions when a standard English form exists.
 
 ## Language and confidence
 language: the ISO 639-1 language of the text (sq, en, sr, mk) or "other".
