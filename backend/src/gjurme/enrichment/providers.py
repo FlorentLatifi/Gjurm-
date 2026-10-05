@@ -642,6 +642,10 @@ _TOPIC_KEYWORDS: dict[str, tuple[str, ...]] = {
         "ldk$",
         "vetevendosje",
         "aak$",
+        "lsi$",
+        "bdi$",
+        "bashkia$",
+        "bashkis",
         "komun",
         "kryetar",
         "protest",
@@ -718,6 +722,10 @@ _COUNTRY_HINTS = {
     "ukrain": "UA",
     "rusi": "RU",
     "tiran": "AL",
+    "durrës": "AL",
+    "shkodër": "AL",
+    "shkup": "MK",
+    "tetov": "MK",
     "prishtin": "XK",
     "beograd": "RS",
 }
@@ -735,6 +743,18 @@ _LOCATION_HINTS = (
     "vlor",
     "beograd",
     "shkup",
+    "elbasan",
+    "korç",
+    "fier",
+    "berat",
+    "sarand",
+    "lezh",
+    "kukës",
+    "pogradec",
+    "tetov",
+    "kumanov",
+    "gostivar",
+    "strug",
     "kosov",
     "shqipëri",
     "serbi",
@@ -799,7 +819,13 @@ _ORG_HINTS = (
     "banka",
     "universiteti",
     "komuna",
+    "bashkia",
+    "lsi",
+    "bdi",
 )
+# Hints are written with Albanian letters for readability; names are compared folded (ë → e).
+_LOCATION_KEYS = tuple(fold(h) for h in _LOCATION_HINTS)
+_ORG_KEYS = tuple(fold(h) for h in _ORG_HINTS)
 _NAME_SEQ = re.compile(r"\b([A-ZÇË][\wçëÇË-]+(?:\s+(?:e|i|të)?\s*[A-ZÇË][\wçëÇË-]+){0,3})")
 _SENTENCE_START_STOP = {
     "Sipas",
@@ -867,9 +893,9 @@ class FakeProvider:
                 continue
             name = " ".join(words)
             key = fold(name)
-            if any(key.startswith(h) for h in _LOCATION_HINTS):
+            if any(key.startswith(h) for h in _LOCATION_KEYS):
                 etype = "location"
-            elif any(key.split()[0] == h or key.startswith(h + " ") for h in _ORG_HINTS) or (
+            elif any(key.split()[0] == h or key.startswith(h + " ") for h in _ORG_KEYS) or (
                 name.isupper() and len(name) <= 6
             ):
                 etype = "organization"

@@ -271,6 +271,37 @@ class TestProviders:
         assert {"name": "Prizren", "type": "location"} in [e.model_dump() for e in out.entities]
 
     @pytest.mark.parametrize(
+        ("headline", "topic", "location", "country"),
+        [
+            ("LSI kërkon largimin e kryetarit të bashkisë", "politics", None, None),
+            ("Bashkia e Tiranës mbyll rrugën në Elbasan", None, "Elbasan", "AL"),
+            ("BDI kërkon dorëheqjen e ministrit në Tetovë", "politics", "Tetovë", "MK"),
+            ("Policia në Korçë arreston dy persona", "crime_justice", "Korçë", None),
+            ("Protestë në Shkup kundër qeverisë", "politics", "Shkup", "MK"),
+        ],
+    )
+    def test_fake_provider_knows_albania_and_north_macedonia(
+        self, headline: str, topic: str | None, location: str | None, country: str | None
+    ) -> None:
+        msg = render_user_message(ArticleInput("Test", date(2026, 10, 5), headline, ""))
+        out, _ = parse_output(FakeProvider().complete(SYSTEM_PROMPT, msg, OUTPUT_JSON_SCHEMA).text)
+        if topic:
+            assert out.primary_topic == topic
+        if location:
+            assert {"name": location, "type": "location"} in [e.model_dump() for e in out.entities]
+        if country:
+            assert country in out.countries
+
+    def test_fake_provider_hints_match_albanian_letters(self) -> None:
+        msg = render_user_message(
+            ArticleInput("Test", date(2026, 10, 5), "Shqipëria dhe Lëvizja Vetëvendosje", "")
+        )
+        out, _ = parse_output(FakeProvider().complete(SYSTEM_PROMPT, msg, OUTPUT_JSON_SCHEMA).text)
+        entities = [e.model_dump() for e in out.entities]
+        assert {"name": "Shqipëria", "type": "location"} in entities
+        assert {"name": "Lëvizja Vetëvendosje", "type": "organization"} in entities
+
+    @pytest.mark.parametrize(
         ("model", "expected"),
         [
             ("claude-sonnet-5", {"thinking": {"type": "disabled"}}),

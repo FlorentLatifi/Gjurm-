@@ -61,11 +61,11 @@ The rows below apply to both paths. Skip the VPS/domain rows on the free path, a
 - ⬜ Daily glance ([OPERATIONS.md](OPERATIONS.md#daily-glance-2-minutes)): runs, costs, quality, alerts.
 - ⬜ Watch the backlog and the budget: raise or lower `LLM_DAILY_BUDGET_USD` to match real volume.
 - ⬜ First Sunday: confirm the automatic restore verification passed (`dc logs backup`).
-- ⬜ Validate Albanian and North Macedonian candidates (A2, Euronews Albania, BalkanWeb, Reporter.al, Portalb) for geographic balance ([SOURCES.md](SOURCES.md)).
+- ✅ Validate Albanian and North Macedonian candidates for geographic balance: Reporter.al, Euronews Albania, BalkanWeb and Portalb.mk enabled; A2 CNN excluded (404) ([SOURCES.md](SOURCES.md)).
 
 ## 5. Known limitations at launch
 
-- Coverage is Kosovo-heavy (all 5 verified sources).
+- Coverage still leans to Kosovo: 6 of 10 enabled sources are Kosovo-based, 3 Albanian, 1 North Macedonian. Top Channel and A2 CNN, two major Albanian broadcasters, have no usable feed.
 - "Unique stories" only merges near-verbatim copies; paraphrased coverage of the same event counts separately (ADR-008).
 - Tone and entities are machine-generated from headline and excerpt only, and can be wrong; the methodology page says so.
 - One server: the recovery point is the last nightly backup.
