@@ -55,7 +55,10 @@ switch_to() {
   "${COMPOSE[@]}" up -d db || return 1
   "${COMPOSE[@]}" run --rm migrate || return 1
   log "starting containers"
-  "${COMPOSE[@]}" up -d --remove-orphans db api scheduler web backup
+  local services=(db api scheduler web backup)
+  # Optional local model (COMPOSE_PROFILES=local-llm in .env): named services ignore profiles.
+  [[ ",${COMPOSE_PROFILES:-}," == *",local-llm,"* ]] && services+=(ollama)
+  "${COMPOSE[@]}" up -d --remove-orphans "${services[@]}"
 }
 
 log "deploying $target (current: ${current:-none})"

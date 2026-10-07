@@ -8,7 +8,7 @@ from decimal import Decimal
 import pytest
 
 from gjurme.enrichment.budget import BudgetGuard
-from gjurme.enrichment.grounding import ground_entities
+from gjurme.enrichment.grounding import ground_entities, split_proper_names
 from gjurme.enrichment.pricing import FALLBACK_PRICE, Usage, cost_usd, estimate_call_cost
 from gjurme.enrichment.prompt import (
     SYSTEM_PROMPT,
@@ -104,6 +104,23 @@ class TestSchema:
         assert props["primary_topic"]["enum"] == list(TOPIC_SLUGS)
         assert OUTPUT_JSON_SCHEMA["additionalProperties"] is False
         assert set(OUTPUT_JSON_SCHEMA["required"]) == set(VALID)
+
+
+class TestProperNames:
+    @pytest.mark.parametrize(
+        "name",
+        ["Prishtina", "Policia e Kosovës", "de Gaulle", "Seria 2", "KFOR", "“Heart of the Beast”"],
+    )
+    def test_kept(self, name: str) -> None:
+        kept, dropped = split_proper_names([EntityOut(name=name, type="organization")])
+        assert kept and not dropped
+
+    @pytest.mark.parametrize(
+        "name", ["qytetarëve", "komandanti", "fëmijëve të dëshmorëve", "qen", "autobusi"]
+    )
+    def test_dropped(self, name: str) -> None:
+        kept, dropped = split_proper_names([EntityOut(name=name, type="person")])
+        assert dropped and not kept
 
 
 class TestGrounding:
@@ -269,6 +286,37 @@ class TestProviders:
         assert out.primary_topic == "crime_justice"
         assert out.sentiment == "negative"
         assert {"name": "Prizren", "type": "location"} in [e.model_dump() for e in out.entities]
+
+    @pytest.mark.parametrize(
+        ("headline", "topic", "location", "country"),
+        [
+            ("LSI kërkon largimin e kryetarit të bashkisë", "politics", None, None),
+            ("Bashkia e Tiranës mbyll rrugën në Elbasan", None, "Elbasan", "AL"),
+            ("BDI kërkon dorëheqjen e ministrit në Tetovë", "politics", "Tetovë", "MK"),
+            ("Policia në Korçë arreston dy persona", "crime_justice", "Korçë", None),
+            ("Protestë në Shkup kundër qeverisë", "politics", "Shkup", "MK"),
+        ],
+    )
+    def test_fake_provider_knows_albania_and_north_macedonia(
+        self, headline: str, topic: str | None, location: str | None, country: str | None
+    ) -> None:
+        msg = render_user_message(ArticleInput("Test", date(2026, 10, 5), headline, ""))
+        out, _ = parse_output(FakeProvider().complete(SYSTEM_PROMPT, msg, OUTPUT_JSON_SCHEMA).text)
+        if topic:
+            assert out.primary_topic == topic
+        if location:
+            assert {"name": location, "type": "location"} in [e.model_dump() for e in out.entities]
+        if country:
+            assert country in out.countries
+
+    def test_fake_provider_hints_match_albanian_letters(self) -> None:
+        msg = render_user_message(
+            ArticleInput("Test", date(2026, 10, 5), "Shqipëria dhe Lëvizja Vetëvendosje", "")
+        )
+        out, _ = parse_output(FakeProvider().complete(SYSTEM_PROMPT, msg, OUTPUT_JSON_SCHEMA).text)
+        entities = [e.model_dump() for e in out.entities]
+        assert {"name": "Shqipëria", "type": "location"} in entities
+        assert {"name": "Lëvizja Vetëvendosje", "type": "organization"} in entities
 
     @pytest.mark.parametrize(
         ("model", "expected"),

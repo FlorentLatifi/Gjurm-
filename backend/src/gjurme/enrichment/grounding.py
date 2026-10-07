@@ -12,6 +12,10 @@ also counts when both remainders are Albanian case endings. Matching is diacriti
 Entities that fail the check are dropped and counted, never silently kept: this catches names the
 model "knows" but that the article never mentions (e.g. adding a prime minister's first name, or
 inventing the minister of an unnamed ministry).
+
+A second, simpler guard (``split_proper_names``) drops "entities" with no capitalised word.
+Albanian, like English, capitalises proper names, so "qytetarëve", "komandanti" or "qen" are
+common nouns that small models list despite the prompt.
 """
 
 from __future__ import annotations
@@ -105,4 +109,15 @@ def ground_entities(
                 hits == len(name_tokens) if ent.type == "person" else (hits * 2 >= len(name_tokens))
             )
         (kept if grounded else dropped).append(ent)
+    return kept, dropped
+
+
+def split_proper_names(entities: list[EntityOut]) -> tuple[list[EntityOut], list[EntityOut]]:
+    """Keep entities with at least one word starting with a capital letter or a digit."""
+    kept: list[EntityOut] = []
+    dropped: list[EntityOut] = []
+    for ent in entities:
+        words = (w.lstrip("\"'“”„«»‘’(") for w in ent.name.split())
+        proper = any(w[:1].isupper() or w[:1].isdigit() for w in words)
+        (kept if proper else dropped).append(ent)
     return kept, dropped

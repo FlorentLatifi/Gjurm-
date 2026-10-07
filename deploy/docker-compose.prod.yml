@@ -88,7 +88,7 @@ services:
       start_period: 90s
       retries: 3
     mem_limit: 512m
-    networks: [data, egress]
+    networks: [data, egress, llm]
 
   web:
     <<: *hardening
@@ -134,6 +134,26 @@ services:
     logging: *logging
     restart: unless-stopped
 
+  # Optional free AI analysis with a local model (docs/AI_ENRICHMENT.md#free-models). Enable with
+  # COMPOSE_PROFILES=local-llm in .env (deploy.sh then starts it), pull the model once, then set
+  # LLM_PROVIDER=openai_compatible and LLM_BASE_URL=http://ollama:11434/v1.
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    profiles: [local-llm]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    environment:
+      # The system prompt alone is ~1.4k tokens; a small default context window would cut it.
+      OLLAMA_CONTEXT_LENGTH: "8192"
+      OLLAMA_KEEP_ALIVE: "24h" # stay loaded between the 15-minute runs
+      OLLAMA_NUM_PARALLEL: "1" # CPU-only: one request at a time is fastest overall
+    volumes:
+      - ollama_models:/root/.ollama
+    mem_limit: ${OLLAMA_MEM_LIMIT:-6g}
+    networks: [llm, egress] # egress only to download models
+    logging: *logging
+    restart: unless-stopped
+
   # Optional off-site copy (Backblaze B2 / S3 / Hetzner Storage Box …) via rclone:
   #   docker compose --profile offsite up -d  (after creating ./rclone/rclone.conf)
   backup-offsite:
@@ -161,8 +181,11 @@ networks:
     internal: true # the database network has no route to the internet
   edge: {}
   egress: {}
+  llm:
+    internal: true # scheduler ↔ local model only
 
 volumes:
   pgdata:
   caddy_data:
   caddy_config:
+  ollama_models:

@@ -62,11 +62,20 @@ class Settings(BaseSettings):
     excerpt_max_chars: int = Field(default=1200, ge=100)
 
     # --- enrichment / LLM ------------------------------------------------------------------
-    llm_provider: Literal["anthropic", "fake"] = "anthropic"
+    llm_provider: Literal["anthropic", "openai_compatible", "fake"] = "anthropic"
     llm_model: str = "claude-sonnet-5"
     anthropic_api_key: SecretStr | None = None
     # Explicit so an ambient ANTHROPIC_BASE_URL can never silently redirect production traffic.
     anthropic_base_url: str = "https://api.anthropic.com"
+    # openai_compatible: a local model (Ollama: http://ollama:11434/v1) or a hosted free tier.
+    llm_base_url: str | None = None
+    llm_api_key: SecretStr | None = None  # not needed for a local model
+    llm_response_format: Literal["json_schema", "json_object", "prompt"] = "json_schema"
+    llm_requests_per_minute: int = Field(default=0, ge=0)  # 0 = no pacing; free tiers need it
+    # USD per million tokens for models not in enrichment/pricing.py. 0 for local/free models,
+    # which means the daily budget never stops them; ENRICH_MAX_PER_RUN still bounds each run.
+    llm_price_input_per_mtok: float = Field(default=0.0, ge=0)
+    llm_price_output_per_mtok: float = Field(default=0.0, ge=0)
     llm_timeout_seconds: float = Field(default=60.0, gt=0)
     llm_sdk_max_retries: int = Field(default=2, ge=0, le=5)
     llm_max_output_tokens: int = Field(default=1500, ge=256)
@@ -130,6 +139,8 @@ class Settings(BaseSettings):
             problems.append("CORS_ORIGINS must not contain '*' in a deployed environment")
         if self.llm_provider == "fake" and not self.allow_fake_llm_in_production:
             problems.append("LLM_PROVIDER=fake is not allowed in a deployed environment")
+        if self.llm_provider == "openai_compatible" and not self.llm_base_url:
+            problems.append("LLM_BASE_URL must be set for LLM_PROVIDER=openai_compatible")
         if "gjurme:gjurme@" in self.database_url:
             problems.append("DATABASE_URL uses the default development password")
         if problems:

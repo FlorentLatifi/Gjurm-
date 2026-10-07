@@ -50,7 +50,7 @@ sources:
     language: sq
     country: XK
     enabled: true
-    notes: Verified 2026-09-24 — 11 items. BIRN Kosovo — investigative, justice, fact-checking.
+    notes: Verified 2026-09-24 — 11 items. BIRN Kosovo — investigative, justice, fact-checking. HTTP 403 in the 2026-10-05 check after an OK 2026-09-28 one; Gazeta Express showed the same one-off 403 on 2026-09-28, so kept enabled (20 failures in a row auto-disable it).
 
   - slug: evropa-e-lire
     name: Radio Evropa e Lirë
@@ -61,6 +61,57 @@ sources:
     country: XK
     enabled: true
     notes: Feed found by validator autodiscovery 2026-09-24 (20 items). RFE/RL Albanian service.
+
+  # ------------------------------------------------------------------ verified 2026-09-28 + 2026-10-05
+  - slug: reporter-al
+    name: Reporter.al
+    homepage_url: https://www.reporter.al/
+    feed_url: https://www.reporter.al/feed/
+    discovery_urls: [https://www.reporter.al/]
+    language: sq
+    country: AL
+    enabled: true
+    notes: Verified 2026-09-28 and 2026-10-05 — 10 items, fields 100%. BIRN Albania — investigative.
+
+  - slug: euronews-albania
+    name: Euronews Albania
+    homepage_url: https://euronews.al/
+    feed_url: https://euronews.al/feed/
+    discovery_urls: [https://euronews.al/]
+    language: sq
+    country: AL
+    enabled: true
+    notes: Verified 2026-09-28 and 2026-10-05 — 10 items, fields 100%. Albanian broadcaster.
+
+  - slug: balkanweb
+    name: BalkanWeb
+    homepage_url: https://www.balkanweb.com/
+    feed_url: https://www.balkanweb.com/feed/
+    discovery_urls: [https://www.balkanweb.com/]
+    language: sq
+    country: AL
+    enabled: true
+    notes: Verified 2026-09-28 and 2026-10-05 — 10 items, fields 100%. Albanian news portal.
+
+  - slug: portalb
+    name: Portalb.mk
+    homepage_url: https://portalb.mk/
+    feed_url: https://portalb.mk/feed/
+    discovery_urls: [https://portalb.mk/]
+    language: sq
+    country: MK
+    enabled: true
+    notes: Verified 2026-09-28 and 2026-10-05 — 10 items, fields 100%. Albanian-language news from North Macedonia.
+
+  - slug: reporteri
+    name: Reporteri.net
+    homepage_url: https://reporteri.net/
+    feed_url: https://reporteri.net/feed/
+    discovery_urls: [https://reporteri.net/]
+    language: sq
+    country: XK
+    enabled: true
+    notes: Verified 2026-09-28 and 2026-10-05 — 21 items, fields 100%. Kosovo news portal.
 
   # ------------------------------------------------------------------ excluded (evidence)
   - slug: top-channel
@@ -83,17 +134,6 @@ sources:
     enabled: false
     notes: robots.txt disallows the feed path for generic agents (2026-09-24). Respected — excluded.
 
-  # ------------------------------------------------------------------ candidates (unverified)
-  - slug: reporter-al
-    name: Reporter.al
-    homepage_url: https://www.reporter.al/
-    feed_url: https://www.reporter.al/feed/
-    discovery_urls: [https://www.reporter.al/]
-    language: sq
-    country: AL
-    enabled: false
-    notes: Candidate — BIRN Albania, investigative.
-
   - slug: a2news
     name: A2 CNN
     homepage_url: https://a2news.com/
@@ -102,37 +142,7 @@ sources:
     language: sq
     country: AL
     enabled: false
-    notes: Candidate — Albanian broadcaster.
-
-  - slug: euronews-albania
-    name: Euronews Albania
-    homepage_url: https://euronews.al/
-    feed_url: https://euronews.al/feed/
-    discovery_urls: [https://euronews.al/]
-    language: sq
-    country: AL
-    enabled: false
-    notes: Candidate — Albanian broadcaster.
-
-  - slug: balkanweb
-    name: BalkanWeb
-    homepage_url: https://www.balkanweb.com/
-    feed_url: https://www.balkanweb.com/feed/
-    discovery_urls: [https://www.balkanweb.com/]
-    language: sq
-    country: AL
-    enabled: false
-    notes: Candidate — Albanian news portal.
-
-  - slug: portalb
-    name: Portalb.mk
-    homepage_url: https://portalb.mk/
-    feed_url: https://portalb.mk/feed/
-    discovery_urls: [https://portalb.mk/]
-    language: sq
-    country: MK
-    enabled: false
-    notes: Candidate — Albanian-language news from North Macedonia.
+    notes: "HTTP 404 on /feed/ (2026-09-28, 2026-10-05). Keep disabled until a working feed is found."
 
   - slug: kosovapress
     name: Kosovapress
@@ -142,18 +152,9 @@ sources:
     language: sq
     country: XK
     enabled: false
-    notes: Candidate — Kosovo news agency.
+    notes: "HTTP 403 to automated requests, also on the autodiscovered feed.kosovapress.com (2026-09-28, 2026-10-05). Not circumvented — excluded."
 
-  - slug: reporteri
-    name: Reporteri.net
-    homepage_url: https://reporteri.net/
-    feed_url: https://reporteri.net/feed/
-    discovery_urls: [https://reporteri.net/]
-    language: sq
-    country: XK
-    enabled: false
-    notes: Candidate — Kosovo news portal.
-
+  # ------------------------------------------------------------------ held back
   - slug: prishtina-insight
     name: Prishtina Insight
     homepage_url: https://prishtinainsight.com/
@@ -162,4 +163,4 @@ sources:
     language: en
     country: XK
     enabled: false
-    notes: Candidate — English-language Kosovo coverage (BIRN).
+    notes: "Feed OK on 2026-09-28 and 2026-10-05 (5 items). English-language: held back because the zero-cost keyword rules only understand Albanian. Enable once an AI model analyses articles."
