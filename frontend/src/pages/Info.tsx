@@ -48,7 +48,7 @@ export function AboutPage() {
         </p>
       )}
       <ul>
-        <li>Each headline + excerpt is analysed by a large language model (Anthropic Claude) that returns
+        <li>Each headline + excerpt is analysed by a large language model (each article page names the model) that returns
           a structured record: primary topic (from a fixed list of {taxonomy.data?.length ?? 19} topics),
           up to three secondary topics, tone, event type, people/organisations/places, countries, a
           one-sentence English summary and a confidence score.</li>

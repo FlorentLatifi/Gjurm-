@@ -2,7 +2,7 @@
 
 **AI-powered news intelligence for Albanian-language media.** GJURMË (*"trace, footprint"*) reads Kosovo and Albanian news feeds every 15 minutes, removes duplicates, uses Claude to classify each story (topic, tone, people, organizations, places, and a one-line English summary), and turns the result into a public dashboard: what dominates coverage, who is suddenly in the news, and how outlets differ.
 
-> **Status:** V1 is complete and tested (CI green on GitHub: lint, strict types, 219 backend tests on PostgreSQL, 23 frontend tests, 40 end-to-end browser tests, security scans). **It is not deployed yet.** Deployment is scripted and rehearsed locally. It can run for **$0**: on an Oracle Cloud Always Free ARM server with a free subdomain, with keyword-rule analysis that the site discloses until a Claude API key is added ([DEPLOYMENT.md](docs/DEPLOYMENT.md#oracle-cloud), [LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md)).
+> **Status:** V1 is complete and tested (CI green on GitHub: lint, strict types, 219 backend tests on PostgreSQL, 23 frontend tests, 40 end-to-end browser tests, security scans). **It is not deployed yet.** Deployment is scripted and rehearsed locally. It can run for **$0**: on an Oracle Cloud Always Free ARM server with a free subdomain, with keyword-rule analysis that the site discloses until a Claude API key or a [free model](docs/AI_ENRICHMENT.md#free-models) is added ([DEPLOYMENT.md](docs/DEPLOYMENT.md#oracle-cloud), [LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md)).
 
 ## What it does
 
@@ -41,7 +41,7 @@ docker compose --profile demo up --build
 # open http://localhost:8080
 ```
 
-This builds the images, migrates the database, seeds 45 days of **fictional** demo news (clearly labelled in the UI) through the real pipeline with the zero-cost heuristic enricher, and serves the dashboard. For the live pipeline against real feeds, copy `.env.example` to `.env` and run `docker compose up --build`. The heuristic enricher is the default; set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` for Claude.
+This builds the images, migrates the database, seeds 45 days of **fictional** demo news (clearly labelled in the UI) through the real pipeline with the zero-cost heuristic enricher, and serves the dashboard. For the live pipeline against real feeds, copy `.env.example` to `.env` and run `docker compose up --build`. The heuristic enricher is the default; set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` for Claude, or `LLM_PROVIDER=openai_compatible` for a free local or hosted model.
 
 ## Development
 
@@ -83,6 +83,7 @@ docs/       blueprint, architecture, data model, AI, sources, deployment, operat
 | [AI_ENRICHMENT](docs/AI_ENRICHMENT.md) | Prompt, schema, validation, reliability, cost model |
 | [SOURCES](docs/SOURCES.md) | Verified sources with evidence; how to add one |
 | [DEPLOYMENT](docs/DEPLOYMENT.md) | Hosting, costs, step-by-step deploy |
+| [NISJA](docs/NISJA.md) | Launch guide in Albanian: Claude quality test, then the free Oracle deploy |
 | [OPERATIONS](docs/OPERATIONS.md) | Runbook: alerts, checks, incidents, backups, secrets |
 | [SECURITY](docs/SECURITY.md) | Threats, controls, accepted risks |
 | [TESTING](docs/TESTING.md) | Test strategy, failure tests, performance measurements |

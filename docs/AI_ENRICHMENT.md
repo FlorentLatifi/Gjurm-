@@ -77,6 +77,8 @@ API response
         · score contradicting the label (e.g. "negative" with +0.4, or "neutral" with |score| > 0.5)
           → replaced by the label's default score (the categorical judgement is trusted)
   └─ Pydantic EnrichmentOutput (extra="forbid", enums, lengths) → status=invalid on failure
+  └─ split_proper_names(): drop "entities" with no capitalised word (common nouns such as
+     "qytetarëve", "komandanti") → quality flag entities_not_proper
   └─ ground_entities(): drop entities not supported by the headline/excerpt
         · persons: every name token (≥ 3 chars) must appear
         · organizations / locations: at least half of the tokens
@@ -86,7 +88,7 @@ API response
   └─ persist: enrichments row (is_current) + denormalized fields on articles + bridges
 ```
 
-Every rejected or repaired item stays visible: `core.enrichments.status`, `error`, `raw_response` (for failures, kept 90 days) and `quality_flags` (e.g. `{"entities_ungrounded": [...], "sentiment_inconsistent": true}`). The `ungrounded_entity_rate_24h` and `low_confidence_rate_24h` data-quality checks track the trend.
+Every rejected or repaired item stays visible: `core.enrichments.status`, `error`, `raw_response` (for failures, kept 90 days) and `quality_flags` (e.g. `{"entities_ungrounded": [...], "entities_not_proper": [...], "sentiment_inconsistent": true}`). The `ungrounded_entity_rate_24h` and `low_confidence_rate_24h` data-quality checks track the trend.
 
 ## Reliability
 
@@ -135,11 +137,25 @@ Switching models is configuration only (`LLM_MODEL`). The model is part of `inpu
 
 ## Versioning and reprocessing
 
-- `PROMPT_VERSION = "v1.0"` (prompt.py) and `SCHEMA_VERSION = "2026-09-24.1"` (schema.py) are stored on every enrichment row, next to model, tokens, cost, latency, attempt number and the provider's request id.
+- `PROMPT_VERSION = "v1.1"` (prompt.py) and `SCHEMA_VERSION = "2026-09-24.1"` (schema.py) are stored on every enrichment row, next to model, tokens, cost, latency, attempt number and the provider's request id.
 - Bump `PROMPT_VERSION` whenever the prompt text, the taxonomy or the schema changes.
+- v1.1 (2026-10-05) tightened the rules where the free model `gemma3:4b` failed on live headlines: Albanian names in base form ("Gjermaninë" → "Gjermania", "Policisë së Kosovës" → "Policia e Kosovës"); no common nouns, amounts or titles of works as entities; parliaments and courts are organizations and countries locations; quoted speakers ("Gjini: …") are listed; mixed headlines and "concerns" get a matching tone; summaries add no days, numbers or roles. The output schema is unchanged.
+- Measured with `gemma3:4b` on three sets of 15 live headlines (each run sees that day's feeds, so the articles differ):
+
+  | Mistake | v1.0 | v1.1, no filter | v1.1 + filter |
+  |---|---|---|---|
+  | Inflected name forms ("Policisë së Kosovës") | 15 | 2 | 17 |
+  | Common nouns listed as names | 6 | 18 | 4 (3 more dropped by the filter, no real name lost) |
+  | Wrong entity type | 4 | 5 | 7 |
+  | Obvious entity missing (articles) | 3 | 2 | 2 |
+  | Wrong or weak tone (articles) | 4 | 2 | 2 |
+  | Wrong topic | 1 | 2 | 2 |
+  | Summary adds or distorts facts (articles) | 3–4 | 1 + 2 not in English | 5 (1 partly not in English) |
+
+  The capital-letter filter (`entities_not_proper`) works reliably. The prompt alone does not make a 4B model consistent: name forms improved on one set of headlines and not on the next, which had long protest stories full of institution names. Treat a small local model as a rough first pass. For per-outlet comparisons and the bias analysis, use Claude or a larger model.
 - Reprocess:
   ```bash
-  gjurme enrich-requeue --older-than-version v1.0   # mark older analyses for re-enrichment
+  gjurme enrich-requeue --older-than-version v1.1   # mark analyses made before v1.1 for re-enrichment
   gjurme enrich --limit 500                          # or let the scheduler work through it
   gjurme enrich-requeue --failed                     # retry failed/skipped articles
   gjurme enrich-requeue --article-id 123             # one article (also: POST /admin/articles/123/reenrich)
@@ -161,10 +177,36 @@ It costs nothing and is **much less accurate**, so it is always disclosed:
 - each article page says *Rule-based analysis* or *AI analysis (model)*, from the provider of its current enrichment;
 - the methodology page states the current mode.
 
-**Switching to Claude later:** set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`, remove the flag, restart the scheduler, then `gjurme enrich-requeue --provider fake`. The rule-based results are re-analysed within the daily budget, newest first.
+**Switching to a model later:** set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` (or a [free model](#free-models)), remove the flag, restart the scheduler, then `gjurme enrich-requeue --provider fake`. The rule-based results are re-analysed within the daily budget, newest first.
+
+## Free models
+
+`LLM_PROVIDER=openai_compatible` sends the same prompt and schema to any server that speaks the OpenAI `/chat/completions` format ([ADR-019](DECISIONS.md#adr-019-free-models-through-an-openai-compatible-provider)). The output goes through the same parse, repair, validation and grounding as Claude's, is stored with provider `openai_compatible` and the model name, and counts as *AI analysis* on the site (the article page names the model). Two free ways to use it:
+
+| | Local model (Ollama on the server) | Hosted free tier |
+|---|---|---|
+| Cost | $0, no limits | $0 within the provider's limits |
+| Setup | `COMPOSE_PROFILES=local-llm`, deploy, `dc exec ollama ollama pull <model>` | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` from the provider |
+| Speed | CPU only: tens of seconds to minutes per article | seconds |
+| Quality | small open models read Albanian less well than Claude; measure it | depends on the model |
+| Data | stays on the server | check whether the free tier trains on inputs |
+| Risk | memory: 4B models need ~4–6 GB (`OLLAMA_MEM_LIMIT`) | limits and terms change without notice |
+
+Settings (all in `.env`, see `deploy/.env.example`):
+- `LLM_BASE_URL`: `http://ollama:11434/v1` for the bundled container.
+- `LLM_RESPONSE_FORMAT`: `json_schema` (constrained output, default), `json_object` or `prompt` (the schema goes into the system prompt) for servers that reject the first.
+- `LLM_REQUESTS_PER_MINUTE`: spaces calls under a free tier's limit; 429 and 5xx responses are retried with backoff and `Retry-After`.
+- `LLM_TIMEOUT_SECONDS=600` and `ENRICH_CONCURRENCY=1` for a local model on CPU.
+- `LLM_PRICE_INPUT_PER_MTOK` / `LLM_PRICE_OUTPUT_PER_MTOK`: 0 by default, so the daily budget never stops a free model and `ENRICH_MAX_PER_RUN` bounds each run. Set them for a paid endpoint and the budget applies as for Claude. Prices of known Claude models cannot be overridden.
+- Temperature is 0 and reasoning notes (`<think>…</think>`) are stripped.
+
+**Measure before switching.** *Actions → Free model quality → Run workflow* runs the live pipeline on GitHub's runner with Ollama and a model of your choice (default `gemma3:4b`, 1–40 articles, $0) and publishes the same review report as the Claude test, plus the time per article. A push that changes the provider or the workflow compares `gemma3:4b`, `qwen3:4b` and `gemma3:12b` in parallel jobs.
+
+**One model at a time for comparisons.** Outlet comparisons are only fair when every article in the window was analysed by the same model and prompt. After a switch, re-analyse the window (`gjurme enrich-requeue --provider <old provider>`).
 
 ## Testing without a key
 
 - **FakeProvider** (`LLM_PROVIDER=fake`): deterministic keyword heuristics for development, the demo and tests. It is refused in staging and production unless explicitly allowed.
 - **Wire-level test** (`tests/integration/test_anthropic_wire.py`): runs the *real* `AnthropicProvider` and SDK against a local HTTP server that implements the Messages API contract. It checks the request body (model, cached system block, `output_config`, thinking), the parsing of usage, cost and request id, refusal and `max_tokens` handling, 401/403/404 → fatal, and 429/529 → retried by the SDK, then a retryable failure.
+- **OpenAI-compatible provider** (`tests/unit/test_openai_compatible.py`, `tests/integration/test_enrichment.py`): the request body per response format, usage, reasoning-note stripping, truncation and refusals, 401/403/404 → fatal, 429/5xx/timeouts → backoff with `Retry-After`, request pacing, zero pricing, and a full enrichment run stored as AI analysis.
 - **Live check and quality review** (`.github/workflows/sources.yml`, job `live-pipeline`): runs ingest, process and enrich against the real feeds on GitHub's runners. When the repository secret `ANTHROPIC_API_KEY` exists, Claude analyses the newest articles, 8 by default or 1–50 via *Run workflow → enrich_limit*, under a hard budget of $0.02 per article (at most $1). The job then publishes a **review report** in the run summary and as the `live-pipeline-stats` artifact: every result next to its headline (topic, tone, names, names dropped by grounding, summary, confidence), plus totals for calls, tokens, cache hits, cost per article and latency. Without the secret it uses the keyword rules.

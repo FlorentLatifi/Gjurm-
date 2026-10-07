@@ -56,7 +56,7 @@ The free path, as of September 2026. Oracle changes this tier: in June 2026 it h
 
 Port 22 is open by default. The VM has a second firewall (iptables) that the bootstrap script opens in step 5.
 
-**4. Free subdomain 👤 owner.** At duckdns.org, sign in, create a subdomain such as `gjurme`, and set its IP to the VM's public IP. Use `DOMAIN=gjurme.duckdns.org` in `.env`. Caddy obtains the HTTPS certificate automatically on first start. DuckDNS's name servers occasionally fail lookups (SERVFAIL); Caddy retries on its own, so a delayed certificate usually resolves itself. If it keeps failing, check `docker compose logs web` and the IP on duckdns.org.
+**4. Free subdomain 👤 owner.** At duckdns.org, sign in, create a subdomain such as `gjurme`, and set its IP to the VM's public IP. Use `DOMAIN=gjurme.duckdns.org` in `.env`. Caddy obtains the HTTPS certificate automatically on first start. DuckDNS's name servers occasionally fail lookups (SERVFAIL); Caddy retries on its own, so a delayed certificate usually resolves itself. If it keeps failing, check `IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml logs web` in `/opt/gjurme` and the IP on duckdns.org.
 
 **5. Bootstrap.** SSH in as `ubuntu`, then run the script as root (`sudo -i`), as in [step 2 below](#2-bootstrap-as-root-once). It detects Oracle's Ubuntu image and **does not enable UFW**, which Oracle warns can stop an instance from booting. Instead it adds ACCEPT rules for 80/443 to Oracle's own `/etc/iptables/rules.v4`, before its REJECT rule, and keeps a copy as `rules.v4.pre-gjurme`.
 
@@ -153,8 +153,8 @@ curl -fsS https://$DOMAIN/api/v1/status | jq
 curl -sI https://$DOMAIN/ | grep -iE 'strict-transport|content-security'
 curl -s -o /dev/null -w '%{http_code}\n' https://$DOMAIN/metrics          # expect 404
 curl -fsS -H "Authorization: Bearer $ADMIN_API_TOKEN" https://$DOMAIN/api/v1/admin/runs | jq '.[0]'
-ssh deploy@<server> 'cd /opt/gjurme && docker compose -f docker-compose.prod.yml ps'
-ssh deploy@<server> 'cd /opt/gjurme && docker compose -f docker-compose.prod.yml run --rm backup sh /scripts/backup.sh'
+ssh deploy@<server> 'cd /opt/gjurme && IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml ps'
+ssh deploy@<server> 'cd /opt/gjurme && IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml run --rm backup sh /scripts/backup.sh'
 ```
 
 Then run *Actions → Uptime monitor → Run workflow* once to confirm the external check passes. The full list is in [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md).
@@ -163,7 +163,7 @@ Then run *Actions → Uptime monitor → Run workflow* once to confirm the exter
 Create a bucket and credentials at an S3-compatible provider, write `/opt/gjurme/rclone/rclone.conf` with a remote named `offsite` (see `rclone config`), and set `RCLONE_REMOTE=offsite:<bucket>` in `.env`. Then enable the profile:
 
 ```bash
-docker compose -f docker-compose.prod.yml --profile offsite up -d offsite
+IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml --profile offsite up -d offsite
 ```
 
 ## Rehearsal (what was verified locally)

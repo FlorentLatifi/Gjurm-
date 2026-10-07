@@ -21,7 +21,7 @@ from gjurme.enrichment.schema import MAX_ENTITIES, MAX_SECONDARY_TOPICS, SCHEMA_
 from gjurme.ingestion.normalize import sha256_hex
 from gjurme.taxonomy import EVENT_TYPES, TOPICS
 
-PROMPT_VERSION = "v1.0"
+PROMPT_VERSION = "v1.1"
 
 _TOPIC_LINES = "\n".join(f"- {t.slug}: {t.description}" for t in TOPICS)
 _EVENT_LINES = ", ".join(EVENT_TYPES)
@@ -43,8 +43,11 @@ Use only these slugs:
 {_TOPIC_LINES}
 Guidance: a court case about a politician is crime_justice (primary) + politics (secondary). \
 Anything about the Belgrade–Pristina dialogue, the north of Kosovo, or Serbian parallel \
-structures is kosovo_serbia. Visa liberalisation and EU accession steps are eu_integration. \
-Use "other" only when nothing else fits.
+structures is kosovo_serbia; use it only when Serbia, Serbs or the north are actually involved. \
+Protests, clashes and police actions around a parliament or government are politics. \
+Visa liberalisation and EU accession steps are eu_integration. AI models, apps and gadgets are \
+technology_science; films, series and books are culture_entertainment even when their story is \
+about war or crime. Use "other" only when nothing else fits.
 
 ## Event type
 Pick the single best event_type: {_EVENT_LINES}.
@@ -54,6 +57,9 @@ Judge the tone of the reported situation for the general public, not the author'
 - negative: conflict, crime, accidents, disasters, crises, accusations, failures, deaths.
 - positive: achievements, agreements, investments, recoveries, sporting wins, good news.
 - neutral: routine announcements, factual reports, mixed or balanced stories.
+- Escalations, "concerns", warnings and attacks by one politician on another are negative.
+- A headline with both good and bad news ("scores a goal, but his value drops") is neutral \
+or only mildly positive or negative.
 sentiment_score is a number in [-1.0, 1.0] consistent with the label: negative < -0.15, \
 neutral between -0.15 and 0.15, positive > 0.15. Reserve |score| > 0.7 for clearly extreme events.
 
@@ -61,15 +67,27 @@ neutral between -0.15 and 0.15, positive > 0.15. Reserve |score| > 0.7 for clear
 List at most {MAX_ENTITIES} named entities that are explicitly mentioned in the headline or \
 excerpt. Rules:
 - type is one of: person, organization, location.
+- Only proper names of specific people, organizations and places. Never list common nouns \
+("autobusi", "spitali", "shkolla e mesme", "protestuesit", "qytetarët", "zyrtarët", \
+"policët"), groups ("shtetet baltike"), amounts ("10 milionë euro"), dates, or titles of \
+films, TV shows, books, songs and plays ("Mr. Bean", "Blackadder") — leave those out.
 - person: real individuals. Use the fullest form of the name that appears in the text \
 (e.g. "Albin Kurti" when the text says "Albin Kurti", "Kurti" when only the surname appears). \
-Never add first names, titles or roles that are not in the text.
+Never add first names, titles or roles that are not in the text. A headline of the form \
+"Gjini: …" quotes a person — list that person.
 - organization: institutions, ministries, parliaments, parties, courts, police, companies, \
-clubs, media outlets, international bodies (EU, NATO, KFOR, UN).
-- location: countries, cities, municipalities, regions, villages, rivers, border crossings.
-- Write names in the language and spelling used by the article, in their base (nominative) \
-form where you are certain of it — Albanian nouns are inflected ("Kosovës" → "Kosova", \
-"Prishtinës" → "Prishtina", "Serbisë" → "Serbia"). Keep Albanian letters ë and ç.
+clubs, media outlets, international bodies (EU, NATO, KFOR, UN). A parliament ("Kuvendi i \
+Kosovës"), a government or a court is always an organization, never a location.
+- location: countries, cities, municipalities, regions, villages, rivers, border crossings. \
+A country is always a location, also when it acts ("SHBA", "Serbia").
+- Write every name in its base (nominative, definite) form. Albanian nouns are inflected, so \
+the text often shows another case; convert it:
+  "Kosovës", "Kosovën" → "Kosova"; "Prishtinës" → "Prishtina"; "Gjermaninë", "Gjermani" → \
+"Gjermania"; "Londër" → "Londra"; "SHBA-së" → "SHBA"; "NATO-s" → "NATO"; \
+"Policisë së Kosovës", "Policinë e Kosovës" → "Policia e Kosovës"; "Kuvendit të Kosovës" → \
+"Kuvendi i Kosovës"; "Partisë Demokratike të Kosovës" → "Partia Demokratike e Kosovës"; \
+"Gjykatën Speciale" → "Gjykata Speciale"; "Kurtit" → "Kurti". Keep Albanian letters ë and ç \
+and the article's spelling of foreign names.
 - Do not list the publishing outlet unless the story is about it. Do not list generic nouns \
 ("qeveria", "policia") unless used as a proper name of a specific institution \
 ("Qeveria e Kosovës", "Policia e Kosovës").
@@ -80,9 +98,11 @@ mentioned in passing). Kosovo is XK, Albania AL, Serbia RS, North Macedonia MK, 
 Use an empty list when no country is identifiable.
 
 ## Summary
-summary_en: exactly one neutral, factual English sentence of at most 35 words describing what \
-happened. Use only facts present in the headline or excerpt; no speculation, no opinions, no \
-"the article says". Translate names of institutions when a standard English form exists.
+summary_en: exactly one neutral, factual sentence in English (also when the article is in \
+Albanian) of at most 35 words describing what happened. Use only facts present in the \
+headline or excerpt; no speculation, no opinions, no "the article says". Do not add days, \
+numbers, titles or roles that are not in the text, and keep hedges such as "reportedly". \
+Translate names of institutions when a standard English form exists.
 
 ## Language and confidence
 language: the ISO 639-1 language of the text (sq, en, sr, mk) or "other".
