@@ -1,12 +1,14 @@
 """CLUSTER stage: group articles that report the same event into stories (``core.stories``).
 
 Single-pass clustering in publication order. Each unclustered article is compared with the
-stories that started at most ``STORY_WINDOW`` before or after it:
+stories it can join without the story spanning more than ``STORY_WINDOW`` (first to last
+article). A fixed window, not a rolling one: rolling windows chain separate occurrences of a
+recurring event (two dialogue rounds in Brussels four days apart) into one story.
 
-1. a near-verbatim copy (``duplicate_of_id``, dedup layer L4) joins its original's story if
-   that story is in the window;
+1. a near-verbatim copy (``duplicate_of_id``, dedup layer L4) joins its original's story;
 2. otherwise it joins the most similar story whose centroid has cosine similarity ≥
-   ``settings.story_similarity_threshold`` and whose names do not conflict
+   ``settings.story_similarity_threshold``, with which it shares a word that is not a person's
+   name (``similarity.shares_event_term``), and whose names do not conflict
    (``similarity.names_conflict``);
 3. otherwise it starts a new story.
 
@@ -31,11 +33,19 @@ from sqlalchemy.orm import Session
 
 from gjurme.config import Settings
 from gjurme.db.models import Article, Story
-from gjurme.stories.similarity import Doc, Names, cosine, idf_table, names_conflict, vector
+from gjurme.stories.similarity import (
+    Doc,
+    Names,
+    cosine,
+    idf_table,
+    names_conflict,
+    shares_event_term,
+    vector,
+)
 
 log = logging.getLogger(__name__)
 
-STORY_WINDOW = timedelta(hours=48)
+STORY_WINDOW = timedelta(hours=48)  # first to last article of one story
 # Stories whose topic and representative may change because members were (re-)analysed.
 REFRESH_RECENT = timedelta(days=3)
 
@@ -62,6 +72,7 @@ class ClusterStats:
 class _Cluster:
     key: int  # story id, or a negative placeholder until the story row is inserted
     first_at: datetime
+    last_at: datetime
     centroid: dict[str, float] = field(default_factory=dict)
     names: Names = field(default_factory=Names)
     members: list[int] = field(default_factory=list)
@@ -76,6 +87,13 @@ class _Cluster:
 
     def similarity(self, vec: dict[str, float]) -> float:
         return cosine(vec, self.centroid) / self.norm if self.norm else 0.0
+
+    def fits(self, at: datetime) -> bool:
+        """With an article published ``at``, the story still spans at most ``STORY_WINDOW``."""
+        return max(self.last_at, at) - min(self.first_at, at) <= STORY_WINDOW
+
+    def extend(self, at: datetime) -> None:
+        self.first_at, self.last_at = min(self.first_at, at), max(self.last_at, at)
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,13 +132,13 @@ def _load(session: Session, start: datetime, end: datetime) -> list[_Row]:
     ]
 
 
-def _story_starts(session: Session, ids: set[int]) -> dict[int, datetime]:
+def _story_spans(session: Session, ids: set[int]) -> dict[int, tuple[datetime, datetime]]:
     if not ids:
         return {}
     rows = session.execute(
-        select(Story.id, Story.first_published_at).where(Story.id.in_(ids))
+        select(Story.id, Story.first_published_at, Story.last_published_at).where(Story.id.in_(ids))
     ).all()
-    return {r.id: r.first_published_at for r in rows}
+    return {r.id: (r.first_published_at, r.last_published_at) for r in rows}
 
 
 def cluster_pending(
@@ -170,7 +188,7 @@ def _cluster_batch(
     rows = _load(session, lo - STORY_WINDOW, hi + STORY_WINDOW)
     idf = idf_table(r.doc for r in rows)
     vectors = {r.id: vector(r.doc, idf) for r in rows}
-    starts = _story_starts(session, {r.story_id for r in rows if r.story_id is not None})
+    spans = _story_spans(session, {r.story_id for r in rows if r.story_id is not None})
 
     clusters: dict[int, _Cluster] = {}
     story_of: dict[int, int] = {}  # article id -> cluster key
@@ -180,7 +198,8 @@ def _cluster_batch(
             continue
         c = clusters.get(r.story_id)
         if c is None:
-            c = clusters[r.story_id] = _Cluster(r.story_id, starts.get(r.story_id, r.published_at))
+            first, last = spans.get(r.story_id, (r.published_at, r.published_at))
+            c = clusters[r.story_id] = _Cluster(r.story_id, first, last)
         c.add(r.id, vectors[r.id], r.doc)
         story_of[r.id] = r.story_id
         _index_terms(index, r.story_id, vectors[r.id])
@@ -196,10 +215,7 @@ def _cluster_batch(
         vec = vectors[r.id]
         key: int | None = None
         original = story_of.get(r.duplicate_of_id) if r.duplicate_of_id is not None else None
-        if (
-            original is not None
-            and abs(r.published_at - clusters[original].first_at) <= STORY_WINDOW
-        ):
+        if original is not None and clusters[original].fits(r.published_at):
             key = original
             stats.via_duplicate += 1
         else:
@@ -209,11 +225,11 @@ def _cluster_batch(
         if key is None:
             key = next_key
             next_key -= 1
-            clusters[key] = _Cluster(key, r.published_at)
+            clusters[key] = _Cluster(key, r.published_at, r.published_at)
             stats.new_stories += 1
         cluster = clusters[key]
         cluster.add(r.id, vec, r.doc)
-        cluster.first_at = min(cluster.first_at, r.published_at)
+        cluster.extend(r.published_at)
         story_of[r.id] = key
         _index_terms(index, key, vec)
 
@@ -267,7 +283,7 @@ def _best_cluster(
     index: dict[str, set[int]],
     threshold: float,
 ) -> int | None:
-    """Most similar story in the time window that passes the threshold and the name guard."""
+    """Most similar story in the time window that passes the threshold and the guards."""
     # Sparse dot products through the inverted index: cost ~ postings, not stories × terms.
     dots: dict[int, float] = defaultdict(float)
     for term, weight in vec.items():
@@ -279,10 +295,11 @@ def _best_cluster(
         sim = dots[key] / c.norm if c.norm else 0.0
         if sim < best or (sim == best and best_key is not None):
             continue
-        if abs(row.published_at - c.first_at) > STORY_WINDOW:
+        if not c.fits(row.published_at) or names_conflict(row.doc.names, c.names):
             continue
-        if names_conflict(row.doc.names, c.names):
-            continue
+        people = row.doc.names.people | c.names.people
+        if not shares_event_term(vec, c.centroid, people):
+            continue  # only a person in common: not the same event
         best_key, best = key, sim
     return best_key
 
