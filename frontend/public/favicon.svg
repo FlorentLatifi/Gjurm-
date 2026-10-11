@@ -1,5 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="GJURMË">
-  <rect width="64" height="64" rx="14" fill="#0d366b"/>
-  <path d="M12 44 L24 30 L34 38 L52 18" fill="none" stroke="#86b6ef" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="52" cy="18" r="5.5" fill="#fcfcfb"/>
+  <!-- the trace: one line, a mark for each outlet's report (left, center, right), the first taller -->
+  <rect width="64" height="64" rx="12" fill="#0b0b0b"/>
+  <path d="M10 34 H54" stroke="#f4f2ec" stroke-width="3" stroke-linecap="round"/>
+  <rect x="14" y="18" width="6" height="32" rx="1.5" fill="#3987e5"/>
+  <rect x="29" y="25" width="6" height="18" rx="1.5" fill="#a8a79f"/>
+  <rect x="44" y="25" width="6" height="18" rx="1.5" fill="#e66767"/>
 </svg>

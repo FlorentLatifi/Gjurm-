@@ -29,6 +29,17 @@
 		respond 404
 	}
 
+	# Shared story links: link-preview crawlers (and only them) get the story's own title and
+	# description (backend api/routers/share.py); readers and search engines get the app.
+	@story_preview {
+		path_regexp story ^/stories/([0-9]+)$
+		header_regexp User-Agent (?i)(facebookexternalhit|twitterbot|slackbot|linkedinbot|whatsapp|telegrambot|discordbot|skypeuripreview|redditbot|viber|pinterestbot|embedly|iframely|mastodon|bluesky)
+	}
+	handle @story_preview {
+		rewrite * /api/share/stories/{re.story.1}
+		reverse_proxy {$API_UPSTREAM:api:8000}
+	}
+
 	handle /api/* {
 		reverse_proxy {$API_UPSTREAM:api:8000} {
 			health_uri /health
