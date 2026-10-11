@@ -7,8 +7,8 @@ recurring event (two dialogue rounds in Brussels four days apart) into one story
 
 1. a near-verbatim copy (``duplicate_of_id``, dedup layer L4) joins its original's story;
 2. otherwise it joins the most similar story whose centroid has cosine similarity ≥
-   ``settings.story_similarity_threshold``, with which it shares a word that is not a person's
-   name (``similarity.shares_event_term``), and whose names do not conflict
+   ``settings.story_similarity_threshold``, with which its headline shares a word that is not a
+   person's name (``similarity.shares_event_term``), and whose names do not conflict
    (``similarity.names_conflict``);
 3. otherwise it starts a new story.
 
@@ -36,9 +36,11 @@ from gjurme.db.models import Article, Story
 from gjurme.stories.similarity import (
     Doc,
     Names,
+    apply_place_lexicon,
     cosine,
     idf_table,
     names_conflict,
+    place_lexicon,
     shares_event_term,
     vector,
 )
@@ -75,6 +77,7 @@ class _Cluster:
     last_at: datetime
     centroid: dict[str, float] = field(default_factory=dict)
     names: Names = field(default_factory=Names)
+    people_all: frozenset[str] = frozenset()
     members: list[int] = field(default_factory=list)
     norm: float = 0.0
 
@@ -83,6 +86,7 @@ class _Cluster:
             self.centroid[term] = self.centroid.get(term, 0.0) + weight
         self.norm = sum(x * x for x in self.centroid.values()) ** 0.5
         self.names = self.names | doc.names
+        self.people_all = self.people_all | doc.people_all
         self.members.append(article_id)
 
     def similarity(self, vec: dict[str, float]) -> float:
@@ -120,7 +124,8 @@ _LOAD_SQL = text("""
 
 
 def _load(session: Session, start: datetime, end: datetime) -> list[_Row]:
-    return [
+    """Articles published in [start, end] as clustering documents (place lexicon applied)."""
+    rows = [
         _Row(
             r.id,
             r.published_at,
@@ -130,6 +135,10 @@ def _load(session: Session, start: datetime, end: datetime) -> list[_Row]:
         )
         for r in session.execute(_LOAD_SQL, {"start": start, "end": end})
     ]
+    lexicon = place_lexicon(r.doc for r in rows)
+    for r in rows:
+        r.doc.names = apply_place_lexicon(r.doc.names, lexicon)
+    return rows
 
 
 def _story_spans(session: Session, ids: set[int]) -> dict[int, tuple[datetime, datetime]]:
@@ -297,8 +306,7 @@ def _best_cluster(
             continue
         if not c.fits(row.published_at) or names_conflict(row.doc.names, c.names):
             continue
-        people = row.doc.names.people | c.names.people
-        if not shares_event_term(vec, c.centroid, people):
+        if not shares_event_term(row.doc.headline, c.centroid, row.doc.people_all | c.people_all):
             continue  # only a person in common: not the same event
         best_key, best = key, sim
     return best_key

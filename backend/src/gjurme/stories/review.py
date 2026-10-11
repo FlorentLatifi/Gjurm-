@@ -43,7 +43,12 @@ def _cell(value: str) -> str:
 def _names(n: Names) -> str:
     parts = [
         f"{label}: {', '.join(sorted(keys))}"
-        for label, keys in (("people", n.people), ("places", n.places), ("orgs", n.orgs))
+        for label, keys in (
+            ("people", n.people),
+            ("places", n.places),
+            ("orgs", n.orgs),
+            ("numbers", n.numbers),
+        )
         if keys
     ]
     return "; ".join(parts) or "—"
@@ -119,19 +124,24 @@ def review_report(session: Session, settings: Settings, *, hours: int = 48, top:
     pairs.sort(key=lambda p: -p[0])
     out += ["### Near misses (different stories, different outlets)", ""]
     out += [
-        "Kept apart by: *places* / *people* / *names* (the name guards), *no event word* (only a",
-        "person in common), or *similarity* (below the threshold). Names are the analysis' entity",
-        "stems.",
+        "Kept apart by: *places* / *numbers* / *people* / *names* (the guards), *no event word*",
+        "(only a person in common), or *similarity* (below the threshold). Names are the",
+        "analysis' entity stems that appear in the headline (the ones the guards compare).",
         "",
         "| similarity | kept apart by | headline A (names) | headline B (names) |",
         "|---:|:-:|---|---|",
     ]
     for sim, a, b in pairs[:top]:
-        people = a.doc.names.people | b.doc.names.people
+        people = a.doc.people_all | b.doc.people_all
         reason = conflict_reason(a.doc.names, b.doc.names) or (
             "similarity"
             if sim < threshold
-            else ("no event word" if not shares_event_term(vec[a.id], vec[b.id], people) else "—")
+            else (
+                "—"
+                if shares_event_term(a.doc.headline, vec[b.id], people)
+                or shares_event_term(b.doc.headline, vec[a.id], people)
+                else "no event word"
+            )
         )
         out.append(
             f"| {sim:.2f} | {reason} "

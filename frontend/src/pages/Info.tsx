@@ -77,9 +77,11 @@ export function AboutPage() {
         <li>A <strong>story</strong> groups the articles of different outlets that report the same
           event, so you can see who covered it and compare their headlines. Headline, excerpt and
           the names the analysis found are compared as weighted word lists (rare words such as names
-          and places weigh more; Albanian word endings are folded). An article joins the most similar
-          story that started within 48 hours, unless the two name mostly different places or people
-          — “a fire in Prizren” and “a fire in Gjakovë” stay separate.</li>
+          and places weigh more; Albanian word endings are folded, so “Kurtin” and “Kurtit” match).
+          An article joins the most similar story if the whole story stays within 48 hours, if its
+          headline shares more than a person’s name with the story, and unless the headlines name
+          different places, people or numbers — “a fire in Prizren” and “a fire in Gjakovë”, or
+          “12 dead” and “3 dead”, stay separate.</li>
         <li>The grouping errs on the side of keeping stories apart: two different events merged into
           one would misstate coverage. Some paraphrases of one event therefore end up as separate
           stories.</li>
