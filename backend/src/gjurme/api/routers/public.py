@@ -1,4 +1,4 @@
-"""Public read-only endpoints: analytics, topics, entities, sources, articles."""
+"""Public read-only endpoints: stories, analytics, topics, entities, sources, articles."""
 
 from __future__ import annotations
 
@@ -10,10 +10,12 @@ from fastapi import APIRouter, HTTPException, Path, Query, Request
 from sqlalchemy import text
 
 from gjurme.analytics import queries as q
+from gjurme.analytics import stories as st
 from gjurme.api.deps import DB, AppSettings, DateRangeDep, cached, local_today
 from gjurme.api.schemas import (
     ArticleDetail,
     ArticleSummary,
+    Blindspots,
     CoOccurrence,
     EntityDetail,
     EntitySpikes,
@@ -25,7 +27,10 @@ from gjurme.api.schemas import (
     SentimentGroups,
     SentimentSeries,
     SentimentShift,
+    SourceProfile,
     SourceStat,
+    StoryDetail,
+    StorySummary,
     TaxonomyTopic,
     TopicDetail,
     TopicMomentum,
@@ -39,6 +44,83 @@ router = APIRouter(
 )
 
 GroupBy = Literal["source", "topic"]
+COUNTRY = r"^([A-Z]{2}|REG)$"
+
+
+# ------------------------------------------------------------------------------------------
+# Stories (articles from several outlets that report the same event)
+# ------------------------------------------------------------------------------------------
+@router.get(
+    "/stories",
+    response_model=Page[StorySummary],
+    tags=["stories"],
+    summary="Stories with their coverage by perspective, factuality, ownership and region",
+)
+def list_stories(
+    request: Request,
+    db: DB,
+    rng: DateRangeDep,
+    topic: Annotated[str | None, Query(pattern=r"^[a-z_]{2,48}$")] = None,
+    country: Annotated[
+        str | None, Query(pattern=COUNTRY, description="Only stories an outlet from here covered")
+    ] = None,
+    search: Annotated[str | None, Query(alias="q", min_length=2, max_length=120)] = None,
+    min_sources: Annotated[int, Query(ge=1, le=20)] = 1,
+    sort: Literal["top", "latest"] = "top",
+    page: Annotated[int, Query(ge=1, le=200)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=50)] = 20,
+) -> Any:
+    def compute() -> dict[str, Any]:
+        total, items = st.list_stories(
+            db,
+            rng,
+            topic=topic,
+            country=country,
+            q=search,
+            min_sources=min_sources,
+            sort=sort,
+            limit=page_size,
+            offset=(page - 1) * page_size,
+        )
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "pages": max(1, math.ceil(total / page_size)),
+        }
+
+    return cached(request, compute)
+
+
+@router.get(
+    "/stories/blindspots",
+    response_model=Blindspots,
+    tags=["stories"],
+    summary="Stories one side of the spectrum, or one country's outlets, barely covered",
+)
+def story_blindspots(
+    request: Request,
+    db: DB,
+    rng: DateRangeDep,
+    kind: Literal["perspective", "region"] | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+) -> Any:
+    return cached(request, lambda: st.blindspots(db, rng, kind=kind, limit=limit))
+
+
+@router.get(
+    "/stories/{story_id}",
+    response_model=StoryDetail,
+    responses=NOT_FOUND,
+    tags=["stories"],
+    summary="One story: every outlet's headline, coverage split, first report, related stories",
+)
+def story_detail(request: Request, db: DB, story_id: Annotated[int, Path(ge=1)]) -> Any:
+    result = cached(request, lambda: st.story_detail(db, story_id))
+    if result is None:
+        raise HTTPException(404, detail={"code": "not_found", "message": "unknown story"})
+    return result
 
 
 # ------------------------------------------------------------------------------------------
@@ -222,6 +304,25 @@ def entity_detail(
 )
 def list_sources(request: Request, db: DB, rng: DateRangeDep) -> Any:
     return cached(request, lambda: q.sources_compare(db, rng))
+
+
+@router.get(
+    "/sources/{slug}",
+    response_model=SourceProfile,
+    responses=NOT_FOUND,
+    tags=["sources"],
+    summary="One outlet: ratings, ownership, story coverage, first reports, focus",
+)
+def source_profile(
+    request: Request,
+    db: DB,
+    rng: DateRangeDep,
+    slug: Annotated[str, Path(pattern=r"^[a-z0-9][a-z0-9-]{1,62}$")],
+) -> Any:
+    result = cached(request, lambda: st.source_profile(db, slug, rng))
+    if result is None:
+        raise HTTPException(404, detail={"code": "not_found", "message": "unknown source"})
+    return result
 
 
 # ------------------------------------------------------------------------------------------

@@ -6,6 +6,7 @@ Examples::
     gjurme run                        # full pipeline once
     gjurme ingest --source telegrafi  # one stage, one source
     gjurme enrich --limit 20
+    gjurme cluster                    # group articles into stories
     gjurme sources validate --markdown report.md
     gjurme scheduler                  # long-running (production)
     gjurme api                        # HTTP API (production: via uvicorn in Docker)
@@ -217,7 +218,7 @@ def _session_factory() -> sessionmaker[Session]:
 @app.command()
 def run(
     stages: Annotated[str, typer.Option(help="Comma-separated stages")] = (
-        "ingest,process,enrich,quality"
+        "ingest,process,enrich,cluster,quality"
     ),
     source: Annotated[list[str] | None, typer.Option("--source")] = None,
 ) -> None:
@@ -274,6 +275,28 @@ def enrich(
         _session_factory(), settings, build_provider(settings), article_ids=article_id
     )
     _echo_json(stats.as_dict())
+
+
+@app.command()
+def cluster(
+    rebuild_days: Annotated[
+        int | None,
+        typer.Option(help="Re-cluster the last N days from scratch (story ids change)"),
+    ] = None,
+) -> None:
+    """CLUSTER stage only: group articles that report the same event into stories."""
+    settings = _settings()
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    from gjurme.stories.clustering import cluster_pending, rebuild
+
+    with _session_factory()() as s:
+        if rebuild_days is not None:
+            since = datetime.now(ZoneInfo(settings.timezone)).date() - timedelta(days=rebuild_days)
+            _echo_json(rebuild(s, settings, since))
+        else:
+            _echo_json(cluster_pending(s, settings).as_dict())
 
 
 @app.command("enrich-requeue")
@@ -418,7 +441,7 @@ def demo_seed(
     days: Annotated[int, typer.Option()] = 30,
     enrich_all: Annotated[bool, typer.Option(help="Enrich with the fake provider")] = True,
 ) -> None:
-    """Load a synthetic dataset through the real process + enrich stages (dev only)."""
+    """Load a synthetic dataset through the real process, enrich and cluster stages (dev only)."""
     settings = _settings()
     from gjurme import demo
     from gjurme.db.reference import sync_topics
@@ -426,6 +449,7 @@ def demo_seed(
     from gjurme.enrichment.providers import FakeProvider
     from gjurme.enrichment.service import run_enrichment
     from gjurme.ingestion.processor import process_pending
+    from gjurme.stories.clustering import cluster_pending
 
     try:
         with session_scope() as s:
@@ -442,7 +466,9 @@ def demo_seed(
             update={"enrich_max_per_run": 1_000_000, "enrich_concurrency": 1}
         )
         enriched = run_enrichment(_session_factory(), fake_settings, FakeProvider()).as_dict()
-    _echo_json({"raw_items": n, "process": processed, "enrich": enriched})
+    with _session_factory()() as s:
+        clustered = cluster_pending(s, settings, max_articles=1_000_000).as_dict()
+    _echo_json({"raw_items": n, "process": processed, "enrich": enriched, "cluster": clustered})
 
 
 def main() -> None:  # pragma: no cover

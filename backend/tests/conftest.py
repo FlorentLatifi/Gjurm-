@@ -100,7 +100,7 @@ def engine() -> Iterator[Engine]:
 
 
 TABLES = (
-    "core.article_entities, core.article_topics, core.enrichments, core.entities, "
+    "core.article_entities, core.article_topics, core.enrichments, core.entities, core.stories, "
     "raw.feed_items, raw.feed_fetches, core.articles, core.sources, core.topics, "
     "ops.data_quality_results, ops.alert_events, ops.pipeline_runs, ops.settings"
 )

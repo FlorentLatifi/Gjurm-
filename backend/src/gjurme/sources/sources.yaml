@@ -9,6 +9,16 @@
 #
 # discovery_urls: pages scanned for <link rel="alternate" type="application/rss+xml"> when the
 # declared feed_url does not validate.
+#
+# Ratings (coverage bars and blindspots, docs/SOURCES.md#ratings):
+#   bias:        left | lean_left | center | lean_right | right | unrated   (default unrated)
+#   factuality:  very_high | high | mixed | low | very_low | unrated          (default unrated)
+#   ownership:   private | media_group | public | state | public_international | nonprofit |
+#                unknown                                                    (default unknown)
+#   owner:       who owns or publishes it (free text, optional)
+#   ratings_note: what the ratings are based on — required once bias or factuality is set.
+# bias and factuality are editorial judgements: set them only from a documented review, never
+# by guessing. Unrated outlets are shown as "unrated" in every coverage bar.
 
 sources:
   # ------------------------------------------------------------------ verified 2026-09-24
@@ -20,6 +30,7 @@ sources:
     language: sq
     country: XK
     enabled: true
+    ownership: private
     notes: Verified 2026-09-24 — RSS 2.0, 30 items, title/link/date 100%. Highest-volume Kosovo portal.
 
   - slug: koha
@@ -30,6 +41,7 @@ sources:
     language: sq
     country: XK
     enabled: true
+    ownership: private
     notes: Verified 2026-09-24 — 20 items, fields 100%. Kosovo newspaper of record.
 
   - slug: gazeta-express
@@ -40,6 +52,7 @@ sources:
     language: sq
     country: XK
     enabled: true
+    ownership: private
     notes: Verified 2026-09-24 — 10 items (short window; frequent polling needed).
 
   - slug: kallxo
@@ -50,6 +63,8 @@ sources:
     language: sq
     country: XK
     enabled: true
+    ownership: nonprofit
+    owner: BIRN Kosovo and Internews Kosova
     notes: Verified 2026-09-24 — 11 items. BIRN Kosovo — investigative, justice, fact-checking. HTTP 403 in the 2026-10-05 check after an OK 2026-09-28 one; Gazeta Express showed the same one-off 403 on 2026-09-28, so kept enabled (20 failures in a row auto-disable it).
 
   - slug: evropa-e-lire
@@ -60,6 +75,8 @@ sources:
     language: sq
     country: XK
     enabled: true
+    ownership: public_international
+    owner: Radio Free Europe/Radio Liberty
     notes: Feed found by validator autodiscovery 2026-09-24 (20 items). RFE/RL Albanian service.
 
   # ------------------------------------------------------------------ verified 2026-09-28 + 2026-10-05
@@ -71,6 +88,8 @@ sources:
     language: sq
     country: AL
     enabled: true
+    ownership: nonprofit
+    owner: BIRN Albania
     notes: Verified 2026-09-28 and 2026-10-05 — 10 items, fields 100%. BIRN Albania — investigative.
 
   - slug: euronews-albania
@@ -81,6 +100,7 @@ sources:
     language: sq
     country: AL
     enabled: true
+    ownership: private
     notes: Verified 2026-09-28 and 2026-10-05 — 10 items, fields 100%. Albanian broadcaster.
 
   - slug: balkanweb
@@ -91,6 +111,7 @@ sources:
     language: sq
     country: AL
     enabled: true
+    ownership: private
     notes: Verified 2026-09-28 and 2026-10-05 — 10 items, fields 100%. Albanian news portal.
 
   - slug: portalb
@@ -101,6 +122,7 @@ sources:
     language: sq
     country: MK
     enabled: true
+    ownership: private
     notes: Verified 2026-09-28 and 2026-10-05 — 10 items, fields 100%. Albanian-language news from North Macedonia.
 
   - slug: reporteri
@@ -111,6 +133,7 @@ sources:
     language: sq
     country: XK
     enabled: true
+    ownership: private
     notes: Verified 2026-09-28 and 2026-10-05 — 21 items, fields 100%. Kosovo news portal.
 
   # ------------------------------------------------------------------ excluded (evidence)

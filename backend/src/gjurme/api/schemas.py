@@ -281,6 +281,13 @@ class TopicCount(Model):
     articles: int
 
 
+BiasRating = Literal["left", "lean_left", "center", "lean_right", "right", "unrated"]
+FactualityRating = Literal["very_high", "high", "mixed", "low", "very_low", "unrated"]
+OwnershipType = Literal[
+    "private", "media_group", "public", "state", "public_international", "nonprofit", "unknown"
+]
+
+
 class SourceStat(Model):
     slug: str
     name: str
@@ -291,6 +298,14 @@ class SourceStat(Model):
     verification_status: str
     last_success_at: datetime | None
     consecutive_failures: int
+    bias: BiasRating = Field(description="Editorial perspective rating (sources.yaml)")
+    factuality: FactualityRating
+    ownership: OwnershipType
+    owner: str | None
+    stories: int = Field(description="Stories (started in the range) this outlet covered")
+    first_reports: int = Field(
+        description="Stories covered by 2+ outlets that this outlet published first"
+    )
     articles: int
     original: int
     per_day: float | None
@@ -300,6 +315,149 @@ class SourceStat(Model):
     positive: int
     last_article_at: datetime | None
     top_topics: list[TopicCount]
+
+
+# ------------------------------------------------------------------------------------------
+# Stories
+# ------------------------------------------------------------------------------------------
+class BiasCoverage(Model):
+    left: int
+    center: int
+    right: int
+    unrated: int
+
+
+class FactualityCoverage(Model):
+    high: int
+    mixed: int
+    low: int
+    unrated: int
+
+
+class Coverage(Model):
+    """Distinct outlets that covered a story, split four ways."""
+
+    bias: BiasCoverage = Field(description="By perspective group (left/lean left = left, …)")
+    factuality: FactualityCoverage
+    ownership: dict[str, int] = Field(description="By ownership type")
+    region: dict[str, int] = Field(description="By the outlet's country (XK, AL, MK, REG …)")
+
+
+class ToneMix(Model):
+    negative: int
+    neutral: int
+    positive: int
+
+
+class StorySource(Model):
+    slug: str
+    name: str
+    bias: BiasRating
+    country: str
+
+
+class Blindspot(Model):
+    kind: Literal["perspective", "region"]
+    missing: str = Field(
+        description="perspective: the side that barely covered it (left/right); "
+        "region: the country whose outlets did not cover it"
+    )
+
+
+class StorySummary(Model):
+    id: int
+    title: str = Field(description="Headline of the most typical article (closest to centroid)")
+    url: str = Field(description="Link to that article at its publisher")
+    language: str
+    summary_en: str | None
+    source_slug: str
+    source_name: str
+    first_published_at: datetime
+    last_published_at: datetime
+    article_count: int
+    source_count: int
+    topic_slug: str | None
+    topic_name: str | None
+    first_source_slug: str = Field(description="Outlet that published first")
+    first_source_name: str
+    coverage: Coverage
+    tone: ToneMix
+    sources: list[StorySource]
+    blindspots: list[Blindspot]
+
+
+class StoryArticle(Model):
+    id: int
+    title: str
+    url: str
+    published_at: datetime
+    language: str
+    summary_en: str | None
+    sentiment_label: str | None
+    source_slug: str
+    source_name: str
+    source_country: str
+    source_bias: BiasRating
+    source_factuality: FactualityRating
+    source_ownership: OwnershipType
+    is_first: bool
+
+
+class EntityArticles(EntityRef):
+    articles: int
+
+
+class TopicArticles(Model):
+    slug: str
+    name_en: str
+    articles: int
+
+
+class StoryDetail(StorySummary):
+    articles: list[StoryArticle]
+    entities: list[EntityArticles]
+    topics: list[TopicArticles]
+    related: list[StorySummary] = Field(description="Stories within 3 days sharing 2+ names")
+
+
+class Blindspots(WithMethod):
+    items: list[StorySummary]
+
+
+class SharedCoverage(Model):
+    slug: str
+    name: str
+    bias: BiasRating
+    shared: int
+
+
+class SourceProfile(Model):
+    slug: str
+    name: str
+    homepage_url: str
+    language: str
+    country: str
+    is_active: bool
+    verification_status: str
+    last_success_at: datetime | None
+    bias: BiasRating
+    factuality: FactualityRating
+    ownership: OwnershipType
+    owner: str | None
+    ratings_note: str | None = Field(description="What the bias/factuality ratings are based on")
+    range: DateRange
+    articles: int
+    avg_sentiment: float | None
+    stories: int
+    first_reports: int
+    exclusives: int = Field(description="Stories only this outlet covered")
+    coverage_share: float | None = Field(
+        description="Share of the multi-outlet stories of the period this outlet covered"
+    )
+    top_topics: list[TopicSlice]
+    top_entities: list[EntityMentions]
+    overlap: list[SharedCoverage] = Field(description="Outlets that covered the same stories")
+    recent_stories: list[StorySummary]
 
 
 # ------------------------------------------------------------------------------------------
@@ -318,6 +476,7 @@ class ArticleSummary(Model):
     event_type: str | None
     enrichment_status: str
     duplicate_of_id: int | None
+    story_id: int | None = None
     source_slug: str
     source_name: str
     topic_slug: str | None
@@ -355,6 +514,7 @@ class ArticleDetail(Model):
     feed_categories: list[str]
     author: str | None
     duplicate_of_id: int | None
+    story_id: int | None = None
     enriched_at: datetime | None
     analysis_method: Literal["ai", "rules"] | None = Field(
         None, description="How topics, tone and entities were assigned: an LLM or keyword rules"
