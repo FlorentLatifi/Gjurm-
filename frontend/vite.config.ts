@@ -51,37 +51,10 @@ function seoFiles(publicUrl: string | undefined): Plugin {
   };
 }
 
-/**
- * Preloads the interface font (latin subset, the one every page needs) so text renders in it
- * from the first paint instead of swapping. The headline and figure faces load on use.
- */
-function preloadUiFont(): Plugin {
-  return {
-    name: "gjurme-preload-ui-font",
-    apply: "build",
-    transformIndexHtml: {
-      order: "post",
-      handler(_html, ctx) {
-        const file = Object.keys(ctx.bundle ?? {}).find((f) =>
-          /schibsted-grotesk-latin-wght-normal-[\w-]+\.woff2$/.test(f),
-        );
-        if (!file) return [];
-        return [
-          {
-            tag: "link",
-            attrs: { rel: "preload", href: `/${file}`, as: "font", type: "font/woff2", crossorigin: "" },
-            injectTo: "head",
-          },
-        ];
-      },
-    },
-  };
-}
-
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
   return {
-    plugins: [react(), seoFiles(env.VITE_PUBLIC_URL), preloadUiFont()],
+    plugins: [react(), seoFiles(env.VITE_PUBLIC_URL)],
     resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
     server: {
       port: 5173,
@@ -90,6 +63,7 @@ export default defineConfig(({ mode }) => {
     preview: { port: 4173, proxy: { "/api": "http://127.0.0.1:8000" } },
     build: {
       sourcemap: true,
+      manifest: true,
       target: "es2022",
       rollupOptions: {
         output: {
@@ -107,7 +81,12 @@ export default defineConfig(({ mode }) => {
       globals: true,
       setupFiles: ["./src/test/setup.ts"],
       include: ["src/**/*.test.{ts,tsx}"],
-      coverage: { provider: "v8", reporter: ["text", "lcov"], include: ["src/**"] },
+      coverage: {
+        provider: "v8",
+        reporter: ["text", "lcov"],
+        include: ["src/**"],
+        exclude: ["src/shared/api/schema.gen.ts", "src/shared/api/contract.check.ts"],
+      },
     },
   };
 });

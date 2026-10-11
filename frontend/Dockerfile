@@ -15,7 +15,8 @@ ARG VITE_API_BASE=""
 ARG VITE_CONTACT_URL=""
 ENV VITE_PUBLIC_URL=${VITE_PUBLIC_URL} VITE_API_BASE=${VITE_API_BASE} \
     VITE_CONTACT_URL=${VITE_CONTACT_URL}
-RUN npm run build
+# the build manifest is for CI's bundle budgets only; it is not served
+RUN npm run build && rm -rf dist/.vite
 
 # ---------------------------------------------------------------- build Caddy
 # The official caddy:2 image (v2.11.4, Go 1.26.3) carries 17 fixable HIGH CVEs in the Go stdlib

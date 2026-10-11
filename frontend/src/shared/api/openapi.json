@@ -1,0 +1,6395 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "GJURMË API",
+    "description": "\n**GJURMË** — AI-powered intelligence on Albanian & Balkan news.\n\nPublic, read-only endpoints expose *metadata and derived analysis only* (headline, source, time,\nAI-assigned topics, entities, tone and a one-sentence English summary) and always link to the\noriginal article. Admin endpoints require a Bearer token.\n\nDates are local calendar days in Europe/Tirane. Rate limits apply per client IP.\n",
+    "contact": {
+      "name": "GJURMË",
+      "url": "https://github.com/FlorentLatifi/Gjurm-"
+    },
+    "license": {
+      "name": "MIT (code). Article content belongs to its publishers."
+    },
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Liveness (process is up)",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Readiness (database reachable)",
+        "operationId": "ready_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/status": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Public pipeline freshness and source health",
+        "operationId": "public_status_api_v1_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stories": {
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Stories with their coverage by perspective, factuality, ownership and region",
+        "operationId": "list_stories_api_v1_stories_get",
+        "parameters": [
+          {
+            "name": "topic",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z_]{2,48}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Topic"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^([A-Z]{2}|REG)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only stories an outlet from here covered",
+              "title": "Country"
+            },
+            "description": "Only stories an outlet from here covered"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 2,
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "min_sources",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 1,
+              "title": "Min Sources"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "top",
+                "latest"
+              ],
+              "type": "string",
+              "default": "top",
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD)",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD)",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 366,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window length ending at `to`",
+              "title": "Days"
+            },
+            "description": "Window length ending at `to`"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to source slugs",
+              "title": "Source"
+            },
+            "description": "Restrict to source slugs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_StorySummary_"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/stories/blindspots": {
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "Stories one side of the spectrum, or one country's outlets, barely covered",
+        "operationId": "story_blindspots_api_v1_stories_blindspots_get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "perspective",
+                    "region"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD)",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD)",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 366,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window length ending at `to`",
+              "title": "Days"
+            },
+            "description": "Window length ending at `to`"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to source slugs",
+              "title": "Source"
+            },
+            "description": "Restrict to source slugs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Blindspots"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/stories/{story_id}": {
+      "get": {
+        "tags": [
+          "stories"
+        ],
+        "summary": "One story: every outlet's headline, coverage split, first report, related stories",
+        "operationId": "story_detail_api_v1_stories__story_id__get",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Story Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoryDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/overview": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Headline numbers for the selected period",
+        "operationId": "analytics_overview_api_v1_analytics_overview_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD)",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD)",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 366,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window length ending at `to`",
+              "title": "Days"
+            },
+            "description": "Window length ending at `to`"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to source slugs",
+              "title": "Source"
+            },
+            "description": "Restrict to source slugs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/volume": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Daily article volume (optionally per source/topic)",
+        "operationId": "analytics_volume_api_v1_analytics_volume_get",
+        "parameters": [
+          {
+            "name": "group_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "source",
+                    "topic"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group By"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD)",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD)",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 366,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window length ending at `to`",
+              "title": "Days"
+            },
+            "description": "Window length ending at `to`"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to source slugs",
+              "title": "Source"
+            },
+            "description": "Restrict to source slugs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/VolumeSeries"
+                    },
+                    {
+                      "$ref": "#/components/schemas/GroupedVolumeSeries"
+                    }
+                  ],
+                  "title": "Response Analytics Volume Api V1 Analytics Volume Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/sentiment": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Sentiment over time, or compared across sources/topics",
+        "operationId": "analytics_sentiment_api_v1_analytics_sentiment_get",
+        "parameters": [
+          {
+            "name": "group_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "source",
+                    "topic"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group By"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD)",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD)",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 366,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window length ending at `to`",
+              "title": "Days"
+            },
+            "description": "Window length ending at `to`"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to source slugs",
+              "title": "Source"
+            },
+            "description": "Restrict to source slugs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SentimentSeries"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SentimentGroups"
+                    }
+                  ],
+                  "title": "Response Analytics Sentiment Api V1 Analytics Sentiment Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/sentiment/shift": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Topics whose tone changed most week over week",
+        "operationId": "analytics_sentiment_shift_api_v1_analytics_sentiment_shift_get",
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 30,
+              "minimum": 3,
+              "default": 7,
+              "title": "Window"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentimentShift"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/trends/topics": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Accelerating topics (period-over-period growth)",
+        "operationId": "trends_topics_api_v1_analytics_trends_topics_get",
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 30,
+              "minimum": 3,
+              "default": 7,
+              "title": "Window"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicMomentum"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/trends/entities": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Entities with unusual mention spikes in the last 24 hours",
+        "operationId": "trends_entities_api_v1_analytics_trends_entities_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntitySpikes"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/cooccurrence": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Entity pairs most often mentioned together",
+        "operationId": "analytics_cooccurrence_api_v1_analytics_cooccurrence_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD)",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD)",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 366,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window length ending at `to`",
+              "title": "Days"
+            },
+            "description": "Window length ending at `to`"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to source slugs",
+              "title": "Source"
+            },
+            "description": "Restrict to source slugs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CoOccurrence"
+                  },
+                  "title": "Response Analytics Cooccurrence Api V1 Analytics Cooccurrence Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/topics": {
+      "get": {
+        "tags": [
+          "topics"
+        ],
+        "summary": "Topic ranking with share, change vs previous period and tone",
+        "operationId": "list_topics_api_v1_topics_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD)",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD)",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 366,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window length ending at `to`",
+              "title": "Days"
+            },
+            "description": "Window length ending at `to`"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to source slugs",
+              "title": "Source"
+            },
+            "description": "Restrict to source slugs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TopicStat"
+                  },
+                  "title": "Response List Topics Api V1 Topics Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/topics/taxonomy": {
+      "get": {
+        "tags": [
+          "topics"
+        ],
+        "summary": "The controlled topic vocabulary",
+        "operationId": "taxonomy_api_v1_topics_taxonomy_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaxonomyTopic"
+                  },
+                  "type": "array",
+                  "title": "Response Taxonomy Api V1 Topics Taxonomy Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/topics/{slug}": {
+      "get": {
+        "tags": [
+          "topics"
+        ],
+        "summary": "Topic Detail",
+        "operationId": "topic_detail_api_v1_topics__slug__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z_]{2,48}$",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD)",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD)",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 366,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window length ending at `to`",
+              "title": "Days"
+            },
+            "description": "Window length ending at `to`"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to source slugs",
+              "title": "Source"
+            },
+            "description": "Restrict to source slugs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/entities": {
+      "get": {
+        "tags": [
+          "entities"
+        ],
+        "summary": "Most-mentioned entities (searchable, filterable by type)",
+        "operationId": "list_entities_api_v1_entities_get",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "person",
+                    "organization",
+                    "location"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 2,
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10000,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD)",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD)",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 366,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window length ending at `to`",
+              "title": "Days"
+            },
+            "description": "Window length ending at `to`"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to source slugs",
+              "title": "Source"
+            },
+            "description": "Restrict to source slugs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EntityStat"
+                  },
+                  "title": "Response List Entities Api V1 Entities Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/entities/{entity_id}": {
+      "get": {
+        "tags": [
+          "entities"
+        ],
+        "summary": "Mentions over time, co-mentions, topics and sources",
+        "operationId": "entity_detail_api_v1_entities__entity_id__get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD)",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD)",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 366,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window length ending at `to`",
+              "title": "Days"
+            },
+            "description": "Window length ending at `to`"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to source slugs",
+              "title": "Source"
+            },
+            "description": "Restrict to source slugs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/sources": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Per-source volume, originality, tone and topic mix",
+        "operationId": "list_sources_api_v1_sources_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD)",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD)",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 366,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window length ending at `to`",
+              "title": "Days"
+            },
+            "description": "Window length ending at `to`"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to source slugs",
+              "title": "Source"
+            },
+            "description": "Restrict to source slugs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceStat"
+                  },
+                  "title": "Response List Sources Api V1 Sources Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/sources/{slug}": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "One outlet: ratings, ownership, story coverage, first reports, focus",
+        "operationId": "source_profile_api_v1_sources__slug__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{1,62}$",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD)",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD)",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 366,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window length ending at `to`",
+              "title": "Days"
+            },
+            "description": "Window length ending at `to`"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to source slugs",
+              "title": "Source"
+            },
+            "description": "Restrict to source slugs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceProfile"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/articles": {
+      "get": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Search and filter articles (metadata + AI analysis, links to originals)",
+        "operationId": "list_articles_api_v1_articles_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 2,
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z_]{2,48}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Topic"
+            }
+          },
+          {
+            "name": "entity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entity"
+            }
+          },
+          {
+            "name": "sentiment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "negative",
+                    "neutral",
+                    "positive"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sentiment"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "newest",
+                "oldest"
+              ],
+              "type": "string",
+              "default": "newest",
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (YYYY-MM-DD)",
+              "title": "From"
+            },
+            "description": "First day (YYYY-MM-DD)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (YYYY-MM-DD)",
+              "title": "To"
+            },
+            "description": "Last day (YYYY-MM-DD)"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 366,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Window length ending at `to`",
+              "title": "Days"
+            },
+            "description": "Window length ending at `to`"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Restrict to source slugs",
+              "title": "Source"
+            },
+            "description": "Restrict to source slugs"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ArticleSummary_"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/articles/{article_id}": {
+      "get": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Article Detail",
+        "operationId": "article_detail_api_v1_articles__article_id__get",
+        "parameters": [
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Article Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/runs": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Recent pipeline runs",
+        "operationId": "admin_runs_api_v1_admin_runs_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Runs Api V1 Admin Runs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Full statistics of one run",
+        "operationId": "admin_run_api_v1_admin_runs__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Run Api V1 Admin Runs  Run Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/pipeline/run": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Ask the scheduler to start a run now (picked up within ~20 s)",
+        "operationId": "admin_trigger_run_api_v1_admin_pipeline_run_post",
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Trigger Run Api V1 Admin Pipeline Run Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/costs": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "LLM usage and cost per day and per model",
+        "operationId": "admin_costs_api_v1_admin_costs_get",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 366,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Costs Api V1 Admin Costs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/enrichment/pause": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Kill switch: stop all LLM calls",
+        "operationId": "admin_pause_api_v1_admin_enrichment_pause_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Reason"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Pause Api V1 Admin Enrichment Pause Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/enrichment/resume": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Admin Resume",
+        "operationId": "admin_resume_api_v1_admin_enrichment_resume_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Resume Api V1 Admin Enrichment Resume Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/sources/{slug}/disable": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Admin Disable Source",
+        "operationId": "admin_disable_source_api_v1_admin_sources__slug__disable_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Reason"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Disable Source Api V1 Admin Sources  Slug  Disable Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/sources/{slug}/enable": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Admin Enable Source",
+        "operationId": "admin_enable_source_api_v1_admin_sources__slug__enable_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Enable Source Api V1 Admin Sources  Slug  Enable Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/articles/{article_id}/hide": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Takedown: hide an article everywhere",
+        "operationId": "admin_hide_api_v1_admin_articles__article_id__hide_post",
+        "parameters": [
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Article Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Reason"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Hide Api V1 Admin Articles  Article Id  Hide Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/articles/{article_id}/unhide": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Admin Unhide",
+        "operationId": "admin_unhide_api_v1_admin_articles__article_id__unhide_post",
+        "parameters": [
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Article Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Unhide Api V1 Admin Articles  Article Id  Unhide Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/articles/{article_id}/reenrich": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Admin Reenrich",
+        "operationId": "admin_reenrich_api_v1_admin_articles__article_id__reenrich_post",
+        "parameters": [
+          {
+            "name": "article_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Article Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Reenrich Api V1 Admin Articles  Article Id  Reenrich Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/quality": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Latest result of every data-quality check",
+        "operationId": "admin_quality_api_v1_admin_quality_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Quality Api V1 Admin Quality Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/alerts": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Recent alerts (delivered and suppressed)",
+        "operationId": "admin_alerts_api_v1_admin_alerts_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Alerts Api V1 Admin Alerts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/failures": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Recent enrichment failures and rejected feed items",
+        "operationId": "admin_failures_api_v1_admin_failures_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Admin Failures Api V1 Admin Failures Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnalysisMode": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "ai",
+              "rules",
+              "mixed",
+              "none"
+            ],
+            "title": "Mode",
+            "description": "How articles of the last 30 days were analysed (LLM, keyword rules, or both)"
+          },
+          "rule_based_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Based Share",
+            "description": "Share of analysed articles (last 30 days) that used keyword rules"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "Most used LLM model, if any"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "rule_based_share",
+          "model"
+        ],
+        "title": "AnalysisMode"
+      },
+      "ArticleDetail": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Published At"
+          },
+          "published_at_estimated": {
+            "type": "boolean",
+            "title": "Published At Estimated"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "summary_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary En"
+          },
+          "sentiment_label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "negative",
+                  "neutral",
+                  "positive"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentiment Label"
+          },
+          "sentiment_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentiment Score"
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type"
+          },
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Countries"
+          },
+          "enrichment_status": {
+            "type": "string",
+            "title": "Enrichment Status"
+          },
+          "enrichment_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrichment Confidence"
+          },
+          "feed_categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Feed Categories"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "duplicate_of_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of Id"
+          },
+          "story_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Id"
+          },
+          "enriched_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enriched At"
+          },
+          "analysis_method": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ai",
+                  "rules"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Method",
+            "description": "How topics, tone and entities were assigned: an LLM or keyword rules"
+          },
+          "analysis_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Model",
+            "description": "LLM model id when analysis_method=ai"
+          },
+          "source_slug": {
+            "type": "string",
+            "title": "Source Slug"
+          },
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          },
+          "source_url": {
+            "type": "string",
+            "title": "Source Url"
+          },
+          "topic_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Slug"
+          },
+          "topic_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Name"
+          },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleTopicRef"
+            },
+            "type": "array",
+            "title": "Topics"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityRef"
+            },
+            "type": "array",
+            "title": "Entities"
+          },
+          "related": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedArticle"
+            },
+            "type": "array",
+            "title": "Related"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "url",
+          "published_at",
+          "published_at_estimated",
+          "language",
+          "summary_en",
+          "sentiment_label",
+          "sentiment_score",
+          "event_type",
+          "countries",
+          "enrichment_status",
+          "enrichment_confidence",
+          "feed_categories",
+          "author",
+          "duplicate_of_id",
+          "story_id",
+          "enriched_at",
+          "analysis_method",
+          "analysis_model",
+          "source_slug",
+          "source_name",
+          "source_url",
+          "topic_slug",
+          "topic_name",
+          "topics",
+          "entities",
+          "related"
+        ],
+        "title": "ArticleDetail"
+      },
+      "ArticleSummary": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Published At"
+          },
+          "published_at_estimated": {
+            "type": "boolean",
+            "title": "Published At Estimated"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "summary_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary En"
+          },
+          "sentiment_label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "negative",
+                  "neutral",
+                  "positive"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentiment Label"
+          },
+          "sentiment_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentiment Score"
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type"
+          },
+          "enrichment_status": {
+            "type": "string",
+            "title": "Enrichment Status"
+          },
+          "duplicate_of_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of Id"
+          },
+          "story_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Id"
+          },
+          "source_slug": {
+            "type": "string",
+            "title": "Source Slug"
+          },
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          },
+          "topic_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Slug"
+          },
+          "topic_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "url",
+          "published_at",
+          "published_at_estimated",
+          "language",
+          "summary_en",
+          "sentiment_label",
+          "sentiment_score",
+          "event_type",
+          "enrichment_status",
+          "duplicate_of_id",
+          "story_id",
+          "source_slug",
+          "source_name",
+          "topic_slug",
+          "topic_name"
+        ],
+        "title": "ArticleSummary"
+      },
+      "ArticleTopicRef": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name_en": {
+            "type": "string",
+            "title": "Name En"
+          },
+          "is_primary": {
+            "type": "boolean",
+            "title": "Is Primary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name_en",
+          "is_primary"
+        ],
+        "title": "ArticleTopicRef"
+      },
+      "BiasCoverage": {
+        "properties": {
+          "left": {
+            "type": "integer",
+            "title": "Left"
+          },
+          "center": {
+            "type": "integer",
+            "title": "Center"
+          },
+          "right": {
+            "type": "integer",
+            "title": "Right"
+          },
+          "unrated": {
+            "type": "integer",
+            "title": "Unrated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "left",
+          "center",
+          "right",
+          "unrated"
+        ],
+        "title": "BiasCoverage"
+      },
+      "Blindspot": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "perspective",
+              "region"
+            ],
+            "title": "Kind"
+          },
+          "missing": {
+            "type": "string",
+            "title": "Missing",
+            "description": "perspective: the side that barely covered it (left/right); region: the country whose outlets did not cover it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "missing"
+        ],
+        "title": "Blindspot"
+      },
+      "Blindspots": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "Plain-language description of how the numbers are computed"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StorySummary"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "items"
+        ],
+        "title": "Blindspots"
+      },
+      "CoMention": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "person",
+              "organization",
+              "location"
+            ],
+            "title": "Type"
+          },
+          "together": {
+            "type": "integer",
+            "title": "Together"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "together"
+        ],
+        "title": "CoMention"
+      },
+      "CoOccurrence": {
+        "properties": {
+          "a_id": {
+            "type": "integer",
+            "title": "A Id"
+          },
+          "a_name": {
+            "type": "string",
+            "title": "A Name"
+          },
+          "a_type": {
+            "type": "string",
+            "enum": [
+              "person",
+              "organization",
+              "location"
+            ],
+            "title": "A Type"
+          },
+          "b_id": {
+            "type": "integer",
+            "title": "B Id"
+          },
+          "b_name": {
+            "type": "string",
+            "title": "B Name"
+          },
+          "b_type": {
+            "type": "string",
+            "enum": [
+              "person",
+              "organization",
+              "location"
+            ],
+            "title": "B Type"
+          },
+          "together": {
+            "type": "integer",
+            "title": "Together"
+          }
+        },
+        "type": "object",
+        "required": [
+          "a_id",
+          "a_name",
+          "a_type",
+          "b_id",
+          "b_name",
+          "b_type",
+          "together"
+        ],
+        "title": "CoOccurrence"
+      },
+      "Coverage": {
+        "properties": {
+          "bias": {
+            "$ref": "#/components/schemas/BiasCoverage",
+            "description": "By perspective group (left/lean left = left, …)"
+          },
+          "factuality": {
+            "$ref": "#/components/schemas/FactualityCoverage"
+          },
+          "ownership": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Ownership",
+            "description": "By ownership type"
+          },
+          "region": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Region",
+            "description": "By the outlet's country (XK, AL, MK, REG …)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bias",
+          "factuality",
+          "ownership",
+          "region"
+        ],
+        "title": "Coverage",
+        "description": "Distinct outlets that covered a story, split four ways."
+      },
+      "DateRange": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "days": {
+            "type": "integer",
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "days"
+        ],
+        "title": "DateRange"
+      },
+      "EntityArticles": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "person",
+              "organization",
+              "location"
+            ],
+            "title": "Type"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "articles"
+        ],
+        "title": "EntityArticles"
+      },
+      "EntityDetail": {
+        "properties": {
+          "entity": {
+            "$ref": "#/components/schemas/EntityInfo"
+          },
+          "mentions": {
+            "type": "integer",
+            "title": "Mentions"
+          },
+          "avg_sentiment": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Sentiment"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/EntitySeriesPoint"
+            },
+            "type": "array",
+            "title": "Series"
+          },
+          "co_mentions": {
+            "items": {
+              "$ref": "#/components/schemas/CoMention"
+            },
+            "type": "array",
+            "title": "Co Mentions"
+          },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSlice"
+            },
+            "type": "array",
+            "title": "Topics"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceSlice"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity",
+          "mentions",
+          "avg_sentiment",
+          "series",
+          "co_mentions",
+          "topics",
+          "sources"
+        ],
+        "title": "EntityDetail"
+      },
+      "EntityInfo": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "person",
+              "organization",
+              "location"
+            ],
+            "title": "Type"
+          },
+          "first_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "First Seen At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "first_seen_at"
+        ],
+        "title": "EntityInfo"
+      },
+      "EntityMentions": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "person",
+              "organization",
+              "location"
+            ],
+            "title": "Type"
+          },
+          "mentions": {
+            "type": "integer",
+            "title": "Mentions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "mentions"
+        ],
+        "title": "EntityMentions"
+      },
+      "EntityRef": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "person",
+              "organization",
+              "location"
+            ],
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type"
+        ],
+        "title": "EntityRef"
+      },
+      "EntitySeriesPoint": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "mentions": {
+            "type": "integer",
+            "title": "Mentions"
+          },
+          "avg_sentiment": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Sentiment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "mentions",
+          "avg_sentiment"
+        ],
+        "title": "EntitySeriesPoint"
+      },
+      "EntitySpike": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "person",
+              "organization",
+              "location"
+            ],
+            "title": "Type"
+          },
+          "last_24h": {
+            "type": "integer",
+            "title": "Last 24H"
+          },
+          "baseline_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Mean"
+          },
+          "baseline_std": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Std"
+          },
+          "z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Z"
+          },
+          "is_spike": {
+            "type": "boolean",
+            "title": "Is Spike"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "last_24h",
+          "baseline_mean",
+          "baseline_std",
+          "z",
+          "is_spike"
+        ],
+        "title": "EntitySpike"
+      },
+      "EntitySpikes": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "Plain-language description of how the numbers are computed"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "title": "As Of"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EntitySpike"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "as_of",
+          "items"
+        ],
+        "title": "EntitySpikes"
+      },
+      "EntityStat": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "person",
+              "organization",
+              "location"
+            ],
+            "title": "Type"
+          },
+          "mentions": {
+            "type": "integer",
+            "title": "Mentions"
+          },
+          "previous": {
+            "type": "integer",
+            "title": "Previous"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          },
+          "avg_sentiment": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Sentiment"
+          },
+          "sources": {
+            "type": "integer",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "mentions",
+          "previous",
+          "change",
+          "avg_sentiment",
+          "sources"
+        ],
+        "title": "EntityStat"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "details": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "details"
+        ],
+        "title": "ErrorBody"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse"
+      },
+      "FactualityCoverage": {
+        "properties": {
+          "high": {
+            "type": "integer",
+            "title": "High"
+          },
+          "mixed": {
+            "type": "integer",
+            "title": "Mixed"
+          },
+          "low": {
+            "type": "integer",
+            "title": "Low"
+          },
+          "unrated": {
+            "type": "integer",
+            "title": "Unrated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "high",
+          "mixed",
+          "low",
+          "unrated"
+        ],
+        "title": "FactualityCoverage"
+      },
+      "GroupedPoint": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "key",
+          "articles"
+        ],
+        "title": "GroupedPoint"
+      },
+      "GroupedVolumeSeries": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "Plain-language description of how the numbers are computed"
+          },
+          "group_by": {
+            "type": "string",
+            "title": "Group By"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/GroupedPoint"
+            },
+            "type": "array",
+            "title": "Series"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "group_by",
+          "series"
+        ],
+        "title": "GroupedVolumeSeries"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded",
+              "down"
+            ],
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "database": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Database"
+          },
+          "migrations": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Migrations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "database",
+          "migrations"
+        ],
+        "title": "Health"
+      },
+      "Overview": {
+        "properties": {
+          "range": {
+            "$ref": "#/components/schemas/DateRange"
+          },
+          "articles_total": {
+            "type": "integer",
+            "title": "Articles Total"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles"
+          },
+          "unique_stories": {
+            "type": "integer",
+            "title": "Unique Stories"
+          },
+          "today": {
+            "type": "integer",
+            "title": "Today"
+          },
+          "yesterday": {
+            "type": "integer",
+            "title": "Yesterday"
+          },
+          "sources": {
+            "type": "integer",
+            "title": "Sources"
+          },
+          "enriched": {
+            "type": "integer",
+            "title": "Enriched"
+          },
+          "enriched_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enriched Share"
+          },
+          "sentiment": {
+            "$ref": "#/components/schemas/SentimentBreakdown"
+          },
+          "top_topic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TopTopic"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "top_entity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntityStat"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_ingested_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ingested At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "range",
+          "articles_total",
+          "articles",
+          "unique_stories",
+          "today",
+          "yesterday",
+          "sources",
+          "enriched",
+          "enriched_share",
+          "sentiment",
+          "top_topic",
+          "top_entity",
+          "last_ingested_at"
+        ],
+        "title": "Overview"
+      },
+      "Page_ArticleSummary_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "pages"
+        ],
+        "title": "Page[ArticleSummary]"
+      },
+      "Page_StorySummary_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StorySummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "pages"
+        ],
+        "title": "Page[StorySummary]"
+      },
+      "PublicStatus": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded",
+              "stale"
+            ],
+            "title": "Status"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "last_run_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run Status"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "minutes_since_success": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes Since Success"
+          },
+          "scheduler_heartbeat_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Heartbeat At"
+          },
+          "articles_last_24h": {
+            "type": "integer",
+            "title": "Articles Last 24H"
+          },
+          "enrichment_backlog": {
+            "type": "integer",
+            "title": "Enrichment Backlog"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceHealth"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "analysis": {
+            "$ref": "#/components/schemas/AnalysisMode"
+          },
+          "demo_data": {
+            "type": "boolean",
+            "title": "Demo Data"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "last_run_at",
+          "last_run_status",
+          "last_success_at",
+          "minutes_since_success",
+          "scheduler_heartbeat_at",
+          "articles_last_24h",
+          "enrichment_backlog",
+          "sources",
+          "analysis",
+          "demo_data",
+          "version"
+        ],
+        "title": "PublicStatus"
+      },
+      "Reason": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "Reason"
+      },
+      "RelatedArticle": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Published At"
+          },
+          "source_slug": {
+            "type": "string",
+            "title": "Source Slug"
+          },
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "url",
+          "published_at",
+          "source_slug",
+          "source_name"
+        ],
+        "title": "RelatedArticle"
+      },
+      "SentimentBreakdown": {
+        "properties": {
+          "negative": {
+            "type": "integer",
+            "title": "Negative"
+          },
+          "neutral": {
+            "type": "integer",
+            "title": "Neutral"
+          },
+          "positive": {
+            "type": "integer",
+            "title": "Positive"
+          },
+          "average": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average"
+          }
+        },
+        "type": "object",
+        "required": [
+          "negative",
+          "neutral",
+          "positive",
+          "average"
+        ],
+        "title": "SentimentBreakdown"
+      },
+      "SentimentGroup": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "average": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average"
+          },
+          "negative": {
+            "type": "integer",
+            "title": "Negative"
+          },
+          "neutral": {
+            "type": "integer",
+            "title": "Neutral"
+          },
+          "positive": {
+            "type": "integer",
+            "title": "Positive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "n",
+          "average",
+          "negative",
+          "neutral",
+          "positive"
+        ],
+        "title": "SentimentGroup"
+      },
+      "SentimentGroups": {
+        "properties": {
+          "group_by": {
+            "type": "string",
+            "title": "Group By"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/SentimentGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group_by",
+          "groups"
+        ],
+        "title": "SentimentGroups"
+      },
+      "SentimentPoint": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "negative": {
+            "type": "integer",
+            "title": "Negative"
+          },
+          "neutral": {
+            "type": "integer",
+            "title": "Neutral"
+          },
+          "positive": {
+            "type": "integer",
+            "title": "Positive"
+          },
+          "average": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average"
+          },
+          "ma7": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ma7"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "negative",
+          "neutral",
+          "positive",
+          "average",
+          "ma7"
+        ],
+        "title": "SentimentPoint"
+      },
+      "SentimentSeries": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "Plain-language description of how the numbers are computed"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/SentimentPoint"
+            },
+            "type": "array",
+            "title": "Series"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "series"
+        ],
+        "title": "SentimentSeries"
+      },
+      "SentimentShift": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "Plain-language description of how the numbers are computed"
+          },
+          "window_days": {
+            "type": "integer",
+            "title": "Window Days"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SentimentShiftItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "window_days",
+          "items"
+        ],
+        "title": "SentimentShift"
+      },
+      "SentimentShiftItem": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name_en": {
+            "type": "string",
+            "title": "Name En"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous"
+          },
+          "n_current": {
+            "type": "integer",
+            "title": "N Current"
+          },
+          "n_previous": {
+            "type": "integer",
+            "title": "N Previous"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name_en",
+          "current",
+          "previous",
+          "n_current",
+          "n_previous",
+          "delta"
+        ],
+        "title": "SentimentShiftItem"
+      },
+      "SharedCoverage": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "bias": {
+            "type": "string",
+            "enum": [
+              "left",
+              "lean_left",
+              "center",
+              "lean_right",
+              "right",
+              "unrated"
+            ],
+            "title": "Bias"
+          },
+          "shared": {
+            "type": "integer",
+            "title": "Shared"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "bias",
+          "shared"
+        ],
+        "title": "SharedCoverage"
+      },
+      "SourceHealth": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "verification_status": {
+            "type": "string",
+            "title": "Verification Status"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "consecutive_failures": {
+            "type": "integer",
+            "title": "Consecutive Failures"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "is_active",
+          "verification_status",
+          "last_success_at",
+          "consecutive_failures"
+        ],
+        "title": "SourceHealth"
+      },
+      "SourceProfile": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "homepage_url": {
+            "type": "string",
+            "title": "Homepage Url"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "verification_status": {
+            "type": "string",
+            "title": "Verification Status"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "bias": {
+            "type": "string",
+            "enum": [
+              "left",
+              "lean_left",
+              "center",
+              "lean_right",
+              "right",
+              "unrated"
+            ],
+            "title": "Bias"
+          },
+          "factuality": {
+            "type": "string",
+            "enum": [
+              "very_high",
+              "high",
+              "mixed",
+              "low",
+              "very_low",
+              "unrated"
+            ],
+            "title": "Factuality"
+          },
+          "ownership": {
+            "type": "string",
+            "enum": [
+              "private",
+              "media_group",
+              "public",
+              "state",
+              "public_international",
+              "nonprofit",
+              "unknown"
+            ],
+            "title": "Ownership"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "ratings_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratings Note",
+            "description": "What the bias/factuality ratings are based on"
+          },
+          "range": {
+            "$ref": "#/components/schemas/DateRange"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles"
+          },
+          "avg_sentiment": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Sentiment"
+          },
+          "stories": {
+            "type": "integer",
+            "title": "Stories"
+          },
+          "first_reports": {
+            "type": "integer",
+            "title": "First Reports"
+          },
+          "exclusives": {
+            "type": "integer",
+            "title": "Exclusives",
+            "description": "Stories only this outlet covered"
+          },
+          "coverage_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Share",
+            "description": "Share of the multi-outlet stories of the period this outlet covered"
+          },
+          "top_topics": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSlice"
+            },
+            "type": "array",
+            "title": "Top Topics"
+          },
+          "top_entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityMentions"
+            },
+            "type": "array",
+            "title": "Top Entities"
+          },
+          "overlap": {
+            "items": {
+              "$ref": "#/components/schemas/SharedCoverage"
+            },
+            "type": "array",
+            "title": "Overlap",
+            "description": "Outlets that covered the same stories"
+          },
+          "recent_stories": {
+            "items": {
+              "$ref": "#/components/schemas/StorySummary"
+            },
+            "type": "array",
+            "title": "Recent Stories"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "homepage_url",
+          "language",
+          "country",
+          "is_active",
+          "verification_status",
+          "last_success_at",
+          "bias",
+          "factuality",
+          "ownership",
+          "owner",
+          "ratings_note",
+          "range",
+          "articles",
+          "avg_sentiment",
+          "stories",
+          "first_reports",
+          "exclusives",
+          "coverage_share",
+          "top_topics",
+          "top_entities",
+          "overlap",
+          "recent_stories"
+        ],
+        "title": "SourceProfile"
+      },
+      "SourceSlice": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles"
+          },
+          "avg_sentiment": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Sentiment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "articles",
+          "avg_sentiment"
+        ],
+        "title": "SourceSlice"
+      },
+      "SourceStat": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "homepage_url": {
+            "type": "string",
+            "title": "Homepage Url"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "verification_status": {
+            "type": "string",
+            "title": "Verification Status"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "consecutive_failures": {
+            "type": "integer",
+            "title": "Consecutive Failures"
+          },
+          "bias": {
+            "type": "string",
+            "enum": [
+              "left",
+              "lean_left",
+              "center",
+              "lean_right",
+              "right",
+              "unrated"
+            ],
+            "title": "Bias",
+            "description": "Editorial perspective rating (sources.yaml)"
+          },
+          "factuality": {
+            "type": "string",
+            "enum": [
+              "very_high",
+              "high",
+              "mixed",
+              "low",
+              "very_low",
+              "unrated"
+            ],
+            "title": "Factuality"
+          },
+          "ownership": {
+            "type": "string",
+            "enum": [
+              "private",
+              "media_group",
+              "public",
+              "state",
+              "public_international",
+              "nonprofit",
+              "unknown"
+            ],
+            "title": "Ownership"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "stories": {
+            "type": "integer",
+            "title": "Stories",
+            "description": "Stories (started in the range) this outlet covered"
+          },
+          "first_reports": {
+            "type": "integer",
+            "title": "First Reports",
+            "description": "Stories covered by 2+ outlets that this outlet published first"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles"
+          },
+          "original": {
+            "type": "integer",
+            "title": "Original"
+          },
+          "per_day": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Day"
+          },
+          "avg_sentiment": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Sentiment"
+          },
+          "negative": {
+            "type": "integer",
+            "title": "Negative"
+          },
+          "neutral": {
+            "type": "integer",
+            "title": "Neutral"
+          },
+          "positive": {
+            "type": "integer",
+            "title": "Positive"
+          },
+          "last_article_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Article At"
+          },
+          "top_topics": {
+            "items": {
+              "$ref": "#/components/schemas/TopicCount"
+            },
+            "type": "array",
+            "title": "Top Topics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "homepage_url",
+          "language",
+          "country",
+          "is_active",
+          "verification_status",
+          "last_success_at",
+          "consecutive_failures",
+          "bias",
+          "factuality",
+          "ownership",
+          "owner",
+          "stories",
+          "first_reports",
+          "articles",
+          "original",
+          "per_day",
+          "avg_sentiment",
+          "negative",
+          "neutral",
+          "positive",
+          "last_article_at",
+          "top_topics"
+        ],
+        "title": "SourceStat"
+      },
+      "StoryArticle": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Published At"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "summary_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary En"
+          },
+          "sentiment_label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "negative",
+                  "neutral",
+                  "positive"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentiment Label"
+          },
+          "source_slug": {
+            "type": "string",
+            "title": "Source Slug"
+          },
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          },
+          "source_country": {
+            "type": "string",
+            "title": "Source Country"
+          },
+          "source_bias": {
+            "type": "string",
+            "enum": [
+              "left",
+              "lean_left",
+              "center",
+              "lean_right",
+              "right",
+              "unrated"
+            ],
+            "title": "Source Bias"
+          },
+          "source_factuality": {
+            "type": "string",
+            "enum": [
+              "very_high",
+              "high",
+              "mixed",
+              "low",
+              "very_low",
+              "unrated"
+            ],
+            "title": "Source Factuality"
+          },
+          "source_ownership": {
+            "type": "string",
+            "enum": [
+              "private",
+              "media_group",
+              "public",
+              "state",
+              "public_international",
+              "nonprofit",
+              "unknown"
+            ],
+            "title": "Source Ownership"
+          },
+          "is_first": {
+            "type": "boolean",
+            "title": "Is First"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "url",
+          "published_at",
+          "language",
+          "summary_en",
+          "sentiment_label",
+          "source_slug",
+          "source_name",
+          "source_country",
+          "source_bias",
+          "source_factuality",
+          "source_ownership",
+          "is_first"
+        ],
+        "title": "StoryArticle"
+      },
+      "StoryDetail": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Headline of the most typical article (closest to centroid)"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Link to that article at its publisher"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "summary_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary En"
+          },
+          "source_slug": {
+            "type": "string",
+            "title": "Source Slug"
+          },
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          },
+          "first_published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "First Published At"
+          },
+          "last_published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Published At"
+          },
+          "article_count": {
+            "type": "integer",
+            "title": "Article Count"
+          },
+          "source_count": {
+            "type": "integer",
+            "title": "Source Count"
+          },
+          "topic_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Slug"
+          },
+          "topic_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Name"
+          },
+          "first_source_slug": {
+            "type": "string",
+            "title": "First Source Slug",
+            "description": "Outlet that published first"
+          },
+          "first_source_name": {
+            "type": "string",
+            "title": "First Source Name"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/Coverage"
+          },
+          "tone": {
+            "$ref": "#/components/schemas/ToneMix"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/StorySource"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "blindspots": {
+            "items": {
+              "$ref": "#/components/schemas/Blindspot"
+            },
+            "type": "array",
+            "title": "Blindspots"
+          },
+          "articles": {
+            "items": {
+              "$ref": "#/components/schemas/StoryArticle"
+            },
+            "type": "array",
+            "title": "Articles"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityArticles"
+            },
+            "type": "array",
+            "title": "Entities"
+          },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/TopicArticles"
+            },
+            "type": "array",
+            "title": "Topics"
+          },
+          "related": {
+            "items": {
+              "$ref": "#/components/schemas/StorySummary"
+            },
+            "type": "array",
+            "title": "Related",
+            "description": "Stories within 3 days sharing 2+ names"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "url",
+          "language",
+          "summary_en",
+          "source_slug",
+          "source_name",
+          "first_published_at",
+          "last_published_at",
+          "article_count",
+          "source_count",
+          "topic_slug",
+          "topic_name",
+          "first_source_slug",
+          "first_source_name",
+          "coverage",
+          "tone",
+          "sources",
+          "blindspots",
+          "articles",
+          "entities",
+          "topics",
+          "related"
+        ],
+        "title": "StoryDetail"
+      },
+      "StorySource": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "bias": {
+            "type": "string",
+            "enum": [
+              "left",
+              "lean_left",
+              "center",
+              "lean_right",
+              "right",
+              "unrated"
+            ],
+            "title": "Bias"
+          },
+          "country": {
+            "type": "string",
+            "title": "Country"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "bias",
+          "country"
+        ],
+        "title": "StorySource"
+      },
+      "StorySummary": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Headline of the most typical article (closest to centroid)"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Link to that article at its publisher"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "summary_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary En"
+          },
+          "source_slug": {
+            "type": "string",
+            "title": "Source Slug"
+          },
+          "source_name": {
+            "type": "string",
+            "title": "Source Name"
+          },
+          "first_published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "First Published At"
+          },
+          "last_published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Published At"
+          },
+          "article_count": {
+            "type": "integer",
+            "title": "Article Count"
+          },
+          "source_count": {
+            "type": "integer",
+            "title": "Source Count"
+          },
+          "topic_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Slug"
+          },
+          "topic_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Name"
+          },
+          "first_source_slug": {
+            "type": "string",
+            "title": "First Source Slug",
+            "description": "Outlet that published first"
+          },
+          "first_source_name": {
+            "type": "string",
+            "title": "First Source Name"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/Coverage"
+          },
+          "tone": {
+            "$ref": "#/components/schemas/ToneMix"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/StorySource"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "blindspots": {
+            "items": {
+              "$ref": "#/components/schemas/Blindspot"
+            },
+            "type": "array",
+            "title": "Blindspots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "url",
+          "language",
+          "summary_en",
+          "source_slug",
+          "source_name",
+          "first_published_at",
+          "last_published_at",
+          "article_count",
+          "source_count",
+          "topic_slug",
+          "topic_name",
+          "first_source_slug",
+          "first_source_name",
+          "coverage",
+          "tone",
+          "sources",
+          "blindspots"
+        ],
+        "title": "StorySummary"
+      },
+      "TaxonomyTopic": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name_en": {
+            "type": "string",
+            "title": "Name En"
+          },
+          "name_sq": {
+            "type": "string",
+            "title": "Name Sq"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name_en",
+          "name_sq",
+          "description"
+        ],
+        "title": "TaxonomyTopic"
+      },
+      "ToneMix": {
+        "properties": {
+          "negative": {
+            "type": "integer",
+            "title": "Negative"
+          },
+          "neutral": {
+            "type": "integer",
+            "title": "Neutral"
+          },
+          "positive": {
+            "type": "integer",
+            "title": "Positive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "negative",
+          "neutral",
+          "positive"
+        ],
+        "title": "ToneMix"
+      },
+      "TopTopic": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name_en": {
+            "type": "string",
+            "title": "Name En"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles"
+          },
+          "share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name_en",
+          "articles",
+          "share"
+        ],
+        "title": "TopTopic"
+      },
+      "TopicArticles": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name_en": {
+            "type": "string",
+            "title": "Name En"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name_en",
+          "articles"
+        ],
+        "title": "TopicArticles"
+      },
+      "TopicCount": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "articles"
+        ],
+        "title": "TopicCount"
+      },
+      "TopicDetail": {
+        "properties": {
+          "topic": {
+            "$ref": "#/components/schemas/TopicInfo"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSeriesPoint"
+            },
+            "type": "array",
+            "title": "Series"
+          },
+          "top_entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityMentions"
+            },
+            "type": "array",
+            "title": "Top Entities"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceSlice"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "topic",
+          "series",
+          "top_entities",
+          "sources"
+        ],
+        "title": "TopicDetail"
+      },
+      "TopicInfo": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name_en": {
+            "type": "string",
+            "title": "Name En"
+          },
+          "name_sq": {
+            "type": "string",
+            "title": "Name Sq"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name_en",
+          "name_sq",
+          "description"
+        ],
+        "title": "TopicInfo"
+      },
+      "TopicMomentum": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "Plain-language description of how the numbers are computed"
+          },
+          "window_days": {
+            "type": "integer",
+            "title": "Window Days"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopicMomentumItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "window_days",
+          "items"
+        ],
+        "title": "TopicMomentum"
+      },
+      "TopicMomentumItem": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name_en": {
+            "type": "string",
+            "title": "Name En"
+          },
+          "current": {
+            "type": "integer",
+            "title": "Current"
+          },
+          "previous": {
+            "type": "integer",
+            "title": "Previous"
+          },
+          "growth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Growth"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name_en",
+          "current",
+          "previous",
+          "growth"
+        ],
+        "title": "TopicMomentumItem"
+      },
+      "TopicSeriesPoint": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles"
+          },
+          "avg_sentiment": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Sentiment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "articles",
+          "avg_sentiment"
+        ],
+        "title": "TopicSeriesPoint"
+      },
+      "TopicSlice": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name_en": {
+            "type": "string",
+            "title": "Name En"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name_en",
+          "articles"
+        ],
+        "title": "TopicSlice"
+      },
+      "TopicStat": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name_en": {
+            "type": "string",
+            "title": "Name En"
+          },
+          "name_sq": {
+            "type": "string",
+            "title": "Name Sq"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles"
+          },
+          "previous": {
+            "type": "integer",
+            "title": "Previous"
+          },
+          "share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          },
+          "avg_sentiment": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Sentiment"
+          },
+          "negative": {
+            "type": "integer",
+            "title": "Negative"
+          },
+          "positive": {
+            "type": "integer",
+            "title": "Positive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name_en",
+          "name_sq",
+          "articles",
+          "previous",
+          "share",
+          "change",
+          "avg_sentiment",
+          "negative",
+          "positive"
+        ],
+        "title": "TopicStat"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VolumePoint": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles"
+          },
+          "stories": {
+            "type": "integer",
+            "title": "Stories"
+          },
+          "ma7": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ma7"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "articles",
+          "stories",
+          "ma7"
+        ],
+        "title": "VolumePoint"
+      },
+      "VolumeSeries": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "Plain-language description of how the numbers are computed"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/VolumePoint"
+            },
+            "type": "array",
+            "title": "Series"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "series"
+        ],
+        "title": "VolumeSeries"
+      }
+    }
+  }
+}

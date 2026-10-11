@@ -11,7 +11,15 @@ T = TypeVar("T")
 
 
 class Model(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    # Response fields with a default are still always present in the JSON; say so in the OpenAPI
+    # schema (the frontend's API types are generated from it, docs/architecture/frontend_system.md).
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+
+SentimentLabel = Literal["negative", "neutral", "positive"]
+EntityType = Literal["person", "organization", "location"]
 
 
 class ErrorBody(Model):
@@ -62,7 +70,7 @@ class TopTopic(Model):
 class EntityRef(Model):
     id: int
     name: str
-    type: Literal["person", "organization", "location"]
+    type: EntityType
 
 
 class EntityStat(EntityRef):
@@ -266,10 +274,10 @@ class EntityDetail(Model):
 class CoOccurrence(Model):
     a_id: int
     a_name: str
-    a_type: str
+    a_type: EntityType
     b_id: int
     b_name: str
-    b_type: str
+    b_type: EntityType
     together: int
 
 
@@ -393,7 +401,7 @@ class StoryArticle(Model):
     published_at: datetime
     language: str
     summary_en: str | None
-    sentiment_label: str | None
+    sentiment_label: SentimentLabel | None
     source_slug: str
     source_name: str
     source_country: str
@@ -471,7 +479,7 @@ class ArticleSummary(Model):
     published_at_estimated: bool
     language: str
     summary_en: str | None
-    sentiment_label: str | None
+    sentiment_label: SentimentLabel | None
     sentiment_score: float | None
     event_type: str | None
     enrichment_status: str
@@ -506,7 +514,7 @@ class ArticleDetail(Model):
     published_at_estimated: bool
     language: str
     summary_en: str | None
-    sentiment_label: str | None
+    sentiment_label: SentimentLabel | None
     sentiment_score: float | None
     event_type: str | None
     countries: list[str]
