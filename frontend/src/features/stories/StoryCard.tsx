@@ -3,7 +3,7 @@ import { useRef } from "react";
 import { Link } from "react-router-dom";
 
 import type { StorySummary } from "@/shared/api/types";
-import { formatRelative } from "@/shared/lib/format";
+import { formatRelative, realSummary } from "@/shared/lib/format";
 import {
   BIAS_GROUP_COLOR,
   BIAS_LABEL,
@@ -14,6 +14,7 @@ import {
 } from "@/shared/model/ratings";
 import { storyQuery } from "./api";
 import { StoryCoverage } from "./StoryCoverage";
+import "./stories.css";
 
 function initials(name: string): string {
   const words = name.replace(/[^\p{L}\p{N} ]/gu, "").split(/\s+/).filter(Boolean);
@@ -76,20 +77,34 @@ function usePrefetchStory(id: number) {
  * One story in a feed: topic and time, the representative headline (links to the story page,
  * which links every outlet's original), the coverage bar, and who covered it first.
  */
-export function StoryCard({ story, lens, compact = false }: { story: StorySummary; lens: Lens; compact?: boolean }) {
+export function StoryCard({
+  story,
+  lens,
+  compact = false,
+  lead = false,
+}: {
+  story: StorySummary;
+  lens: Lens;
+  compact?: boolean;
+  /** The day's most covered story, set larger at the top of the feed. */
+  lead?: boolean;
+}) {
   const prefetch = usePrefetchStory(story.id);
   return (
-    <article className={`card story-card ${compact ? "story-card--compact" : ""}`} aria-labelledby={`story-${story.id}`}>
+    <article
+      className={`story-card ${compact ? "story-card--compact" : ""} ${lead ? "story-card--lead" : ""}`}
+      aria-labelledby={`story-${story.id}`}
+    >
       <div className="story-card__top">
-        {story.topic_name && <span>{story.topic_name}</span>}
+        {story.topic_name && <span className="kicker">{story.topic_name}</span>}
         <span>· <time dateTime={story.last_published_at}>Updated {formatRelative(story.last_published_at)}</time></span>
         <BlindspotBadges story={story} />
       </div>
       <h3 className="story-card__title" id={`story-${story.id}`} lang={story.language}>
         <Link to={`/stories/${story.id}`} {...prefetch}>{story.title}</Link>
       </h3>
-      {!compact && story.summary_en && !story.summary_en.startsWith("[headline") && (
-        <p className="story-card__summary">{story.summary_en}</p>
+      {!compact && realSummary(story.summary_en) && (
+        <p className="story-card__summary">{realSummary(story.summary_en)}</p>
       )}
       <StoryCoverage coverage={story.coverage} lens={lens} size={compact ? "sm" : "md"} />
       <div className="story-card__foot">

@@ -51,7 +51,13 @@ test.describe("GJURMË stories", () => {
     await expect(page).toHaveURL(/days=7/);
     await page.getByRole("button", { name: "Latest" }).click();
     await expect(page).toHaveURL(/sort=latest/);
+    const more = page.getByRole("button", { name: /^Filter stories/ });
+    if (await more.isVisible()) {
+      await more.click(); // phones: the secondary filters are folded away
+      await expect(more).toHaveAttribute("aria-expanded", "true");
+    }
     await page.getByLabel("Covered by outlets from").selectOption("AL");
+    if (await more.isVisible()) await expect(more).toHaveText("Filter stories (1)");
     await expect(page).toHaveURL(/country=AL/);
     await expect(page.locator(".story-card").first()).toBeVisible();
   });

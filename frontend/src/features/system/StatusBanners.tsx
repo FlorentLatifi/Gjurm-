@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
 
+import type { PublicStatus } from "@/shared/api/types";
 import { formatRelative } from "@/shared/lib/format";
 
 import { useStatus } from "./api";
+import "./system.css";
 
 export function StatusPill() {
   const { data } = useStatus();
@@ -23,30 +25,50 @@ export function StatusPill() {
   );
 }
 
-export function DemoBanner() {
-  const { data } = useStatus();
-  if (!data?.demo_data) return null;
-  return (
-    <div className="banner" role="note">
-      <strong>Demo dataset.</strong> This instance shows synthetic articles from fictional outlets
-      (“… Demo”) so the product can be explored without live data. Names of people are invented.
-    </div>
-  );
+interface Notice {
+  label: string;
+  text: string;
+  href: string;
 }
 
-/** Says plainly when topics, tone and names come from keyword rules rather than an AI model. */
-export function AnalysisBanner() {
-  const { data } = useStatus();
-  if (!data || data.demo_data) return null; // the demo banner already explains the demo data
-  const { mode, rule_based_share } = data.analysis;
+/** What the site must say about its data before anything else (ADR-018: free mode is honest). */
+export function noticeFor(status: PublicStatus | undefined): Notice | null {
+  if (!status) return null;
+  if (status.demo_data) {
+    return {
+      label: "Demo dataset.",
+      text: "Fictional outlets (“… Demo”) and invented names, so the product can be explored without live data.",
+      href: "/about",
+    };
+  }
+  const { mode, rule_based_share } = status.analysis;
   if (mode !== "rules" && mode !== "mixed") return null;
+  return {
+    label: "Rule-based analysis.",
+    text:
+      mode === "rules"
+        ? "Topics, tone and names are assigned by keyword rules, not by an AI model — treat them as rough indications."
+        : `${Math.round((rule_based_share ?? 0) * 100)}% of recent articles were analysed by keyword rules, not by an AI model — treat them as rough indications.`,
+    href: "/about#analysis",
+  };
+}
+
+/**
+ * One line (two on a phone) above every page. Its space is held while the status loads, so the
+ * page never jumps down when the notice arrives; the label links to the explanation and the full
+ * sentence is in the title when the line is clipped.
+ */
+export function SiteNotice() {
+  const { data, isPending } = useStatus();
+  if (isPending) return <div className="notice notice--reserved" aria-hidden="true" />;
+  const notice = noticeFor(data);
+  if (!notice) return null;
   return (
-    <div className="banner" role="note">
-      <strong>Rule-based analysis.</strong>{" "}
-      {mode === "rules"
-        ? "Topics, tone and names on this site are currently assigned by keyword rules, not by an AI model."
-        : `${Math.round((rule_based_share ?? 0) * 100)}% of recent articles were analysed by keyword rules, not by an AI model.`}{" "}
-      Treat them as rough indications. <Link to="/about#analysis">How this works</Link>
-    </div>
+    <p className="notice" role="note" title={`${notice.label} ${notice.text}`}>
+      <Link to={notice.href}>
+        <strong>{notice.label}</strong>
+      </Link>{" "}
+      {notice.text}
+    </p>
   );
 }

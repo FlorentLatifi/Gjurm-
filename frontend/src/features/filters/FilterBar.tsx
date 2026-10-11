@@ -35,7 +35,7 @@ export function FilterBar({
         ))}
       </div>
       {showSources && (
-        <div className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <div className="field field--inline">
           <label htmlFor={sourceId}>Outlet</label>
           <select
             id={sourceId}

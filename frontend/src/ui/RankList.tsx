@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 import { formatInt } from "@/shared/lib/format";
+import "./rank.css";
 
 export interface RankItem {
   key: string | number;

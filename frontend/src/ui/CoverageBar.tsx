@@ -1,5 +1,6 @@
 import { formatPercent } from "@/shared/lib/format";
 import type { Segment } from "@/shared/model/ratings";
+import "./coverage.css";
 
 /**
  * Ground News-style coverage bar: the distinct outlets that covered a story, split by one

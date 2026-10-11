@@ -68,7 +68,7 @@ export default function TrendsPage() {
                   <tr key={e.id}>
                     <td><Link to={withFilters(`/entities/${e.id}`, filters)}>{e.name}</Link>{" "}
                       <span className="rank-meta">{ENTITY_TYPE_LABEL[e.type]}</span>
-                      {e.is_spike && <span className="chip" style={{ marginLeft: 6 }}>Spike</span>}</td>
+                      {e.is_spike && <> <span className="chip">Spike</span></>}</td>
                     <td className="num">{formatInt(e.last_24h)}</td>
                     <td className="num">{e.baseline_mean?.toFixed(1) ?? "—"}</td>
                     <td className="num">{e.z?.toFixed(1) ?? "—"}</td>

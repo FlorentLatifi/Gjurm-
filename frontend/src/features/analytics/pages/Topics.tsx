@@ -52,7 +52,7 @@ export function TopicsPage() {
                   <th className="num" scope="col">Articles</th>
                   <th className="num" scope="col">Share</th>
                   <th className="num" scope="col">Change</th>
-                  <th scope="col" style={{ minWidth: 120 }}>Tone mix</th>
+                  <th scope="col" className="col-tone">Tone mix</th>
                   <th className="num" scope="col">Mean tone</th>
                 </tr>
               </thead>

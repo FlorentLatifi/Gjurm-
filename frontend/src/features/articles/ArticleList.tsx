@@ -2,9 +2,10 @@ import { Link } from "react-router-dom";
 
 import { type Filters, withFilters } from "@/shared/hooks/useFilters";
 import type { ArticleSummary } from "@/shared/api/types";
-import { formatDateTime, hostOf, safeHref } from "@/shared/lib/format";
+import { formatDateTime, hostOf, realSummary, safeHref } from "@/shared/lib/format";
 import { recordRead } from "@/stores/reading";
 import { SentimentChip } from "@/ui/SentimentChip";
+import "./articles.css";
 
 /**
  * Article rows: the headline links to the ORIGINAL publisher page (never republished here),
@@ -27,10 +28,10 @@ export function ArticleList({ items, filters }: { items: ArticleSummary[]; filte
             ) : (
               <span className="article__title" lang={a.language}>{a.title}</span>
             )}
-            {a.summary_en && <p className="article__summary">{a.summary_en}</p>}
+            {realSummary(a.summary_en) && <p className="article__summary">{realSummary(a.summary_en)}</p>}
             <div className="article__meta">
               <span>
-                <strong style={{ color: "var(--ink-2)" }}>{a.source_name}</strong> ·{" "}
+                <strong>{a.source_name}</strong> ·{" "}
                 <time dateTime={a.published_at}>{formatDateTime(a.published_at)}</time>
                 {a.published_at_estimated && <span title="The feed gave no usable date; time first seen"> (est.)</span>}
               </span>

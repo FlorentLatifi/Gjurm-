@@ -1,12 +1,13 @@
 import { Suspense } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 
-import { AnalysisBanner, DemoBanner, StatusPill } from "@/features/system";
+import { SiteNotice, StatusPill } from "@/features/system";
 import { LoadingBlock } from "@/ui/States";
 
 import { RouteError } from "./RouteError";
 import { RouteFocus } from "./RouteFocus";
 import { ThemeToggle } from "./ThemeToggle";
+import "./shell.css";
 
 const NAV = [
   { to: "/", label: "Stories", end: true },
@@ -45,7 +46,7 @@ export function Shell() {
           <Link to="/" className="brand" aria-label="GJURMË home">
             <img src="/favicon.svg" width={28} height={28} alt="" />
             <span>
-              GJURMË
+              <span className="brand__name">GJURMË</span>
               <small>Albanian &amp; Balkan news intelligence</small>
             </span>
           </Link>
@@ -63,8 +64,7 @@ export function Shell() {
         </div>
       </header>
       <main id="main" tabIndex={-1}>
-        <DemoBanner />
-        <AnalysisBanner />
+        <SiteNotice />
         <RoutePage />
       </main>
       <footer className="site-footer">

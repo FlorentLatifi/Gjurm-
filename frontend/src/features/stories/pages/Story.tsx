@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import type { StoryArticle, StoryDetail } from "@/shared/api/types";
 import { useTitle } from "@/shared/hooks/useTitle";
 import { useApiQuery } from "@/shared/query/apiQuery";
-import { ENTITY_TYPE_LABEL, formatDateTime, formatRelative, hostOf, safeHref } from "@/shared/lib/format";
+import { ENTITY_TYPE_LABEL, formatDateTime, formatRelative, hostOf, realSummary, safeHref } from "@/shared/lib/format";
 import {
   BIAS_GROUP_COLOR,
   BIAS_LABEL,
@@ -14,7 +14,6 @@ import {
   LENS_LABEL,
   noneRated,
   OWNERSHIP_LABEL,
-  REGION_ORDER,
   segments,
 } from "@/shared/model/ratings";
 import { recordRead } from "@/stores/reading";
@@ -24,16 +23,10 @@ import { ErrorState, LoadingBlock } from "@/ui/States";
 import { BlindspotBadges, StoryCard } from "../StoryCard";
 import { LensPicker, StoryCoverage } from "../StoryCoverage";
 import { useLens } from "../useLens";
+import { groupOf, markColor, segmentsByKey } from "../lensGroup";
 import { storyQueries } from "../queries";
+import { StoryTrace } from "../StoryTrace";
 import { isPositiveId } from "@/shared/lib/ids";
-
-function groupOf(a: StoryArticle, lens: Lens): string {
-  if (lens === "perspective") return biasGroup(a.source_bias);
-  if (lens === "region") return REGION_ORDER.includes(a.source_country) ? a.source_country : "other";
-  if (lens === "ownership") return a.source_ownership;
-  const f = a.source_factuality;
-  return f === "very_high" || f === "high" ? "high" : f === "very_low" || f === "low" ? "low" : f;
-}
 
 function OutletLink({ story, a }: { story: StoryDetail; a: StoryArticle }) {
   const href = safeHref(a.url);
@@ -82,24 +75,24 @@ export function StoryPage() {
   if (query.isPending) return <LoadingBlock height={320} />;
   if (query.isError || !s) return <ErrorState error={query.error} />;
   const first = s.articles.find((a) => a.is_first) ?? s.articles[0]!;
-  const summary = s.summary_en && !s.summary_en.startsWith("[headline") ? s.summary_en : null;
+  const summary = realSummary(s.summary_en);
 
   return (
-    <article className="stack">
-      <div>
-        <p className="rank-meta">
+    <article>
+      <header className="story-head">
+        <p className="kicker">
           <Link to="/">Stories</Link> /{" "}
           {s.topic_slug ? <Link to={`/topics/${s.topic_slug}`}>{s.topic_name}</Link> : "Story"}
         </p>
-        <h1 lang={s.language} style={{ marginTop: 4, maxWidth: "40ch" }}>{s.title}</h1>
-        <p style={{ color: "var(--ink-2)", marginTop: 8, display: "flex", flexWrap: "wrap", gap: "4px 12px", alignItems: "center" }}>
+        <h1 lang={s.language}>{s.title}</h1>
+        <p className="story-head__meta">
           <span><strong>{s.source_count} {s.source_count === 1 ? "outlet" : "outlets"}</strong> · {s.article_count} articles</span>
           <span>First reported by <Link to={`/sources/${first.source_slug}`}>{first.source_name}</Link>, {formatDateTime(first.published_at)}</span>
           <span>Updated {formatRelative(s.last_published_at)}</span>
           <BlindspotBadges story={s} />
         </p>
-        {summary && <p style={{ marginTop: 10, maxWidth: "75ch" }}>{summary} <span className="rank-meta">(AI summary)</span></p>}
-      </div>
+        {summary && <p className="story-head__summary">{summary} <span className="meta">(AI summary)</span></p>}
+      </header>
 
       <div className="feed-layout">
         <div className="stack">
@@ -108,19 +101,27 @@ export function StoryPage() {
             actions={<LensPicker lens={lens} onChange={setLens} />}>
             {() => <HeadlineColumns story={s} lens={lens} />}
           </Card>
-          <Card title="Timeline" question="Who reported it, and when.">
-            {() => (
-              <ol className="timeline">
-                {s.articles.map((a) => (
-                  <li key={a.id} style={{ ["--dot-bias" as string]: BIAS_GROUP_COLOR[biasGroup(a.source_bias)] }}>
-                    <time dateTime={a.published_at}>{formatDateTime(a.published_at)}</time>{" "}
-                    <strong>{a.source_name}</strong>
-                    {a.is_first && <span className="rank-meta"> · first</span>}
-                    <div><OutletLink story={s} a={a} /> <SentimentChip label={a.sentiment_label} /></div>
-                  </li>
-                ))}
-              </ol>
-            )}
+          <Card title="Timeline" question="Who reported it, and when — each mark is one report.">
+            {() => {
+              const segs = segmentsByKey(s.coverage, lens);
+              return (
+                <>
+                  <StoryTrace story={s} lens={lens} />
+                  <ol className="timeline">
+                    {s.articles.map((a) => (
+                      <li key={a.id} style={{ ["--tick" as string]: markColor(segs.get(groupOf(a, lens))) }}>
+                        <span>
+                          <time dateTime={a.published_at}>{formatDateTime(a.published_at)}</time>{" "}
+                          <strong>{a.source_name}</strong>
+                          {a.is_first && <span className="meta"> · first report</span>}
+                        </span>
+                        <span><OutletLink story={s} a={a} /> <SentimentChip label={a.sentiment_label} /></span>
+                      </li>
+                    ))}
+                  </ol>
+                </>
+              );
+            }}
           </Card>
           {s.related.length > 0 && (
             <Card title="Related stories" question="Stories within three days that name the same people, organisations or places.">
@@ -132,9 +133,9 @@ export function StoryPage() {
         <aside className="feed-aside" aria-label="Coverage details">
           <Card title="Coverage details" question="Distinct outlets that covered this story.">
             {() => (
-              <div className="stack" style={{ gap: 16 }}>
+              <div className="stack">
                 {(["perspective", "factuality", "ownership", "region"] as Lens[]).map((l) => (
-                  <div key={l} className="stack" style={{ gap: 6 }}>
+                  <div key={l} className="stack stack--tight">
                     <h3>{LENS_LABEL[l]}</h3>
                     <StoryCoverage coverage={s.coverage} lens={l} />
                   </div>
@@ -155,7 +156,7 @@ export function StoryPage() {
           </Card>
           <Card title="Outlets" question="Their ratings, and where they are based.">
             {() => (
-              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+              <ul className="plain-list">
                 {s.sources.map((src) => {
                   const a = s.articles.find((x) => x.source_slug === src.slug)!;
                   return (
@@ -163,7 +164,7 @@ export function StoryPage() {
                       <span className="dot" style={{ background: BIAS_GROUP_COLOR[biasGroup(src.bias)] }} aria-hidden="true" />
                       <span>
                         <Link to={`/sources/${src.slug}`}>{src.name}</Link>
-                        <span className="rank-meta" style={{ whiteSpace: "normal" }}> · {BIAS_LABEL[src.bias]} · {FACTUALITY_LABEL[a.source_factuality]} factuality · {OWNERSHIP_LABEL[a.source_ownership]} · {countryLabel(src.country)}</span>
+                        <span className="meta"> · {BIAS_LABEL[src.bias]} · {FACTUALITY_LABEL[a.source_factuality]} factuality · {OWNERSHIP_LABEL[a.source_ownership]} · {countryLabel(src.country)}</span>
                       </span>
                     </li>
                   );
@@ -174,7 +175,7 @@ export function StoryPage() {
           {(s.entities.length > 0 || s.topics.length > 0) && (
             <Card title="Tags" question="Topics and names in this story.">
               {() => (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                <div className="chips">
                   {s.topics.map((t) => <Link key={t.slug} className="chip" to={`/topics/${t.slug}`}>{t.name_en}</Link>)}
                   {s.entities.map((e) => (
                     <Link key={e.id} className="chip" to={`/entities/${e.id}`}>{e.name} · {ENTITY_TYPE_LABEL[e.type]}</Link>

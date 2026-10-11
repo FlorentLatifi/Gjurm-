@@ -12,6 +12,7 @@ import {
   formatPercent,
   formatScore,
   hostOf,
+  realSummary,
   safeHref,
 } from "@/shared/lib/format";
 import { recordRead } from "@/stores/reading";
@@ -103,7 +104,7 @@ export function ArticlesPage() {
           </>
         )}
       </Card>
-      <p className="card__foot" style={{ marginTop: 10 }}>
+      <p className="card__foot">
         Tip: filters are part of the URL — copy the address bar to share this exact view.{" "}
         <Link to={withFilters("/", filters)}>Back to overview</Link>
       </p>
@@ -121,16 +122,16 @@ export function ArticlePage() {
   const href = safeHref(a.url);
 
   return (
-    <article className="stack" style={{ maxWidth: 860 }}>
+    <article className="stack article-page">
       <div>
         <p className="rank-meta"><Link to="/articles">Articles</Link> /</p>
-        <h1 lang={a.language} style={{ marginTop: 4 }}>{a.title}</h1>
+        <h1 lang={a.language}>{a.title}</h1>
         <p style={{ color: "var(--ink-2)", marginTop: 8 }}>
           <strong>{a.source_name}</strong> · <time dateTime={a.published_at}>{formatDateTime(a.published_at)}</time>
           {a.author && <> · {a.author}</>}
         </p>
         {href && (
-          <p style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <p className="chips mt-3">
             <a className="btn" href={href} target="_blank" rel="noopener noreferrer"
               onClick={() => recordRead(a.source_slug, a.story_id, a.topic_slug)}>
               Read the full article on {hostOf(a.url)} ↗
@@ -148,27 +149,27 @@ export function ArticlePage() {
           Report errors via the Methodology page.
         </p>
         {a.enrichment_status !== "succeeded" ? (
-          <p style={{ marginTop: 10 }}>This article has not been analysed yet ({a.enrichment_status}).</p>
+          <p className="mt-3">This article has not been analysed yet ({a.enrichment_status}).</p>
         ) : (
-          <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "8px 16px", margin: "12px 0 0" }}>
-            <dt>Summary</dt><dd style={{ margin: 0 }}>{a.summary_en}</dd>
+          <dl className="facts mt-3">
+            <dt>Summary</dt><dd>{realSummary(a.summary_en) ?? <span className="meta">None — keyword rules do not write summaries.</span>}</dd>
             <dt>Topics</dt>
-            <dd style={{ margin: 0, display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <dd className="chips">
               {a.topics.map((t) => (
                 <Link key={t.slug} className="chip" to={`/topics/${t.slug}`}>{t.name_en}{t.is_primary ? " (main)" : ""}</Link>
               ))}
             </dd>
-            <dt>Tone</dt><dd style={{ margin: 0 }}><SentimentChip label={a.sentiment_label} /> {formatScore(a.sentiment_score)}</dd>
-            <dt>Event type</dt><dd style={{ margin: 0 }}>{EVENT_TYPE_LABEL[a.event_type ?? "other"] ?? a.event_type}</dd>
+            <dt>Tone</dt><dd><SentimentChip label={a.sentiment_label} /> {formatScore(a.sentiment_score)}</dd>
+            <dt>Event type</dt><dd>{EVENT_TYPE_LABEL[a.event_type ?? "other"] ?? a.event_type}</dd>
             <dt>Mentions</dt>
-            <dd style={{ margin: 0, display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <dd className="chips">
               {a.entities.length ? a.entities.map((e) => (
                 <Link key={e.id} className="chip" to={`/entities/${e.id}`}>{e.name} · {ENTITY_TYPE_LABEL[e.type]}</Link>
               )) : "—"}
             </dd>
-            <dt>Countries</dt><dd style={{ margin: 0 }}>{a.countries.join(", ") || "—"}</dd>
+            <dt>Countries</dt><dd>{a.countries.join(", ") || "—"}</dd>
             <dt>Confidence</dt>
-            <dd style={{ margin: 0 }}>
+            <dd>
               {formatPercent(a.enrichment_confidence)}{" "}
               {a.analysis_method === "rules" ? "(fixed value of the keyword rules)" : "(model self-assessment)"}
             </dd>
@@ -178,7 +179,7 @@ export function ArticlePage() {
       {a.related.length > 0 && (
         <section className="card" aria-labelledby="related-heading">
           <h2 id="related-heading">Same story elsewhere</h2>
-          <ul style={{ margin: "10px 0 0", paddingLeft: 18, display: "grid", gap: 6 }}>
+          <ul className="bullets mt-3">
             {a.related.map((r) => (
               <li key={r.id}>
                 {safeHref(r.url) ? <a href={safeHref(r.url)} target="_blank" rel="noopener noreferrer"

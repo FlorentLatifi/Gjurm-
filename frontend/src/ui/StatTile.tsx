@@ -1,5 +1,6 @@
 import { formatChange } from "@/shared/lib/format";
 import { Skeleton } from "./States";
+import "./stat.css";
 
 interface StatTileProps {
   label: string;

@@ -1,0 +1,112 @@
+/* The masthead, navigation and footer. */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--paper);
+  border-top: 3px solid var(--ink);
+  border-bottom: var(--hairline);
+}
+.site-header__inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: var(--space-2) var(--gutter);
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.brand__name {
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+.brand small {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  letter-spacing: 0;
+  color: var(--ink-muted);
+  line-height: var(--leading-snug);
+  margin-top: 2px;
+}
+.nav {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 1;
+}
+.nav a {
+  padding: var(--space-2) var(--space-2) 6px;
+  color: var(--ink-2);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+.nav a:hover {
+  color: var(--ink);
+  border-bottom-color: var(--rule-strong);
+}
+.nav a[aria-current="page"] {
+  color: var(--ink);
+  font-weight: var(--weight-strong);
+  border-bottom-color: var(--ink);
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+main {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: var(--space-5) var(--gutter) var(--space-7);
+  /* the footer starts below the fold, so it does not jump while a page loads */
+  min-height: 100vh;
+}
+
+.site-footer {
+  border-top: var(--hairline);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+.site-footer__inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: var(--space-5) var(--gutter) var(--space-6);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  justify-content: space-between;
+}
+.site-footer a {
+  color: var(--ink-2);
+}
+
+@media (max-width: 1360px) {
+  .brand small {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .site-header__inner {
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+  }
+  .nav {
+    order: 3;
+    flex-basis: 100%;
+  }
+}

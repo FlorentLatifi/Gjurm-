@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 
 import { Shell } from "@/app/Shell";
+import { noticeFor } from "@/features/system";
 import { ArticleList } from "@/features/articles/ArticleList";
 import type { Filters } from "@/shared/hooks/useFilters";
 import { ApiError } from "@/shared/api/client";
@@ -169,6 +170,18 @@ describe("Analysis disclosure banner", () => {
     serve(status({ mode: "mixed", rule_based_share: 0.25, model: "claude-sonnet-5" }));
     wrap(<Shell />);
     expect(await screen.findByText(/25% of recent articles were analysed by keyword rules/)).toBeInTheDocument();
+  });
+
+  it("holds its line while the status loads, so the page does not jump when it arrives", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+    const { container } = wrap(<Shell />);
+    expect(container.querySelector(".notice--reserved")).not.toBeNull();
+  });
+
+  it("names the demo dataset before anything else", () => {
+    expect(noticeFor(status({ mode: "rules", rule_based_share: 1, model: null }, true))?.label).toBe("Demo dataset.");
+    expect(noticeFor(status({ mode: "rules", rule_based_share: 1, model: null }))?.label).toBe("Rule-based analysis.");
+    expect(noticeFor(undefined)).toBeNull();
   });
 
   it("is absent when an AI model did the analysis", async () => {

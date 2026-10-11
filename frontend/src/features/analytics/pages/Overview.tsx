@@ -94,7 +94,7 @@ export default function OverviewPage() {
               <RankList unit="mentions (24 h)" items={(spikes.data?.items ?? []).slice(0, 5).map((e) => ({
                 key: e.id, label: e.name, href: withFilters(`/entities/${e.id}`, filters), value: e.last_24h,
                 sublabel: ENTITY_TYPE_LABEL[e.type],
-                meta: e.is_spike ? <strong style={{ color: "var(--ink)" }}> · spike z={e.z?.toFixed(1)}</strong> : null,
+                meta: e.is_spike ? <strong className="ink"> · spike z={e.z?.toFixed(1)}</strong> : null,
               }))} />
               {momentum.data && momentum.data.items.length > 0 && (
                 <p className="card__question">

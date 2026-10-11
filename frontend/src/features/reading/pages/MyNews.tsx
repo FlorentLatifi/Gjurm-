@@ -48,7 +48,7 @@ export default function MyNewsPage() {
       {!reading.length ? (
         <section className="card">
           <h2>Nothing read yet</h2>
-          <p className="card__question" style={{ marginTop: 6 }}>
+          <p className="card__question mt-2">
             Open a few articles from the <Link to="/">stories</Link> — this page then shows whether you
             mostly read one side, one country or one kind of owner.
           </p>
@@ -74,9 +74,9 @@ export default function MyNewsPage() {
           <div className="grid grid--2">
             <Card title="Your balance" question="Outlets of the articles you opened, counted once per article.">
               {() => (
-                <div className="stack" style={{ gap: 16 }}>
+                <div className="stack">
                   {(["perspective", "region", "ownership", "factuality"] as Lens[]).map((l) => (
-                    <div key={l} className="stack" style={{ gap: 6 }}>
+                    <div key={l} className="stack stack--tight">
                       <h3>{LENS_LABEL[l]}</h3>
                       <StoryCoverage coverage={cov} lens={l} unit={["article", "articles"]} />
                     </div>

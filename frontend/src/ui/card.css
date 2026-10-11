@@ -1,0 +1,38 @@
+/* Every data container. Data marks are drawn on --surface, which the palettes were validated for. */
+.card {
+  background: var(--surface);
+  border: var(--hairline);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  min-width: 0;
+}
+.card__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.card__question {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  margin-top: 2px;
+}
+.card__foot {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: var(--hairline);
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+}
+/* refetching with new filters: the previous result dims instead of flashing a skeleton */
+.card--refetching {
+  opacity: 0.55;
+  transition: opacity var(--dur-quick) var(--ease-out);
+}

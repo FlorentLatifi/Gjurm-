@@ -1,3 +1,2 @@
-export { useStatus, useTaxonomy } from "./api";
-export { AnalysisBanner, DemoBanner, StatusPill } from "./StatusBanners";
-export { statusQuery, taxonomyQuery } from "./api";
+export { statusQuery, taxonomyQuery, useStatus, useTaxonomy } from "./api";
+export { noticeFor, SiteNotice, StatusPill } from "./StatusBanners";
