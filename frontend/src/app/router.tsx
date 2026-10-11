@@ -1,6 +1,6 @@
-import type { QueryClient } from "@tanstack/react-query";
-import { lazy } from "react";
-import { type LoaderFunctionArgs, type RouteObject, ScrollRestoration } from "react-router-dom";
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
+import { lazy, type ReactNode, useLayoutEffect } from "react";
+import { matchRoutes, Route, Routes, useLocation } from "react-router-dom";
 
 import {
   entitiesQueries,
@@ -17,8 +17,7 @@ import { blindspotQueries, feedQueries, storyQueries } from "@/features/stories/
 import { statusQuery, taxonomyQuery } from "@/features/system";
 import { isPositiveId } from "@/shared/lib/ids";
 
-import { AppError } from "./AppError";
-import { queryClient } from "./queryClient";
+import { useScrollMemory } from "./scrollMemory";
 import { Shell } from "./Shell";
 
 // Route-level code splitting: each page is its own chunk, loaded when first rendered.
@@ -42,64 +41,84 @@ const About = lazy(() => import("@/features/system/pages/Info").then((m) => ({ d
 const Status = lazy(() => import("@/features/system/pages/Info").then((m) => ({ default: m.StatusPage })));
 const NotFound = lazy(() => import("@/features/system/pages/Info").then((m) => ({ default: m.NotFoundPage })));
 
-type Prefetchable = Parameters<QueryClient["prefetchQuery"]>[0];
+type Queries = Record<string, unknown>;
+type Params = Record<string, string | undefined>;
+
+interface AppRoute {
+  path: string;
+  element: ReactNode;
+  /** The page's queries, from its URL: started when the route is entered, alongside its code. */
+  prefetch?: (search: URLSearchParams, params: Params) => Queries | null;
+}
+
+const byId = (build: (id: number) => Queries) => (_: URLSearchParams, p: Params) => {
+  const id = Number(p.id);
+  return isPositiveId(id) ? build(id) : null;
+};
+
+export const appRoutes: AppRoute[] = [
+  { path: "/", element: <Feed />, prefetch: (s) => feedQueries(s) },
+  { path: "/stories/:id", element: <Story />, prefetch: byId(storyQueries) },
+  { path: "/blindspot", element: <Blindspot />, prefetch: (s) => blindspotQueries(s) },
+  { path: "/my-news", element: <MyNews />, prefetch: () => myNewsQueries() },
+  { path: "/dashboard", element: <Overview />, prefetch: (s) => overviewQueries(s) },
+  { path: "/trends", element: <Trends />, prefetch: (s) => trendsQueries(s) },
+  { path: "/topics", element: <Topics />, prefetch: (s) => topicsQueries(s) },
+  { path: "/topics/:slug", element: <Topic />, prefetch: (s, p) => topicQueries(p.slug ?? "", s) },
+  { path: "/entities", element: <Entities />, prefetch: (s) => entitiesQueries(s) },
+  { path: "/entities/:id", element: <Entity />, prefetch: (s, p) => byId((id) => entityQueries(id, s))(s, p) },
+  { path: "/sources", element: <Sources />, prefetch: (s) => sourcesQueries(s) },
+  { path: "/sources/:slug", element: <SourceProfile />, prefetch: (s, p) => sourceProfileQueries(p.slug ?? "", s) },
+  { path: "/articles", element: <Articles />, prefetch: (s) => articlesQueries(s) },
+  { path: "/articles/:id", element: <Article />, prefetch: byId(articleQueries) },
+  { path: "/about", element: <About />, prefetch: () => ({ taxonomy: taxonomyQuery(), status: statusQuery() }) },
+  { path: "/status", element: <Status />, prefetch: () => ({ status: statusQuery() }) },
+  { path: "*", element: <NotFound /> },
+];
+
+const matchable = appRoutes.map((r, i) => ({ path: r.path, id: String(i) }));
 
 /**
- * Loaders never block navigation: they start the page's requests (in parallel with its code
- * chunk) and return at once. The page reads the same cache entries and shows its own loading,
- * error and empty states.
+ * Starts the requests of the page at `location` without waiting for them (prefetchQuery never
+ * throws). The page reads the same cache entries and shows its own loading, error and empty
+ * states; until then its code chunk is downloading in parallel.
  */
-function prefetch(queries: Record<string, unknown>): null {
-  for (const q of Object.values(queries)) void queryClient.prefetchQuery(q as Prefetchable);
+export function prefetchRoute(client: QueryClient, location: { pathname: string; search: string }): boolean {
+  const match = matchRoutes(matchable, location.pathname)?.[0];
+  const route = match ? appRoutes[Number(match.route.id)] : undefined;
+  const queries = route?.prefetch?.(new URLSearchParams(location.search), match!.params);
+  if (!queries) return false;
+  type Prefetchable = Parameters<QueryClient["prefetchQuery"]>[0];
+  for (const q of Object.values(queries)) void client.prefetchQuery(q as Prefetchable);
+  return true;
+}
+
+/** Router-driven side effects that the shell should not know about. */
+function RouteEffects() {
+  const location = useLocation();
+  const client = useQueryClient();
+  useScrollMemory();
+  useLayoutEffect(() => {
+    prefetchRoute(client, location);
+  }, [client, location]);
   return null;
 }
 
-const search = ({ request }: LoaderFunctionArgs) => new URL(request.url).searchParams;
-const id = ({ params }: LoaderFunctionArgs) => Number(params.id);
-
-/** Scroll positions are kept per path: filter and page changes do not jump to the top, Back restores. */
-function Root() {
+export function AppRoutes() {
   return (
-    <>
-      <ScrollRestoration getKey={(location) => location.pathname} />
-      <Shell />
-    </>
+    <Routes>
+      <Route
+        element={
+          <>
+            <RouteEffects />
+            <Shell />
+          </>
+        }
+      >
+        {appRoutes.map((r) => (
+          <Route key={r.path} path={r.path} element={r.element} />
+        ))}
+      </Route>
+    </Routes>
   );
 }
-
-export const routes: RouteObject[] = [
-  {
-    element: <Root />,
-    errorElement: <AppError />,
-    hydrateFallbackElement: <></>,
-    children: [
-      { index: true, element: <Feed />, loader: (a) => prefetch(feedQueries(search(a))) },
-      { path: "stories/:id", element: <Story />, loader: (a) => (isPositiveId(id(a)) ? prefetch(storyQueries(id(a))) : null) },
-      { path: "blindspot", element: <Blindspot />, loader: (a) => prefetch(blindspotQueries(search(a))) },
-      { path: "my-news", element: <MyNews />, loader: () => prefetch(myNewsQueries()) },
-      { path: "dashboard", element: <Overview />, loader: (a) => prefetch(overviewQueries(search(a))) },
-      { path: "trends", element: <Trends />, loader: (a) => prefetch(trendsQueries(search(a))) },
-      { path: "topics", element: <Topics />, loader: (a) => prefetch(topicsQueries(search(a))) },
-      { path: "topics/:slug", element: <Topic />, loader: (a) => prefetch(topicQueries(a.params.slug ?? "", search(a))) },
-      { path: "entities", element: <Entities />, loader: (a) => prefetch(entitiesQueries(search(a))) },
-      {
-        path: "entities/:id",
-        element: <Entity />,
-        loader: (a) => (isPositiveId(id(a)) ? prefetch(entityQueries(id(a), search(a))) : null),
-      },
-      { path: "sources", element: <Sources />, loader: (a) => prefetch(sourcesQueries(search(a))) },
-      {
-        path: "sources/:slug",
-        element: <SourceProfile />,
-        loader: (a) => prefetch(sourceProfileQueries(a.params.slug ?? "", search(a))),
-      },
-      { path: "articles", element: <Articles />, loader: (a) => prefetch(articlesQueries(search(a))) },
-      { path: "articles/:id", element: <Article />, loader: (a) => (isPositiveId(id(a)) ? prefetch(articleQueries(id(a))) : null) },
-      { path: "about", element: <About />, loader: () => prefetch({ taxonomy: taxonomyQuery(), status: statusQuery() }) },
-      { path: "status", element: <Status />, loader: () => prefetch({ status: statusQuery() }) },
-      { path: "*", element: <NotFound /> },
-    ],
-  },
-];
-
-

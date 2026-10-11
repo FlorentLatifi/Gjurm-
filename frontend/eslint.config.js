@@ -60,7 +60,7 @@ const boundaries = [
 ].map((block) => ({ ...block, ignores: TESTS }));
 
 export default tseslint.config(
-  { ignores: ["dist", "coverage", "playwright-report", "test-results"] },
+  { ignores: ["dist", "coverage", "playwright-report", "test-results", "src/shared/api/schema.gen.ts"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended, jsxA11y.flatConfigs.strict],
     files: ["**/*.{ts,tsx}"],

@@ -1,11 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import type { LoaderFunctionArgs } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryClient } from "@/app/queryClient";
-import { routes } from "@/app/router";
+import { prefetchRoute } from "@/app/router";
 import { feedQueries } from "@/features/stories/queries";
 import { apiQuery, useApiQuery } from "@/shared/query/apiQuery";
 
@@ -13,7 +12,7 @@ function json(body: unknown) {
   return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
 }
 
-describe("route loaders", () => {
+describe("route prefetch", () => {
   const fetchMock = vi.fn((input: RequestInfo | URL) => json({ url: String(input) }));
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
@@ -22,30 +21,27 @@ describe("route loaders", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  const loaderFor = (path: string | undefined, index = false) => {
-    const children = routes[0]!.children!;
-    const route = children.find((r) => (index ? r.index : r.path === path))!;
-    return route.loader as (args: LoaderFunctionArgs) => unknown;
+  const at = (url: string) => {
+    const u = new URL(`http://localhost${url}`);
+    return { pathname: u.pathname, search: u.search };
   };
-  const args = (url: string, params: Record<string, string> = {}) =>
-    ({ request: new Request(`http://localhost${url}`), params, context: undefined }) as unknown as LoaderFunctionArgs;
 
-  it("start the page's requests without waiting for them", () => {
-    const result = loaderFor("stories/:id")(args("/stories/42", { id: "42" }));
-    expect(result).toBeNull(); // navigation is never held behind the network
+  it("starts the page's requests at once, without waiting for them", () => {
+    expect(prefetchRoute(queryClient, at("/stories/42"))).toBe(true);
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/stories/42", expect.anything());
   });
 
-  it("prefetch exactly the cache entries the page reads", async () => {
-    loaderFor(undefined, true)(args("/?days=7&sort=latest&q=Prizren"));
+  it("fills exactly the cache entries the page reads", async () => {
+    prefetchRoute(queryClient, at("/?days=7&sort=latest&q=Prizren"));
     const page = feedQueries(new URLSearchParams("days=7&sort=latest&q=Prizren"));
     await waitFor(() => expect(queryClient.getQueryData(page.stories.queryKey)).toBeDefined());
     expect(queryClient.getQueryData(page.blindspots.queryKey)).toBeDefined();
     expect(queryClient.getQueryData(page.taxonomy.queryKey)).toBeDefined();
   });
 
-  it("do not ask the API about ids that cannot exist", () => {
-    loaderFor("stories/:id")(args("/stories/abc", { id: "abc" }));
+  it("does not ask the API about ids that cannot exist, or about unknown pages", () => {
+    expect(prefetchRoute(queryClient, at("/stories/abc"))).toBe(false);
+    expect(prefetchRoute(queryClient, at("/no-such-page"))).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

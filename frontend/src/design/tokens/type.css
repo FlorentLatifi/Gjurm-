@@ -1,11 +1,11 @@
 /*
- * Type. Two voices: Newsreader (headlines — "the news", mostly in Albanian; drawn for reading news
- * on screens) and Schibsted Grotesk (the interface, body and figures; drawn for a news publisher,
- * with tabular figures for numbers that stack). Seven sizes and two weights replace the 22 sizes
- * and 8 weights the stylesheet had grown. Code uses the system monospace.
+ * Type. Two voices: Newsreader for headlines — "the news", mostly in Albanian, drawn for reading
+ * news on screens — and the reader's own system font for the interface, body and figures (zero
+ * bytes; every platform's UI face has tabular figures). Seven sizes and two weights replace the
+ * 22 sizes and 8 weights the stylesheet had grown. Code uses the system monospace.
  */
 :root {
-  --font-sans: "Schibsted Grotesk Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 

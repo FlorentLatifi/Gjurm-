@@ -359,6 +359,22 @@ def quality() -> None:
 
 
 @app.command()
+def openapi(
+    out: Annotated[Path | None, typer.Option(help="Write to this file instead of stdout.")] = None,
+) -> None:
+    """Print the API's OpenAPI schema. The frontend generates its API types from it
+    (frontend/src/shared/api/openapi.json, then `npm run api:types`)."""
+    from gjurme.api.app import create_app
+
+    doc = create_app(_settings(validate=False), sessionmaker()).openapi()
+    text = json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
+    if out is None:
+        typer.echo(text, nl=False)
+    else:
+        out.write_text(text, encoding="utf-8")
+
+
+@app.command()
 def retention(dry_run: Annotated[bool, typer.Option()] = True) -> None:
     """Apply the retention policy (default: dry run)."""
     settings = _settings()
