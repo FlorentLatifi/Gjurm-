@@ -1846,7 +1846,7 @@ export interface operations {
                     "application/json": components["schemas"]["Health"];
                 };
             };
-            /** @description Service Unavailable */
+            /** @description Database unreachable */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1912,7 +1912,7 @@ export interface operations {
                     "application/json": components["schemas"]["Page_StorySummary_"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -1921,7 +1921,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -1961,7 +1961,7 @@ export interface operations {
                     "application/json": components["schemas"]["Blindspots"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -1970,7 +1970,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2001,7 +2001,7 @@ export interface operations {
                     "application/json": components["schemas"]["StoryDetail"];
                 };
             };
-            /** @description Not Found */
+            /** @description Not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2010,7 +2010,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2019,7 +2019,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2057,7 +2057,7 @@ export interface operations {
                     "application/json": components["schemas"]["Overview"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2066,7 +2066,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2105,7 +2105,7 @@ export interface operations {
                     "application/json": components["schemas"]["VolumeSeries"] | components["schemas"]["GroupedVolumeSeries"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2114,7 +2114,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2153,7 +2153,7 @@ export interface operations {
                     "application/json": components["schemas"]["SentimentSeries"] | components["schemas"]["SentimentGroups"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2162,7 +2162,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2193,7 +2193,7 @@ export interface operations {
                     "application/json": components["schemas"]["SentimentShift"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2202,7 +2202,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2233,7 +2233,7 @@ export interface operations {
                     "application/json": components["schemas"]["TopicMomentum"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2242,7 +2242,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2273,7 +2273,7 @@ export interface operations {
                     "application/json": components["schemas"]["EntitySpikes"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2282,7 +2282,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2321,7 +2321,7 @@ export interface operations {
                     "application/json": components["schemas"]["CoOccurrence"][];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2330,7 +2330,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2368,7 +2368,7 @@ export interface operations {
                     "application/json": components["schemas"]["TopicStat"][];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2377,7 +2377,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2406,7 +2406,7 @@ export interface operations {
                     "application/json": components["schemas"]["TaxonomyTopic"][];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2415,7 +2415,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2455,7 +2455,7 @@ export interface operations {
                     "application/json": components["schemas"]["TopicDetail"];
                 };
             };
-            /** @description Not Found */
+            /** @description Not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2464,7 +2464,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2473,7 +2473,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2515,7 +2515,7 @@ export interface operations {
                     "application/json": components["schemas"]["EntityStat"][];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2524,7 +2524,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2564,7 +2564,7 @@ export interface operations {
                     "application/json": components["schemas"]["EntityDetail"];
                 };
             };
-            /** @description Not Found */
+            /** @description Not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2573,7 +2573,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2582,7 +2582,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2620,7 +2620,7 @@ export interface operations {
                     "application/json": components["schemas"]["SourceStat"][];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2629,7 +2629,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2669,7 +2669,7 @@ export interface operations {
                     "application/json": components["schemas"]["SourceProfile"];
                 };
             };
-            /** @description Not Found */
+            /** @description Not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2678,7 +2678,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2687,7 +2687,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2732,7 +2732,7 @@ export interface operations {
                     "application/json": components["schemas"]["Page_ArticleSummary_"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2741,7 +2741,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2772,7 +2772,7 @@ export interface operations {
                     "application/json": components["schemas"]["ArticleDetail"];
                 };
             };
-            /** @description Not Found */
+            /** @description Not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2781,7 +2781,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid request parameters */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2790,7 +2790,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Too Many Requests */
+            /** @description Too many requests */
             429: {
                 headers: {
                     [name: string]: unknown;
