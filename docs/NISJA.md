@@ -182,6 +182,8 @@ Skedari i Docker Compose kërkon `IMAGE_TAG`, prandaj përdore gjithmonë aliasi
 
 Nëse certifikata HTTPS vonon, shiko `dc logs web`. Zakonisht DuckDNS vonohet pak dhe Caddy provon përsëri vetë.
 
+Kontrollo edhe ndarjen e lajmeve: kopjo lidhjen e një historie (`https://gjurme.duckdns.org/stories/…`) në WhatsApp ose Telegram. Pamja paraprake duhet të tregojë titullin e historisë dhe "N outlets covered this story", jo faqen kryesore. Nëse tregon faqen kryesore, kontrollo që `DOMAIN` te `.env` është i saktë (lidhjet në pamje paraprake ndërtohen prej tij).
+
 ### B11. Pas publikimit 👤
 
 1. GitHub → **Settings → Secrets and variables → Actions → Variables**:

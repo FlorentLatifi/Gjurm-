@@ -18,7 +18,7 @@ export function AboutPage() {
   const status = useStatus();
   return (
     <div className="prose">
-      <h1 style={{ color: "var(--ink)" }}>Methodology, sources &amp; limitations</h1>
+      <h1>Methodology, sources &amp; limitations</h1>
       <p>
         <strong>GJURMË</strong> (Albanian: “trace, footprint”) follows what Albanian-language and
         regional media publish, groups the articles that report the same event into stories, and
@@ -93,6 +93,8 @@ export function AboutPage() {
           at least half of its analysed articles) whose own outlets did not report it.</li>
         <li><strong>Reported first</strong> is the outlet with the earliest publication time among a
           story’s articles, as stated by the feeds.</li>
+        <li>The <strong>trace</strong> on a story page draws every report as one mark on a single time
+          line, coloured by the chosen split; the first report is the taller mark.</li>
       </ul>
 
       <h2 id="ratings">5. How outlets are rated</h2>
@@ -105,6 +107,9 @@ export function AboutPage() {
         <li><strong>Ownership</strong> (private company, media group, public broadcaster,
           international public media, non-profit …) comes from public information about the
           publisher.</li>
+        <li>The colours follow Ground News — blue for left, gray for center, red for right — so its
+          readers can read the bars at once. They are a convention for the scale, not party colours.
+          Elsewhere on the site, colour appears only in charts and bars; text and links are black.</li>
         <li>Ratings can be wrong or out of date. Outlets and readers can ask for a correction through
           the contact below.</li>
       </ul>

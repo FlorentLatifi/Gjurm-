@@ -181,6 +181,8 @@ Base path `/api/v1`. OpenAPI UI at `/api/docs` (disable with `EXPOSE_DOCS=false`
 | GET | `/articles` | Search/filter: `q`, `topic`, `entity`, `sentiment`, `sort`, `page`, `page_size` (≤ 100). Never returns the publisher excerpt. |
 | GET | `/articles/{id}` | Article metadata, AI analysis, topics, entities, related coverage, link to the original |
 
+Outside `/api/v1` and the OpenAPI schema: `GET /api/share/stories/{id}` returns a small HTML page with a story's title, who covered it and a redirect to `/stories/{id}`. Caddy sends link-preview crawlers (by User-Agent) there for shared story links; readers and search engines get the app ([ADR-025](DECISIONS.md#adr-025-story-link-previews-for-crawlers-only)).
+
 ### Operational
 
 | Method | Path | Auth | Returns |
@@ -207,7 +209,7 @@ Base path `/api/v1`. OpenAPI UI at `/api/docs` (disable with `EXPOSE_DOCS=false`
 
 ## Request lifecycle (API)
 
-1. Caddy: TLS, HSTS, strict CSP for the SPA, static files with immutable caching for hashed assets (a missing chunk is a `404` with `no-store`, never the app shell) and `no-cache` revalidation for the HTML of every route and the other unhashed files, reverse proxy with `X-Forwarded-For`.
+1. Caddy: TLS, HSTS, strict CSP for the SPA, link-preview crawlers on `/stories/{id}` routed to the share page, static files with immutable caching for hashed assets (a missing chunk is a `404` with `no-store`, never the app shell) and `no-cache` revalidation for the HTML of every route and the other unhashed files, reverse proxy with `X-Forwarded-For`.
 2. Middleware: request id → rate limit (per client IP; token buckets `default` / `search` / `admin`) → security headers → timing metrics.
 3. Router: validated query params → cache lookup (key = path + normalized query) → one `analytics/queries.py` function → typed response.
 4. Exceptions become the error envelope; 5xx never leak internals and are logged with the request id.

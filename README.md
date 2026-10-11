@@ -2,7 +2,7 @@
 
 **See every side of the Albanian-language news.** GJURMË (*"trace, footprint"*) reads Kosovo, Albanian and North Macedonian news feeds every 15 minutes and, like [Ground News](https://ground.news/), groups the articles that report the same event into **stories**: for each story you see which outlets covered it, how their coverage splits by perspective, region, ownership and factuality, who reported it first, and how each outlet headlined it. **Blindspots** show what one side, or one country's media, barely covered, and **My news bias** shows the balance of your own reading. Underneath, Claude (or keyword rules at $0) classifies every article — topic, tone, people, organizations, places, a one-line summary — for a dashboard of what dominates coverage and who is suddenly in the news.
 
-> **Status:** V1 is complete and tested (CI green on GitHub: lint, strict types, 294 backend tests on PostgreSQL, 35 frontend tests, 62 end-to-end browser tests, security scans). **It is not deployed yet.** Deployment is scripted and rehearsed locally. It can run for **$0**: on an Oracle Cloud Always Free ARM server with a free subdomain, with keyword-rule analysis that the site discloses until a Claude API key or a [free model](docs/AI_ENRICHMENT.md#free-models) is added ([DEPLOYMENT.md](docs/DEPLOYMENT.md#oracle-cloud), [LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md)).
+> **Status:** V1 is complete and tested (CI green on GitHub: lint, strict types, 300 backend tests on PostgreSQL, 53 frontend tests, 72 end-to-end browser tests, bundle budgets, security scans). **It is not deployed yet.** Deployment is scripted and rehearsed locally. It can run for **$0**: on an Oracle Cloud Always Free ARM server with a free subdomain, with keyword-rule analysis that the site discloses until a Claude API key or a [free model](docs/AI_ENRICHMENT.md#free-models) is added ([DEPLOYMENT.md](docs/DEPLOYMENT.md#oracle-cloud), [LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md)).
 
 ## What it does
 
@@ -10,13 +10,14 @@
 - **Blindspot.** Stories that left- or right-leaning outlets barely covered, and stories about a country whose own outlets did not report them.
 - **Source profiles.** Each outlet's ratings and their basis, ownership, how much of the news it covers, how often it reports first, its exclusives and which outlets cover the same stories. Perspective and factuality ratings are editorial and documented in `sources.yaml`; real outlets stay *unrated* until reviewed ([ADR-021](docs/DECISIONS.md#adr-021-outlet-ratings-are-editorial-declared-with-their-basis-unrated-by-default), [how to rate](docs/SOURCES.md#ratings)).
 - **My news bias.** The balance of the outlets you read here, kept only in your browser ([ADR-022](docs/DECISIONS.md#adr-022-my-news-bias-without-accounts)).
+- **Made to be shared.** A story link shows its own headline and who covered it in WhatsApp, Facebook, X or Telegram, and `?lens=` keeps the chosen split ([ADR-025](docs/DECISIONS.md#adr-025-story-link-previews-for-crawlers-only)).
 
 - **Ingests** RSS feeds from 5 verified outlets (Telegrafi, KOHA, Gazeta Express, Kallxo, Radio Evropa e Lirë) politely: robots.txt, conditional GET, per-source isolation, auto-disable on repeated failure.
 - **Cleans and deduplicates** in four layers: feed entry, canonical URL, same-source headline, and cross-outlet near-verbatim copies.
 - **Enriches** each headline and excerpt with Claude, using structured JSON output that is validated, repaired, and checked against the source text so the model cannot invent names. It runs under a hard daily budget with a kill switch.
 - **Clusters** articles from different outlets into stories: TF-IDF over headline, excerpt and names with Albanian word folding, guards against look-alike events in different places, a 48 h span; reviewable on live data with `gjurme stories-review`.
 - **Analyses:** volume with a moving average, topic momentum, entity spikes (z-scores), tone shifts, co-occurrence, source profiles, first reports, blindspots. Every method is stated next to the chart.
-- **Serves** a typed FastAPI (OpenAPI docs) and an accessible React site: Stories, Story, Blindspot, My news bias, Source profiles, Dashboard, Trends, Topics, Entities, Sources, Articles, About/Methodology, Status.
+- **Serves** a typed FastAPI (OpenAPI docs) and an accessible, fast React site: Stories, Story, Blindspot, My news bias, Source profiles, Dashboard, Trends, Topics, Entities, Sources, Articles, About/Methodology, Status. Its architecture and every performance trade-off are measured and documented ([frontend_system.md](docs/architecture/frontend_system.md)).
 - **Operates itself:** scheduler with overlap protection, 13 data-quality checks per run, webhook alerts, an external uptime monitor, nightly backups with weekly restore tests, and deploy with automatic rollback.
 
 It stores metadata and its own analysis only. It never republishes article text, and every item links to the original ([why](docs/DECISIONS.md#adr-003-store-metadata-and-derived-data-only)).
@@ -38,7 +39,7 @@ A modular monolith: one Python package, one image running as `api` and `schedule
 |---|---|
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2, Alembic, psycopg 3, feedparser, httpx, Pydantic 2, Typer, Anthropic SDK |
 | Data | PostgreSQL 16 (`pg_trgm`) |
-| Frontend | React 19, TypeScript, Vite, TanStack Query, Recharts, React Router |
+| Frontend | React 19, TypeScript, Vite, TanStack Query, Zustand, React Router, Recharts; Newsreader headlines on the system font |
 | Ops | Docker (non-root, read-only), Caddy, GitHub Actions (CI, Trivy, gitleaks, deploy), Prometheus metrics |
 
 ## Quick start (demo data, no API key)
@@ -86,6 +87,7 @@ docs/       blueprint, architecture, data model, AI, sources, deployment, operat
 |---|---|
 | [BLUEPRINT](docs/BLUEPRINT.md) | The plan: requirements, scope, architecture, roadmap |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | Components, pipeline, failure behaviour, API reference |
+| [FRONTEND](docs/architecture/frontend_system.md) | Frontend layers, state, performance budgets and design system, with the measurements behind each choice |
 | [DATA_MODEL](docs/DATA_MODEL.md) | ERD, DDL, dedup, sample SQL, retention, migrations policy |
 | [AI_ENRICHMENT](docs/AI_ENRICHMENT.md) | Prompt, schema, validation, reliability, cost model |
 | [SOURCES](docs/SOURCES.md) | Verified sources with evidence; how to add one |

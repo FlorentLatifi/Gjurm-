@@ -114,6 +114,22 @@ Short records of the decisions that shape the system: context, the decision, and
 **Decision.** The reading balance (Ground News' *My News Bias*) is computed in the browser from a local record of the outlets of articles opened on GJURMË: `localStorage`, at most 500 entries and 90 days, clearable, never sent to the server. No accounts, no cookies, no tracking.
 **Consequences.** The record is per browser and lost with site data. In return there is no personal data to protect, and the privacy statement stays true.
 
+
+## ADR-023: A layered frontend, chosen by measurement
+**Context.** The frontend grew page by page: one global stylesheet, three hand-written persistence patterns, filters re-rendering whole pages on each keystroke, no error boundary, and an edge config that answered a missing chunk with the app shell cached for a year. The full audit, with measured bundle sizes, is [architecture/frontend_system.md](architecture/frontend_system.md).
+**Decision.** Layers `app → features → ui / stores / shared → design`, enforced by ESLint import rules. Four homes for state: server data in TanStack Query (one query definition per endpoint, freshness per kind of data), what defines the view in the URL (including the coverage lens), per-browser preferences and the reading record in Zustand, and ephemeral input in the component. Each page has one pure function that turns its URL into its queries; the router starts those requests the moment a route is entered, alongside the page's code. Every change was measured on a slow phone connection against the previous build, and two that measured worse were reverted: React Router's data router (+13 KB on every page, net slower) gave way to `BrowserRouter` with the same prefetch, and a preloaded interface font (−370 ms to first content) gave way to the system font.
+**Consequences.** First content on a cold story link is 0.25 s sooner and layout shift fell from 0.23–0.33 to 0.002; the entry bundle is 103 KB gzipped (was 99 KB). CI guards what was measured: bundle budgets, layer boundaries, design tokens, and a compile-time contract between the API's OpenAPI schema and the frontend's types (which found real drift on its first run). A new page needs its query builder and a route entry, not a new pattern.
+
+## ADR-024: An editorial identity — colour belongs to data
+**Context.** The interface used the same blue for links, focus and the active tab as for "Left" in the coverage bars; on a site about bias, every link read as left-leaning. The look was a generic dashboard: system font, rounded shadowed cards, 22 font sizes.
+**Decision.** Ink on paper for everything that is not data (links, focus, navigation, controls; control borders ≥ 3:1). Colour only in data marks, which stay on the surface their palettes were validated for (ADR-011). Perspective keeps Ground News' blue / gray / red, because the product follows Ground News and its readers already read that convention. Headlines in Newsreader (self-hosted, 38 KB with Albanian and Serbian letters); the interface in the reader's system font. Tokens for type (7 sizes, 2 weights), space (4 px grid), radius and motion (nothing animates on load; reduced motion stops everything). The signature is the trace: every report of a story as one tick on one time line.
+**Consequences.** Colour on screen always means something. One interface font fewer means the identity rests on the headline face and the layout; an attempt with a custom interface face (Atkinson Hyperlegible, then Schibsted Grotesk) was dropped — the first draws a slashed zero in every date, the second cost 370 ms on slow connections.
+
+## ADR-025: Story link previews for crawlers only
+**Context.** A single-page app serves one `index.html`, so a story shared on Facebook, WhatsApp, X, Telegram or Slack previewed as the home page — the main way news travels in the region.
+**Decision.** Caddy sends known link-preview crawlers, by User-Agent, for `/stories/{id}` to `/api/share/stories/{id}`: a static HTML page with the story's own title, who covered it (and the AI summary when there is one), canonical URL and image, and a redirect to the real page. Search engines and readers always get the app: no cloaking.
+**Consequences.** Shared stories show what they are. The page carries metadata only (ADR-003), escapes every value and sends the API's strict CSP. A crawler not on the list gets the generic card, which is the previous behaviour.
+
 ---
 
 ## Deltas from the blueprint
@@ -127,3 +143,4 @@ Short records of the decisions that shape the system: context, the decision, and
 | Image publishing and deploy on `main` | On the repository's default branch | The repository has no `main` branch yet |
 | — | Migration 0002 (bridge dates), `force_custom_plan` | Measured performance work (ADR-014, ADR-015) |
 | Story clustering with embeddings in V2 | TF-IDF clustering with name guards (CLUSTER stage, migration 0003), stories as the home page | Ground News-style product at $0 (ADR-020–022) |
+| Frontend: React Router data router, CSS Modules, a custom interface font ([frontend_system.md](architecture/frontend_system.md) §1–4) | `BrowserRouter` with route prefetch, one stylesheet per component, the system font for the interface | Measured slower or not worth the churn (ADR-023, ADR-024) |
