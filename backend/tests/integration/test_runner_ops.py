@@ -41,7 +41,7 @@ def _sources(db: sessionmaker[Session], make_fetcher, *, ok: bool = True):  # ty
         "https://one.example.com/feed/": (200 if ok else 500, rss(items), {}),
         "https://two.example.com/feed/": (
             200 if ok else 500,
-            fixture_bytes("wordpress_sq.xml"),
+            fixture_bytes("wordpress_sq.xml", fresh=True),
             {},
         ),
     }
