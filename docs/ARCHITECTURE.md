@@ -138,13 +138,18 @@ backend/src/gjurme/
   api/                 FastAPI app, routers (public, ops/admin), schemas, security, metrics
   cli.py               `gjurme` command (Typer)
   demo.py              fictional demo data (refuses to run in staging/production)
-frontend/src/
-  api/                 typed client + React Query hooks
-  pages/               Stories (home), Story, Blindspot, My news bias, Source profile,
-                       Dashboard (overview), Trends, Topics, Entities, Sources, Articles,
-                       About, Status
-  components/          layout, filters, charts (Recharts), coverage bars, story cards, lists
-  lib/                 URL-synced filters, formatting, safe links, ratings, reading record
+frontend/src/          layers, imports enforced by ESLint (docs/architecture/frontend_system.md)
+  app/                 bootstrap, routes, shell (header, nav, footer), error recovery, theme
+  features/            one folder per domain: query hooks, stateful blocks, pages
+    stories/           feed (home), story page, blindspot, story card, coverage lens
+    sources/ reading/  source list and profiles · my news bias
+    analytics/         dashboard, trends, topics, entities
+    articles/ system/  article search and detail · status banners, about, status
+    filters/           the date-range / outlet filter row
+  ui/                  pure components: card, states, coverage bar, rank list, charts
+  stores/              browser-only state (reading record)
+  shared/              API client and types, formatting, ratings model, URL-state hooks
+  design/              tokens and global styles
 deploy/                production compose, deploy/rollback script, backups, server bootstrap
 ```
 
