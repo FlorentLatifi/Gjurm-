@@ -13,6 +13,7 @@ from gjurme.stories.similarity import (
     idf_table,
     name_stems,
     names_conflict,
+    shares_event_term,
     tokens,
     vector,
 )
@@ -131,6 +132,16 @@ def test_calibration_pairs_against_default_threshold() -> None:
         sim, conflict = _sim_and_conflict(_doc(1, *a), _doc(2, *b), background)
         # they *look* alike (higher than most paraphrases); only the name guard separates them
         assert sim >= threshold and conflict, (a[0], b[0], sim)
+
+
+def test_a_shared_person_alone_is_not_a_shared_event() -> None:
+    a = Doc(1, "Blerta Zeqiri prezanton programin zgjedhor", people=["Blerta Zeqiri"])
+    b = Doc(2, "Blerta Zeqiri kërkon seancë në Kuvend", people=["Blerta Zeqiri"])
+    c = Doc(3, "Blerta Zeqiri prezanton programin në Prizren", people=["Blerta Zeqiri"])
+    idf = idf_table([a, b, c])
+    people = a.names.people | b.names.people
+    assert not shares_event_term(vector(a, idf), vector(b, idf), people)
+    assert shares_event_term(vector(a, idf), vector(c, idf), people)  # "prezanton programin"
 
 
 def test_bias_groups() -> None:

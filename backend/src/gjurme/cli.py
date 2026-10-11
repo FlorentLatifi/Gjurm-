@@ -299,6 +299,22 @@ def cluster(
             _echo_json(cluster_pending(s, settings).as_dict())
 
 
+@app.command("stories-review")
+def stories_review(
+    hours: Annotated[int, typer.Option(help="Look-back window")] = 48,
+    markdown: Annotated[Path | None, typer.Option(help="Also write the report here")] = None,
+) -> None:
+    """Markdown review of story clustering on the latest headlines (to check the thresholds)."""
+    settings = _settings(validate=False)
+    from gjurme.stories.review import review_report
+
+    with _session_factory()() as s:
+        report = review_report(s, settings, hours=hours)
+    typer.echo(report)
+    if markdown is not None:
+        markdown.write_text(report, "utf-8")
+
+
 @app.command("enrich-requeue")
 def enrich_requeue(
     older_than_version: Annotated[str | None, typer.Option(help="Prompt version cut-off")] = None,

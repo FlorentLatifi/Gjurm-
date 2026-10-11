@@ -22,6 +22,7 @@ on:
       - "backend/src/gjurme/sources/**"
       - "backend/src/gjurme/ingestion/**"
       - "backend/src/gjurme/enrichment/providers.py"
+      - "backend/src/gjurme/stories/**"
       - ".github/workflows/sources.yml"
 
 permissions:
@@ -133,7 +134,7 @@ jobs:
           LLM_DAILY_BUDGET_USD="$(python3 -c "print(min(1.0, $LIMIT * 0.02))")"
           export LLM_DAILY_BUDGET_USD
           echo "Analysing up to $LIMIT articles with a hard budget of \$$LLM_DAILY_BUDGET_USD"
-          uv run gjurme run --stages enrich,quality | tee "$RUNNER_TEMP/run-enrich.json"
+          uv run gjurme run --stages enrich,cluster,quality | tee "$RUNNER_TEMP/run-enrich.json"
       - name: Claude quality review (every result, tokens and cost)
         if: env.HAS_LLM_KEY == 'true'
         env:
@@ -178,7 +179,14 @@ jobs:
         if: env.HAS_LLM_KEY != 'true'
         env:
           LLM_PROVIDER: fake
-        run: uv run gjurme run --stages enrich,quality | tee "$RUNNER_TEMP/run-enrich.json"
+        run: uv run gjurme run --stages enrich,cluster,quality | tee "$RUNNER_TEMP/run-enrich.json"
+      # Stories on live headlines: merged stories, weakest members and near misses, so the
+      # clustering thresholds (ADR-020) can be checked on real coverage. Headlines only.
+      - name: Story clustering review
+        run: |
+          uv run gjurme stories-review --hours 72 --markdown "$RUNNER_TEMP/stories-review.md" > /dev/null
+          cat "$RUNNER_TEMP/stories-review.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "STORIES_REVIEW_BEGIN"; cat "$RUNNER_TEMP/stories-review.md"; echo "STORIES_REVIEW_END"
       - name: Sample of stored articles
         if: always()
         run: |
@@ -206,5 +214,6 @@ jobs:
           path: |
             ${{ runner.temp }}/run-*.json
             ${{ runner.temp }}/claude-quality-review.md
+            ${{ runner.temp }}/stories-review.md
           if-no-files-found: ignore
           retention-days: 30

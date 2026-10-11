@@ -8,6 +8,10 @@ score lower than different events that share a place name), so clustering uses:
   (ë → e), stopwords and outlet labels removed, and stemmed by truncation to six letters, which
   merges Albanian inflections (Prishtinë/Prishtinës/Prishtinën, Kuvendi/Kuvendit). Rare words
   (names, places) weigh more than words every headline uses.
+* **A shared event word**: the two sides must share at least one term that is not part of a
+  person's name. A person new to the news has a rare (heavily weighted) name and appears in
+  several unrelated stories at once ("X presents the programme", "X asks for a session");
+  sharing only that name is not sharing an event.
 * **Name guards**: when both sides name specific places, or both name people, most of them must
   be shared. "Aksident në Prizren" and "Aksident në Pejë" share almost every word but are
   different events; they score *higher* than most real paraphrases, so the guard is never
@@ -29,7 +33,7 @@ from gjurme.ingestion.processor import NOISE_TOKENS
 STEM_LENGTH = 6
 TITLE_WEIGHT = 2.0
 EXCERPT_WEIGHT = 1.0
-ENTITY_WEIGHT = 1.5
+ENTITY_WEIGHT = 1.0
 # Only the start of the excerpt describes the event; later sentences drift into background.
 EXCERPT_MAX_WORDS = 40
 
@@ -156,6 +160,13 @@ def cosine(a: Mapping[str, float], b: Mapping[str, float]) -> float:
     if len(a) > len(b):
         a, b = b, a
     return sum(x * b.get(t, 0.0) for t, x in a.items())
+
+
+def shares_event_term(
+    terms: Iterable[str], other: Mapping[str, float], people: frozenset[str]
+) -> bool:
+    """True when ``terms`` and ``other`` share a term that is not (part of) a person's name."""
+    return any(t in other and t not in people and not t.startswith("@") for t in terms)
 
 
 def _weak_overlap(a: frozenset[str], b: frozenset[str]) -> bool:

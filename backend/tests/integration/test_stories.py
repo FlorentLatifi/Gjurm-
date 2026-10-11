@@ -21,6 +21,7 @@ from gjurme.ingestion.normalize import normalize_key, sha256_hex
 from gjurme.quality.checks import check_story_backlog
 from gjurme.sources.registry import Registry, SourceConfig, sync_sources
 from gjurme.stories.clustering import cluster_pending, rebuild
+from gjurme.stories.review import review_report
 from tests.integration.helpers import add_source
 
 pytestmark = pytest.mark.integration
@@ -256,6 +257,22 @@ def test_rebuild_reclusters_with_a_new_threshold(
     assert result["stories_deleted"] >= 1
     # With an (absurdly) strict threshold, only the near-verbatim copy still joins a story.
     assert len({story_of(db, i) for i in newsroom["budget"]}) == 4
+
+
+def test_review_report_lists_stories_weak_members_and_near_misses(
+    db: sessionmaker[Session], settings: Settings, newsroom: dict[str, Any]
+) -> None:
+    with db() as s:
+        cluster_pending(s, settings)
+    with db() as s:
+        report = review_report(s, settings, hours=48)
+    assert "### Multi-outlet stories" in report and "outlets" in report
+    assert "`qendra` Kuvendi miraton buxhetin për vitin 2027" in report
+    assert "### Weakest members" in report
+    # the Gjakovë fire is the closest miss of the Prizren fire, kept apart by the name guard
+    near = report.split("### Near misses")[1]
+    assert "| yes |" in near and "Gjakovë" in near
+    assert "kritikoi" not in report  # headlines only, never excerpts
 
 
 def test_story_backlog_check(
