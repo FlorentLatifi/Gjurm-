@@ -221,7 +221,7 @@ Për t'i vlerësuar, te `backend/src/gjurme/sources/sources.yaml`, për çdo med
 Rregullat:
 
 1. **Mos hamendëso.** Vendos `bias` ose `factuality` vetëm pas një shqyrtimi të dokumentuar (kush e bëri, kur, mbi çfarë prove: mostër artikujsh, politika e korrigjimeve, pronësia). Pa `ratings_note`, sistemi e refuzon vlerësimin; shënimi shfaqet publikisht te profili i medias.
-2. Shkalla majtas–djathtas është ajo e Ground News. Nëse për mediat shqip ka më shumë kuptim një bosht tjetër (p.sh. *pro-qeverisë / kritike ndaj qeverisë*), mund të ndryshohen vetëm etiketat te `frontend/src/lib/ratings.ts` dhe të shpjegohet te faqja e metodologjisë.
+2. Shkalla majtas–djathtas është ajo e Ground News. Nëse për mediat shqip ka më shumë kuptim një bosht tjetër (p.sh. *pro-qeverisë / kritike ndaj qeverisë*), mund të ndryshohen vetëm etiketat te `frontend/src/shared/model/ratings.ts` dhe të shpjegohet te faqja e metodologjisë.
 3. Pas ndryshimit: commit + deploy (hapi `migrate` i sinkronizon). Vlerësimet vlejnë menjëherë për të gjitha historitë.
 
 ### Kontrolli i grupimit të historive

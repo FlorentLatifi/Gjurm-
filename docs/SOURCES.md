@@ -73,7 +73,7 @@ Rules ([ADR-021](DECISIONS.md#adr-021-outlet-ratings-are-editorial-declared-with
 - **Bias and factuality are editorial judgements about the outlet**, never about an article, and are only set from a documented review: who rated it, when, on what evidence (a sample of its coverage, corrections policy, ownership, published methodology of an outside rater). The registry refuses a rating without a `ratings_note`, and the note is shown on the outlet's page.
 - **Never guess.** An outlet without a review stays `unrated`; every coverage bar shows unrated outlets as a hatched segment, and perspective blindspots only count rated outlets.
 - **Ownership** comes from public information about the publisher. Today: Kallxo and Reporter.al are non-profit (BIRN), Radio Evropa e Lirë is international public media (RFE/RL), the other enabled outlets are private companies. Verify before relying on it, and add `owner` where it is known.
-- The scale is the Ground News one (left ↔ right). If another axis describes Albanian-language media better (for example *towards / against the government*), relabel it in `frontend/src/lib/ratings.ts` and say so on the methodology page; the stored values stay the same.
+- The scale is the Ground News one (left ↔ right). If another axis describes Albanian-language media better (for example *towards / against the government*), relabel it in `frontend/src/shared/model/ratings.ts` and say so on the methodology page; the stored values stay the same.
 
 After editing, `gjurme sources sync` (or the next deploy) applies the ratings; they affect all stories immediately.
 
