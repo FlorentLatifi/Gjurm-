@@ -1,4 +1,4 @@
-"""Pipeline orchestration: ingest → process → enrich → quality → alerts.
+"""Pipeline orchestration: ingest → process → enrich → cluster → quality → alerts.
 
 One run = one row in ``ops.pipeline_runs``. Stages are independent and each is rerunnable on
 its own (``gjurme ingest`` / ``process`` / ``enrich`` / ``quality``) because every stage reads its
@@ -30,10 +30,11 @@ from gjurme.ingestion.processor import process_pending
 from gjurme.logging_setup import run_id_var
 from gjurme.pipeline.locking import PIPELINE_LOCK_KEY, advisory_lock
 from gjurme.quality.checks import run_checks, summarize
+from gjurme.stories.clustering import cluster_pending
 
 log = logging.getLogger(__name__)
 
-ALL_STAGES: tuple[str, ...] = ("ingest", "process", "enrich", "quality")
+ALL_STAGES: tuple[str, ...] = ("ingest", "process", "enrich", "cluster", "quality")
 
 
 @dataclass(slots=True)
@@ -159,7 +160,7 @@ def _run_stages(
     for stage in ALL_STAGES:
         if stage not in stages:
             continue
-        if stage_errors and stage in ("process", "enrich"):
+        if stage_errors and stage in ("process", "enrich", "cluster"):
             # Upstream stage crashed (e.g. database unavailable): don't pile on.
             stats[stage] = {"skipped": "upstream stage failed"}
             continue
@@ -213,6 +214,9 @@ def _run_stage(
     if stage == "enrich":
         llm = provider or build_provider(settings)
         return run_enrichment(session_factory, settings, llm, run_id=run_id).as_dict()
+    if stage == "cluster":
+        with session_factory() as s:
+            return cluster_pending(s, settings).as_dict()
     if stage == "quality":
         with session_factory() as s, s.begin():
             results = run_checks(s, run_id)

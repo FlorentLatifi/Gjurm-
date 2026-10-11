@@ -13,6 +13,9 @@ from sqlalchemy.orm import Session
 
 from gjurme.db.models import Source
 from gjurme.ingestion.normalize import validate_public_http_url
+from gjurme.sources.ratings import BIAS_VALUES, FACTUALITY_VALUES, OWNERSHIP_VALUES
+
+RATING_FIELDS = ("bias", "factuality", "ownership", "owner", "ratings_note")
 
 log = logging.getLogger(__name__)
 
@@ -29,6 +32,12 @@ class SourceConfig(BaseModel):
     country: str = Field(pattern=r"^([A-Z]{2}|REG)$")
     enabled: bool = True
     notes: str = ""
+    # Editorial ratings (gjurme.sources.ratings). A rating needs a stated basis.
+    bias: str = "unrated"
+    factuality: str = "unrated"
+    ownership: str = "unknown"
+    owner: str | None = None
+    ratings_note: str | None = None
 
     @field_validator("homepage_url", "feed_url")
     @classmethod
@@ -40,10 +49,41 @@ class SourceConfig(BaseModel):
     def _public_urls(cls, value: tuple[str, ...]) -> tuple[str, ...]:
         return tuple(validate_public_http_url(v) for v in value)
 
+    @field_validator("bias")
+    @classmethod
+    def _bias(cls, value: str) -> str:
+        if value not in BIAS_VALUES:
+            raise ValueError(f"bias must be one of {BIAS_VALUES}")
+        return value
+
+    @field_validator("factuality")
+    @classmethod
+    def _factuality(cls, value: str) -> str:
+        if value not in FACTUALITY_VALUES:
+            raise ValueError(f"factuality must be one of {FACTUALITY_VALUES}")
+        return value
+
+    @field_validator("ownership")
+    @classmethod
+    def _ownership(cls, value: str) -> str:
+        if value not in OWNERSHIP_VALUES:
+            raise ValueError(f"ownership must be one of {OWNERSHIP_VALUES}")
+        return value
+
     @model_validator(mode="after")
     def _enabled_needs_feed(self) -> SourceConfig:
         if self.enabled and not self.feed_url:
             raise ValueError(f"source {self.slug!r} is enabled but has no feed_url")
+        return self
+
+    @model_validator(mode="after")
+    def _rating_needs_basis(self) -> SourceConfig:
+        rated = self.bias != "unrated" or self.factuality != "unrated"
+        if rated and not (self.ratings_note or "").strip():
+            raise ValueError(
+                f"source {self.slug!r} has a bias/factuality rating but no ratings_note "
+                "saying what it is based on"
+            )
         return self
 
 
@@ -71,7 +111,7 @@ def load_registry(path: Path | None = None) -> Registry:
 def sync_sources(session: Session, registry: Registry) -> dict[str, int]:
     """Upsert registry entries into ``core.sources``.
 
-    The YAML owns *configuration* (name, URLs, language, country). Runtime state (failure
+    The YAML owns *configuration* (name, URLs, language, country, ratings). Runtime state (failure
     counters, conditional-GET validators, verification status) is owned by the pipeline and is
     never overwritten here. A source disabled at runtime (auto-disable / admin) stays disabled
     until an operator re-enables it; ``enabled: false`` in YAML always wins.
@@ -90,12 +130,13 @@ def sync_sources(session: Session, registry: Registry) -> dict[str, int]:
                 country=cfg.country,
                 is_active=cfg.enabled,
                 disabled_reason=None if cfg.enabled else "disabled in sources.yaml",
+                **{attr: getattr(cfg, attr) for attr in RATING_FIELDS},
             )
             session.add(row)
             created += 1
             continue
         changed = False
-        for attr in ("name", "homepage_url", "language", "country"):
+        for attr in ("name", "homepage_url", "language", "country", *RATING_FIELDS):
             if getattr(row, attr) != getattr(cfg, attr):
                 setattr(row, attr, getattr(cfg, attr))
                 changed = True

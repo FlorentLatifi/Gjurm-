@@ -38,6 +38,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from gjurme.db.base import Base
+from gjurme.sources.ratings import BIAS_VALUES, FACTUALITY_VALUES, OWNERSHIP_VALUES
 
 TZ = DateTime(timezone=True)
 
@@ -72,13 +73,20 @@ SEVERITIES = ("info", "warning", "critical")
 # core — dimensions
 # =============================================================================================
 class Source(Base):
-    """Dimension: a news publisher feed. Seeded from ``sources.yaml``."""
+    """Dimension: a news publisher feed. Seeded from ``sources.yaml``.
+
+    ``bias`` / ``factuality`` / ``ownership`` are editorial ratings declared in the YAML (see
+    ``gjurme.sources.ratings``); the coverage bars of stories split by them.
+    """
 
     __tablename__ = "sources"
     __table_args__ = (
         CheckConstraint(
             _in("verification_status", ("unverified", "verified", "failing")), name="verification"
         ),
+        CheckConstraint(_in("bias", BIAS_VALUES), name="bias"),
+        CheckConstraint(_in("factuality", FACTUALITY_VALUES), name="factuality"),
+        CheckConstraint(_in("ownership", OWNERSHIP_VALUES), name="ownership"),
         {"schema": "core"},
     )
 
@@ -99,6 +107,11 @@ class Source(Base):
     last_modified: Mapped[str | None] = mapped_column(Text)
     last_fetch_at: Mapped[datetime | None] = mapped_column(TZ)
     last_success_at: Mapped[datetime | None] = mapped_column(TZ)
+    bias: Mapped[str] = mapped_column(String(16), server_default=text("'unrated'"))
+    factuality: Mapped[str] = mapped_column(String(16), server_default=text("'unrated'"))
+    ownership: Mapped[str] = mapped_column(String(24), server_default=text("'unknown'"))
+    owner: Mapped[str | None] = mapped_column(Text)
+    ratings_note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now(), onupdate=func.now())
 
@@ -143,6 +156,34 @@ class Entity(Base):
 # =============================================================================================
 # core — fact + bridges
 # =============================================================================================
+class Story(Base):
+    """A group of articles from one or more outlets that report the same event.
+
+    Built by the CLUSTER stage (``gjurme.stories.clustering``). Counts and coverage are computed
+    from the member articles at query time, so takedowns (``is_hidden``) and rating changes
+    apply immediately; only the time span, the representative headline and the topic are stored.
+    """
+
+    __tablename__ = "stories"
+    __table_args__ = (
+        Index("ix_stories_published_date", "published_date"),
+        Index("ix_stories_last_published_at", text("last_published_at DESC")),
+        {"schema": "core"},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    # The member whose wording is closest to the story centroid (the most typical headline).
+    representative_article_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core.articles.id", ondelete="SET NULL", use_alter=True)
+    )
+    first_published_at: Mapped[datetime] = mapped_column(TZ)
+    last_published_at: Mapped[datetime] = mapped_column(TZ)
+    published_date: Mapped[date] = mapped_column(Date)  # local date of the first article
+    primary_topic_id: Mapped[int | None] = mapped_column(ForeignKey("core.topics.id"))
+    created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now(), onupdate=func.now())
+
+
 class Article(Base):
     """Fact: one published news article, identified by its canonical URL.
 
@@ -179,6 +220,12 @@ class Article(Base):
             postgresql_ops={"title_normalized": "gin_trgm_ops"},
         ),
         Index("ix_articles_duplicate_of", "duplicate_of_id"),
+        Index("ix_articles_story", "story_id"),
+        Index(
+            "ix_articles_story_queue",
+            "published_at",
+            postgresql_where=text("story_id IS NULL"),
+        ),
         {"schema": "core"},
     )
 
@@ -204,6 +251,7 @@ class Article(Base):
     duplicate_of_id: Mapped[int | None] = mapped_column(
         ForeignKey("core.articles.id", ondelete="SET NULL")
     )
+    story_id: Mapped[int | None] = mapped_column(ForeignKey("core.stories.id", ondelete="SET NULL"))
     # --- enrichment state + current enrichment (denormalized) ---
     enrichment_status: Mapped[str] = mapped_column(String(16), server_default=text("'pending'"))
     enrichment_attempts: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
