@@ -9,14 +9,17 @@ score lower than different events that share a place name), so clustering uses:
   dropping one Albanian case ending, which merges inflections (Prishtinë/Prishtinës/Prishtinën,
   Kuvendi/Kuvendit, Kurti/Kurtin/Kurtit). Rare words
   (names, places) weigh more than words every headline uses.
-* **A shared event word**: the two sides must share at least one term that is not part of a
-  person's name. A person new to the news has a rare (heavily weighted) name and appears in
-  several unrelated stories at once ("X presents the programme", "X asks for a session");
-  sharing only that name is not sharing an event.
-* **Name guards**: when both sides name specific places, or both name people, most of them must
-  be shared. "Aksident në Prizren" and "Aksident në Pejë" share almost every word but are
-  different events; they score *higher* than most real paraphrases, so the guard is never
-  skipped. Near-verbatim copies are linked by dedup layer L4 (``duplicate_of_id``) instead.
+* **A shared event word**: the joining article's *headline* must share a term with the story
+  that is not part of a person's name. A person new to the news has a rare (heavily weighted)
+  name and appears in several unrelated stories at once ("X presents the programme", "X asks
+  for a session"); sharing only that name — or a town named in passing in the excerpt — is not
+  sharing an event.
+* **Guards on the headlines' names and numbers**: when both headlines name specific places, or
+  both carry numbers ("12 të vrarë", "14 për qind"), at least half of the smaller side must be
+  shared; when both name people, at least one. "Aksident në Prizren" and "Aksident në Pejë"
+  share almost every word but are different events; they score *higher* than most real
+  paraphrases, so the guards are never skipped. Near-verbatim copies are linked by dedup layer
+  L4 (``duplicate_of_id``) instead.
 
 See docs/DECISIONS.md (ADR-020) for the thresholds and how to review them on real data.
 """
@@ -119,14 +122,21 @@ def name_stems(names: Iterable[str]) -> frozenset[str]:
 
 @dataclass(frozen=True, slots=True)
 class Names:
-    """Stems of the people, specific places and organisations an article (or story) names."""
+    """Stems of the people, specific places and organisations a headline (or story) names, and
+    its numbers of two or more digits."""
 
     people: frozenset[str] = frozenset()
     places: frozenset[str] = frozenset()
     orgs: frozenset[str] = frozenset()
+    numbers: frozenset[str] = frozenset()
 
     def __or__(self, other: Names) -> Names:
-        return Names(self.people | other.people, self.places | other.places, self.orgs | other.orgs)
+        return Names(
+            self.people | other.people,
+            self.places | other.places,
+            self.orgs | other.orgs,
+            self.numbers | other.numbers,
+        )
 
 
 @dataclass(slots=True)
@@ -140,11 +150,20 @@ class Doc:
     places: Iterable[str] = ()
     other_entities: Iterable[str] = ()
     terms: dict[str, float] = field(init=False)
+    # Names in the headline, for the name guards. Excerpts name secondary people and places, and
+    # keyword-rule entities pick up boilerplate ("Gazeta Online Reporteri" in every excerpt of
+    # one outlet, "Shtetet e Bashkuara" as a person); on live feeds those split real stories.
     names: Names = field(init=False)
+    # Every person-name stem (headline + excerpt): never counted as a shared event word.
+    people_all: frozenset[str] = field(init=False)
+    # Every specific-place stem (headline + excerpt), for the batch's place lexicon.
+    places_all: frozenset[str] = field(init=False)
+    headline: frozenset[str] = field(init=False)  # the headline's terms
 
     def __post_init__(self) -> None:
         terms: dict[str, float] = {}
-        for t in set(tokens(self.title)):
+        headline = set(tokens(self.title))
+        for t in headline:
             terms[t] = terms.get(t, 0.0) + TITLE_WEIGHT
         for t in set(tokens(self.excerpt, max_words=EXCERPT_MAX_WORDS)):
             terms[t] = terms.get(t, 0.0) + EXCERPT_WEIGHT
@@ -152,11 +171,33 @@ class Doc:
         for key in {"@" + normalize_key(n) for n in entity_names if normalize_key(n)}:
             terms[key] = terms.get(key, 0.0) + ENTITY_WEIGHT
         self.terms = terms
+        self.headline = frozenset(headline)
+        self.people_all = name_stems(self.people)
+        self.places_all = name_stems(self.places) - BROAD_PLACES
         self.names = Names(
-            name_stems(self.people),
-            name_stems(self.places) - BROAD_PLACES,
-            name_stems(self.other_entities) - BROAD_PLACES,
+            self.people_all & headline,
+            (name_stems(self.places) - BROAD_PLACES) & headline,
+            (name_stems(self.other_entities) - BROAD_PLACES) & headline,
+            frozenset(t for t in headline if t.isdigit()),
         )
+
+
+def place_lexicon(docs: Iterable[Doc]) -> frozenset[str]:
+    """Stems typed as a specific place in any of ``docs``."""
+    return frozenset().union(*(d.places_all for d in docs))
+
+
+def apply_place_lexicon(names: Names, lexicon: frozenset[str]) -> Names:
+    """Move stems known as places out of people and organisations.
+
+    Keyword-rule entities swallow places into longer names ("Spitali i Tiranës" as an
+    organisation, "Nxënësit e Mitrovicës" as a person). A word the analysis typed as a place
+    elsewhere in the same days is treated as a place here too.
+    """
+    moved = (names.people | names.orgs) & lexicon
+    if not moved:
+        return names
+    return Names(names.people - moved, names.places | moved, names.orgs - moved, names.numbers)
 
 
 def idf_table(docs: Iterable[Doc]) -> dict[str, float]:
@@ -186,7 +227,8 @@ def cosine(a: Mapping[str, float], b: Mapping[str, float]) -> float:
 def shares_event_term(
     terms: Iterable[str], other: Mapping[str, float], people: frozenset[str]
 ) -> bool:
-    """True when ``terms`` and ``other`` share a term that is not (part of) a person's name."""
+    """True when ``terms`` (a headline's) and ``other`` share a term that is not (part of) a
+    person's name."""
     return any(t in other and t not in people and not t.startswith("@") for t in terms)
 
 
@@ -195,27 +237,33 @@ def _weak_overlap(a: frozenset[str], b: frozenset[str]) -> bool:
     return bool(a and b) and len(a & b) <= 0.5 * min(len(a), len(b))
 
 
+def _disjoint(a: frozenset[str], b: frozenset[str]) -> bool:
+    return bool(a and b) and not (a & b)
+
+
 def conflict_reason(a: Names, b: Names) -> str | None:
-    """Which name guard separates ``a`` and ``b`` ("places", "people", "names") or None."""
+    """Which guard separates ``a`` and ``b`` ("places", "numbers", "people", "names") or None."""
     if _weak_overlap(a.places, b.places):
         return "places"
-    if _weak_overlap(a.people, b.people):
+    if _weak_overlap(a.numbers, b.numbers):
+        return "numbers"
+    if _disjoint(a.people, b.people):
         return "people"
     a_all = a.people | a.places | a.orgs
     b_all = b.people | b.places | b.orgs
-    if len(a_all) >= 2 and len(b_all) >= 2 and _weak_overlap(a_all, b_all):
+    if len(a_all) >= 2 and len(b_all) >= 2 and _disjoint(a_all, b_all):
         return "names"
     return None
 
 
 def names_conflict(a: Names, b: Names) -> bool:
-    """True when both sides name specific places (or people) and mostly different ones.
+    """True when the headlines name different places, people or numbers.
 
-    Overlap is measured on name-word stems, so "Osmani" matches "Vjosa Osmani", and relative to
-    the smaller side, so one outlet naming an extra person does not split a story. "Prizren +
-    Prishtinë" vs "Pejë + Prishtinë" (two accidents on two roads) conflicts: half is shared.
-    Entity types are noisy (a person typed as a place, "Spitali i Pejës" as an organisation), so
-    when both sides name at least two name words of any type, those combined sets must overlap
-    as well.
+    Overlap is measured on name-word stems, so "Osmani" matches "Vjosa Osmani". Places and
+    numbers must mostly agree (half of the smaller side): "Prizren + Prishtinë" vs "Pejë +
+    Prishtinë" (two accidents on two roads) conflicts. People need only one in common: outlets
+    quote different people on one event, and keyword-rule entities type phrases such as
+    "Mësuesit e Ferizajt" as people. Entity types are noisy (a person typed as a place), so
+    headlines that both name two or more name words of any type must share at least one.
     """
     return conflict_reason(a, b) is not None

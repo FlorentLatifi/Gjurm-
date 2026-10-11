@@ -9,10 +9,13 @@ from gjurme.sources.ratings import bias_group
 from gjurme.stories.similarity import (
     Doc,
     Names,
+    apply_place_lexicon,
+    conflict_reason,
     cosine,
     idf_table,
     name_stems,
     names_conflict,
+    place_lexicon,
     shares_event_term,
     tokens,
     vector,
@@ -65,6 +68,12 @@ def test_idf_weights_rare_terms_higher() -> None:
             False,
         ),
         (Names(people=frozenset({"kurti"})), Names(people=frozenset({"osmani"})), True),
+        # people need only one in common: outlets quote different people on one event
+        (
+            Names(people=frozenset({"mesu", "feriz"})),
+            Names(people=frozenset({"shkoll", "feriz"})),
+            False,
+        ),
         # entity types are noisy: a person typed as a place still conflicts with other people
         (
             Names(places=frozenset({"vlora", "hoxha"})),
@@ -142,10 +151,41 @@ def test_a_shared_person_alone_is_not_a_shared_event() -> None:
     a = Doc(1, "Blerta Zeqiri prezanton programin zgjedhor", people=["Blerta Zeqiri"])
     b = Doc(2, "Blerta Zeqiri kërkon seancë në Kuvend", people=["Blerta Zeqiri"])
     c = Doc(3, "Blerta Zeqiri prezanton programin në Prizren", people=["Blerta Zeqiri"])
-    idf = idf_table([a, b, c])
-    people = a.names.people | b.names.people
-    assert not shares_event_term(vector(a, idf), vector(b, idf), people)
-    assert shares_event_term(vector(a, idf), vector(c, idf), people)  # "prezanton programin"
+    # a town named only in the excerpt is not the headline's event either
+    d = Doc(4, "Blerta Zeqiri kërkon seancë", "Ajo foli në Prizren.", people=["Blerta Zeqiri"])
+    idf = idf_table([a, b, c, d])
+    people = a.people_all | b.people_all
+    assert not shares_event_term(b.headline, vector(a, idf), people)
+    assert shares_event_term(c.headline, vector(a, idf), people)  # "prezanton programin"
+    assert not shares_event_term(d.headline, vector(c, idf), people)
+
+
+def test_headline_guards_ignore_excerpt_names_and_compare_numbers() -> None:
+    # Excerpts name secondary people (and keyword rules pick up boilerplate): only headline
+    # names are compared.
+    a = Doc(1, "Uragani Isaias godet SHBA-në", "Gazeta Online Reporteri", people=["Gazeta Online"])
+    b = Doc(2, "Uragani Isaias përfshin Floridën", "Sipas qendrës", people=["Qendra Kombëtare"])
+    assert a.names.people == frozenset() and not names_conflict(a.names, b.names)
+    # Numbers in headlines are facts: different counts are different events.
+    c = Doc(3, "Buxheti 2027 parasheh rritje 14 për qind të pagave")
+    d = Doc(4, "Buxheti 2027 parasheh rritje 27 për qind të pagave")
+    e = Doc(5, "Sulm në Riad, 12 të vrarë dhe 300 të plagosur")
+    f = Doc(6, "12 të vrarë dhe mbi 300 të plagosur nga sulmi në Riad")
+    assert conflict_reason(c.names, d.names) == "numbers"
+    assert conflict_reason(e.names, f.names) is None
+
+
+def test_place_lexicon_finds_places_inside_other_names() -> None:
+    # Keyword rules type "Spitali i Tiranës" as an organisation; Tirana is a place elsewhere.
+    a = Doc(1, "Spitali i Tiranës merr pajisje", other_entities=["Spitali i Tiranës"])
+    b = Doc(2, "Spitali i Shkodrës merr pajisje", other_entities=["Spitali i Shkodrës"])
+    c = Doc(3, "Protestë në Tiranë", places=["Tiranë"])
+    d = Doc(4, "Shi në Shkodër", places=["Shkodrës"])
+    lexicon = place_lexicon([a, b, c, d])
+    na, nb = apply_place_lexicon(a.names, lexicon), apply_place_lexicon(b.names, lexicon)
+    assert na.places == {"tiran"} and "tiran" not in na.orgs
+    assert conflict_reason(na, nb) == "places"
+    assert not names_conflict(a.names, b.names)  # without the lexicon only "spital" is compared
 
 
 def test_bias_groups() -> None:
