@@ -21,6 +21,19 @@ test.describe("GJURMË stories", () => {
     expect(errors).toEqual([]);
   });
 
+  test("going back to the feed restores where the reader was", async ({ page }) => {
+    await page.goto("/");
+    const card = page.locator(".story-card").nth(6);
+    await card.scrollIntoViewIfNeeded();
+    const before = await page.evaluate<number>("window.scrollY");
+    expect(before).toBeGreaterThan(300);
+    await card.locator(".story-card__title a").click();
+    await expect(page).toHaveURL(/\/stories\/\d+$/);
+    await page.goBack();
+    await expect(page.locator(".story-card").nth(6)).toBeVisible();
+    await expect.poll(() => page.evaluate<number>("window.scrollY")).toBeGreaterThan(before - 120);
+  });
+
   test("coverage lens switches the bars and is remembered", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("group", { name: "Split coverage by" }).getByRole("button", { name: "Ownership" }).click();

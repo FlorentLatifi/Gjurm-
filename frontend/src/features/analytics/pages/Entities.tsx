@@ -1,7 +1,7 @@
 import { useId } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
-import { useArticles, ArticleList } from "@/features/articles";
+import { ArticleList } from "@/features/articles";
 import { FilterBar } from "@/features/filters";
 import type { EntityType } from "@/shared/api/types";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
@@ -19,7 +19,9 @@ import { RankList } from "@/ui/RankList";
 import { SearchField } from "@/ui/SearchField";
 import { ErrorState } from "@/ui/States";
 import { DailyLine } from "@/ui/charts";
-import { useCoOccurrence, useEntities, useEntity } from "../api";
+import { useApiQuery } from "@/shared/query/apiQuery";
+import { entitiesQueries, entitiesState, entityQueries } from "../queries";
+import { isPositiveId } from "@/shared/lib/ids";
 
 const TYPES: { value: EntityType | ""; label: string }[] = [
   { value: "", label: "All" },
@@ -30,13 +32,13 @@ const TYPES: { value: EntityType | ""; label: string }[] = [
 
 export function EntitiesPage() {
   useTitle("People & organisations", "Who and what is most discussed in Albanian-language news.");
-  const { filters, apiParams } = useFilters();
+  const { filters } = useFilters();
   const [params, setParams] = useSearchParams();
-  const type = (params.get("type") ?? "") as EntityType | "";
-  const q = params.get("q") ?? "";
+  const { type, q } = entitiesState(params);
   const searchId = useId();
-  const entities = useEntities({ ...apiParams, type: type || undefined, q: q.length >= 2 ? q : undefined, limit: 30 });
-  const pairs = useCoOccurrence(apiParams);
+  const queries = entitiesQueries(params);
+  const entities = useApiQuery(queries.entities);
+  const pairs = useApiQuery(queries.pairs);
   const comparable = hasComparableHistory(entities.data ?? [], (e) => e.mentions, (e) => e.previous);
 
   const set = (key: "type" | "q", value: string) =>
@@ -107,9 +109,12 @@ export function EntitiesPage() {
 
 export function EntityPage() {
   const id = Number(useParams().id);
-  const { filters, apiParams } = useFilters();
-  const entity = useEntity(id, apiParams);
-  const articles = useArticles({ ...apiParams, entity: id, page_size: 10 });
+  const { filters } = useFilters();
+  const [search] = useSearchParams();
+  const queries = entityQueries(id, search);
+  const valid = isPositiveId(id);
+  const entity = useApiQuery(queries.entity, valid);
+  const articles = useApiQuery(queries.articles, valid);
   const e = entity.data;
   useTitle(e?.entity.name ?? "Entity");
   if (entity.isError) return <ErrorState error={entity.error} onRetry={() => entity.refetch()} />;

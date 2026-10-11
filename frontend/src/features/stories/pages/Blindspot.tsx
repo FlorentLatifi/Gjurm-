@@ -2,12 +2,12 @@ import { useSearchParams } from "react-router-dom";
 
 import { FilterBar } from "@/features/filters";
 import type { Blindspot } from "@/shared/api/types";
-import { useFilters } from "@/shared/hooks/useFilters";
 import { useTitle } from "@/shared/hooks/useTitle";
+import { useApiQuery } from "@/shared/query/apiQuery";
 import { formatInt } from "@/shared/lib/format";
 import { Card } from "@/ui/Card";
 import { StoryCard } from "../StoryCard";
-import { useBlindspots } from "../api";
+import { blindspotKind, blindspotQueries } from "../queries";
 
 const PRESETS = [
   { days: 3, label: "3 days" },
@@ -24,10 +24,9 @@ const KINDS: { kind: Blindspot["kind"] | ""; label: string }[] = [
 /** Ground News' Blindspot feed: stories that one side of the spectrum, or one country, missed. */
 export default function BlindspotPage() {
   useTitle("Blindspot", "Stories one side of the spectrum, or one country's media, barely covered.");
-  const { apiParams } = useFilters(7);
   const [params, setParams] = useSearchParams();
-  const kind = params.get("kind") === "perspective" || params.get("kind") === "region" ? params.get("kind")! : "";
-  const query = useBlindspots({ ...apiParams, kind: kind || undefined, limit: 60 });
+  const kind = blindspotKind(params);
+  const query = useApiQuery(blindspotQueries(params).blindspots);
   const items = query.data?.items ?? [];
   const forLeft = items.filter((s) => s.blindspots.some((b) => b.kind === "perspective" && b.missing === "left"));
   const forRight = items.filter((s) => s.blindspots.some((b) => b.kind === "perspective" && b.missing === "right"));

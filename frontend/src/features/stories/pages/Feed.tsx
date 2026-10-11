@@ -1,11 +1,10 @@
-import { useId } from "react";
+import { useEffect, useId } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
-import { useEntitySpikes } from "@/features/analytics";
 import { FilterBar } from "@/features/filters";
-import { useTaxonomy } from "@/features/system";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
 import { useTitle } from "@/shared/hooks/useTitle";
+import { useApiQuery } from "@/shared/query/apiQuery";
 import { ENTITY_TYPE_LABEL, formatInt } from "@/shared/lib/format";
 import { countryLabel, noneRated, REGION_ORDER } from "@/shared/model/ratings";
 import { useReadingCount } from "@/stores/reading";
@@ -13,10 +12,10 @@ import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
 import { SearchField } from "@/ui/SearchField";
 
-import { StoryCard } from "../StoryCard";
+import { loadStoryPage, StoryCard } from "../StoryCard";
 import { LensPicker } from "../StoryCoverage";
-import { useBlindspots, useStories } from "../api";
 import { useLens } from "../useLens";
+import { FEED_DEFAULT_DAYS, feedQueries, feedState } from "../queries";
 
 export const FEED_PRESETS = [
   { days: 1, label: "Today" },
@@ -24,7 +23,6 @@ export const FEED_PRESETS = [
   { days: 7, label: "7 days" },
   { days: 30, label: "30 days" },
 ] as const;
-export const FEED_DEFAULT_DAYS = 3;
 
 /**
  * The home page, as on Ground News: the news grouped into stories, biggest first, each with a
@@ -32,15 +30,12 @@ export const FEED_DEFAULT_DAYS = 3;
  */
 export default function StoriesPage() {
   useTitle("", "Albanian and Balkan news grouped into stories, with how each outlet covered them.");
-  const { filters, apiParams } = useFilters(FEED_DEFAULT_DAYS);
+  const { filters } = useFilters(FEED_DEFAULT_DAYS);
   const [params, setParams] = useSearchParams();
-  const taxonomy = useTaxonomy();
   const ids = { topic: useId(), region: useId(), q: useId() };
-  const sort = params.get("sort") === "latest" ? "latest" : "top";
-  const topic = params.get("topic") ?? "";
-  const country = params.get("country") ?? "";
-  const q = params.get("q") ?? "";
-  const page = Math.max(1, Number(params.get("page")) || 1);
+  const { sort, topic, country, q, page } = feedState(params);
+  const queries = feedQueries(params);
+  const taxonomy = useApiQuery(queries.taxonomy);
 
   const set = (key: string, value: string) =>
     setParams((prev) => {
@@ -52,14 +47,15 @@ export default function StoriesPage() {
     });
 
 
-  const stories = useStories({
-    ...apiParams, sort, topic: topic || undefined, country: country || undefined, q: q || undefined,
-    // single-outlet items are the long tail; the feed starts at stories two outlets covered
-    min_sources: q ? 1 : 2, page, page_size: 15,
-  });
-  const blind = useBlindspots({ days: Math.max(filters.days, 7) });
-  const spikes = useEntitySpikes(6);
+  const stories = useApiQuery(queries.stories);
+  const blind = useApiQuery(queries.blindspots);
+  const spikes = useApiQuery(queries.spikes);
   const readCount = useReadingCount();
+  useEffect(() => {
+    // the next page a reader of the feed most likely opens: fetch its code while idle
+    const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1500));
+    idle(() => void loadStoryPage());
+  }, []);
   const items = stories.data?.items ?? [];
   const [lens, setLens] = useLens(stories.data ? noneRated(items.map((s) => s.coverage)) : false);
   const data = stories.data;

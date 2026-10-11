@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 
 import type { StoryArticle, StoryDetail } from "@/shared/api/types";
 import { useTitle } from "@/shared/hooks/useTitle";
+import { useApiQuery } from "@/shared/query/apiQuery";
 import { ENTITY_TYPE_LABEL, formatDateTime, formatRelative, hostOf, safeHref } from "@/shared/lib/format";
 import {
   BIAS_GROUP_COLOR,
@@ -22,8 +23,9 @@ import { SentimentChip } from "@/ui/SentimentChip";
 import { ErrorState, LoadingBlock } from "@/ui/States";
 import { BlindspotBadges, StoryCard } from "../StoryCard";
 import { LensPicker, StoryCoverage } from "../StoryCoverage";
-import { useStory } from "../api";
 import { useLens } from "../useLens";
+import { storyQueries } from "../queries";
+import { isPositiveId } from "@/shared/lib/ids";
 
 function groupOf(a: StoryArticle, lens: Lens): string {
   if (lens === "perspective") return biasGroup(a.source_bias);
@@ -73,7 +75,7 @@ function HeadlineColumns({ story, lens }: { story: StoryDetail; lens: Lens }) {
 
 export function StoryPage() {
   const id = Number(useParams().id);
-  const query = useStory(id);
+  const query = useApiQuery(storyQueries(id).story, isPositiveId(id));
   const s = query.data;
   useTitle(s?.title ?? "Story", s ? `${s.source_count} outlets covered this story.` : undefined);
   const [lens, setLens] = useLens(s ? noneRated([s.coverage]) : false);

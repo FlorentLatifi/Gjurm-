@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { FilterBar } from "@/features/filters";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
@@ -6,16 +6,19 @@ import { useTitle } from "@/shared/hooks/useTitle";
 import { ENTITY_TYPE_LABEL, formatChange, formatDay, formatInt, formatScore } from "@/shared/lib/format";
 import { Card } from "@/ui/Card";
 import { DivergingBars, ToneChart, VolumeChart } from "@/ui/charts";
-import { useEntitySpikes, useSentiment, useSentimentShift, useTopicMomentum, useVolume } from "../api";
+import { useApiQuery } from "@/shared/query/apiQuery";
+import { trendsQueries } from "../queries";
 
 export default function TrendsPage() {
   useTitle("Trends", "Accelerating topics, people suddenly in the news and shifts in tone.");
-  const { filters, apiParams } = useFilters();
-  const momentum = useTopicMomentum();
-  const spikes = useEntitySpikes(15);
-  const shift = useSentimentShift();
-  const volume = useVolume(apiParams);
-  const sentiment = useSentiment(apiParams);
+  const { filters } = useFilters();
+  const [search] = useSearchParams();
+  const queries = trendsQueries(search);
+  const momentum = useApiQuery(queries.momentum);
+  const spikes = useApiQuery(queries.spikes);
+  const shift = useApiQuery(queries.shift);
+  const volume = useApiQuery(queries.volume);
+  const sentiment = useApiQuery(queries.sentiment);
 
   return (
     <>

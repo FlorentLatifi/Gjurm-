@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 
-import { useSources } from "@/features/sources";
-import { StoryCard, StoryCoverage, useBlindspots } from "@/features/stories";
+import { StoryCard, StoryCoverage } from "@/features/stories";
 import { useTitle } from "@/shared/hooks/useTitle";
 import { formatInt, formatPercent } from "@/shared/lib/format";
 import { BIAS_GROUP_LABEL, type Lens, LENS_LABEL } from "@/shared/model/ratings";
@@ -9,6 +8,8 @@ import { clearReading, useReading } from "@/stores/reading";
 import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
 import { missingSide, readingCoverage } from "../readingCoverage";
+import { useApiQuery } from "@/shared/query/apiQuery";
+import { myNewsQueries } from "../queries";
 
 /**
  * Ground News' "My News Bias", without accounts: the reading log lives in this browser only
@@ -18,8 +19,9 @@ import { missingSide, readingCoverage } from "../readingCoverage";
 export default function MyNewsPage() {
   useTitle("My news bias", "The balance of the outlets you read, kept only in your browser.");
   const reading = useReading();
-  const sources = useSources({ days: 90 });
-  const blind = useBlindspots({ days: 7 });
+  const queries = myNewsQueries();
+  const sources = useApiQuery(queries.sources);
+  const blind = useApiQuery(queries.blindspots);
   const bySlug = new Map((sources.data ?? []).map((s) => [s.slug, s]));
   const cov = readingCoverage(reading, bySlug);
   const missing = missingSide(cov);

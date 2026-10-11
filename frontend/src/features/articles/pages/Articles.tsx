@@ -2,7 +2,6 @@ import { useId } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { FilterBar } from "@/features/filters";
-import { useTaxonomy } from "@/features/system";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
 import { useTitle } from "@/shared/hooks/useTitle";
 import {
@@ -21,21 +20,18 @@ import { SentimentChip } from "@/ui/SentimentChip";
 import { SearchField } from "@/ui/SearchField";
 import { ErrorState, LoadingBlock } from "@/ui/States";
 import { ArticleList } from "../ArticleList";
-import { useArticle, useArticles } from "../api";
+import { useApiQuery } from "@/shared/query/apiQuery";
+import { articleQueries, articlesQueries, articlesState } from "../queries";
+import { isPositiveId } from "@/shared/lib/ids";
 
 export function ArticlesPage() {
   useTitle("Articles", "Search Albanian-language news by keyword, topic, outlet, tone and date.");
-  const { filters, apiParams } = useFilters();
+  const { filters } = useFilters();
   const [params, setParams] = useSearchParams();
-  const taxonomy = useTaxonomy();
+  const queries = articlesQueries(params);
+  const taxonomy = useApiQuery(queries.taxonomy);
   const ids = { q: useId(), topic: useId(), sentiment: useId(), sort: useId() };
-
-  const q = params.get("q") ?? "";
-  const topic = params.get("topic") ?? "";
-  const sentiment = params.get("sentiment") ?? "";
-  const sort = params.get("sort") === "oldest" ? "oldest" : "newest";
-  const entity = params.get("entity") ?? "";
-  const page = Math.max(1, Number(params.get("page")) || 1);
+  const { q, topic, sentiment, sort, entity, page } = articlesState(params);
 
   const set = (key: string, value: string) =>
     setParams((prev) => {
@@ -47,10 +43,7 @@ export function ArticlesPage() {
     });
 
 
-  const articles = useArticles({
-    ...apiParams, q: q || undefined, topic: topic || undefined, sentiment: sentiment || undefined,
-    entity: entity || undefined, sort, page, page_size: 20,
-  });
+  const articles = useApiQuery(queries.articles);
   const data = articles.data;
 
   return (
@@ -120,7 +113,7 @@ export function ArticlesPage() {
 
 export function ArticlePage() {
   const id = Number(useParams().id);
-  const article = useArticle(id);
+  const article = useApiQuery(articleQueries(id).article, isPositiveId(id));
   const a = article.data;
   useTitle(a?.title ?? "Article");
   if (article.isPending) return <LoadingBlock height={300} />;

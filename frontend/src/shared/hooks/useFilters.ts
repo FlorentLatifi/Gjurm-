@@ -13,14 +13,22 @@ export interface Filters {
   sources: string[];
 }
 
+/** The global filters a URL names (pure: route loaders use it before anything renders). */
+export function readFilters(params: URLSearchParams, defaultDays = 30): Filters {
+  const raw = Number(params.get("days"));
+  const days = Number.isInteger(raw) && raw >= 1 && raw <= 366 ? raw : defaultDays;
+  return { days, sources: params.getAll("source").filter((s) => /^[a-z0-9-]{2,64}$/.test(s)) };
+}
+
+/** The API query parameters for a set of filters. */
+export function apiParamsOf(filters: Filters) {
+  return { days: filters.days, source: filters.sources.length ? filters.sources : undefined };
+}
+
 /** ``defaultDays`` is the range when the URL names none (the stories feed starts at 3 days). */
 export function useFilters(defaultDays = 30) {
   const [params, setParams] = useSearchParams();
-  const filters: Filters = useMemo(() => {
-    const raw = Number(params.get("days"));
-    const days = Number.isInteger(raw) && raw >= 1 && raw <= 366 ? raw : defaultDays;
-    return { days, sources: params.getAll("source").filter((s) => /^[a-z0-9-]{2,64}$/.test(s)) };
-  }, [params, defaultDays]);
+  const filters: Filters = useMemo(() => readFilters(params, defaultDays), [params, defaultDays]);
 
   const update = useCallback(
     (next: Partial<Filters>) => {
@@ -44,10 +52,7 @@ export function useFilters(defaultDays = 30) {
     [setParams, defaultDays],
   );
 
-  const apiParams = useMemo(
-    () => ({ days: filters.days, source: filters.sources.length ? filters.sources : undefined }),
-    [filters],
-  );
+  const apiParams = useMemo(() => apiParamsOf(filters), [filters]);
 
   return { filters, update, apiParams };
 }
