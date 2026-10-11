@@ -2,10 +2,11 @@
 
 | Layer | Tool | Count | Runs |
 |---|---|---|---|
-| Backend unit | pytest | 186 | CI `backend` job, locally `uv run pytest tests/unit` |
-| Backend integration (real PostgreSQL 16) | pytest | 108 | CI `backend` job (Postgres service container) |
-| Frontend unit / component | Vitest + Testing Library | 35 | CI `frontend` job |
-| End-to-end (full Docker stack, demo data, real browser) | Playwright + axe-core | 31 scenarios × 2 viewports = 62 | CI `e2e` job |
+| Backend unit | pytest | 191 | CI `backend` job, locally `uv run pytest tests/unit` |
+| Backend integration (real PostgreSQL 16) | pytest | 109 | CI `backend` job (Postgres service container) |
+| Frontend unit / component | Vitest + Testing Library | 53 | CI `frontend` job |
+| Frontend static guards | layer boundaries (ESLint), API contract (tsc), bundle budgets, colour tokens | 4 checks | CI `frontend` job |
+| End-to-end (full Docker stack, demo data, real browser) | Playwright + axe-core | 36 scenarios × 2 viewports = 72 | CI `e2e` job |
 | Live sources (real feeds on GitHub runners) | `gjurme` CLI in a workflow | 1 pipeline run + story clustering review | *Source validation* workflow (weekly + manual) |
 | Performance (365k articles) | `backend/scripts/benchmark.py` | 19 queries | manual ([below](#performance)) |
 
@@ -24,7 +25,8 @@ uv run pytest --cov=gjurme --cov-fail-under=85
 # frontend
 cd frontend
 npm ci
-npm run lint && npm run typecheck && npm test && npm run build
+npm run lint && npm run check:tokens && npm run check:api && npm run typecheck && npm test
+npm run build && npm run check:budget
 
 # end-to-end against the full stack
 docker compose --profile demo up -d --build --wait db api web
@@ -36,15 +38,16 @@ The integration fixtures migrate a fresh test database once per session with the
 
 ## What the suites cover
 
-**Unit (186).**
+**Unit (191).**
 - Normalization: HTML stripping, Unicode NFC, mojibake repair for `ë`/`ç`, zero-width characters, URL canonicalization and tracking parameters, date parsing including time zones, future and missing dates.
 - Feed parsing: RSS/Atom, malformed XML recovery, autodiscovery.
 - Fetcher: robots.txt (allow, disallow, 404 → allowed, 5xx → disallowed, caching), conditional GET/304, timeouts, oversize (declared and streamed), redirects (followed, loop, to a private address → blocked), DNS SSRF guard.
 - Enrichment: schema validation and repair, the sentiment-contradiction rule, entity grounding with Albanian inflection, pricing, and budget reservations under concurrency (never overshoots).
 - Alert rules and payload formats; configuration guards.
+- API contract: the committed OpenAPI schema the frontend's types are generated from matches the API exactly, and response fields that are always present are declared required.
 - Story similarity: Albanian folding and stemming, IDF weighting, the name guard (shared, partial and conflicting places and people; noisy entity types), "a shared person is not a shared event", and hand-written calibration pairs against the default threshold.
 
-**Integration (108).**
+**Integration (109).**
 - Ingest → process: idempotency (a second run creates 0 rows), per-source failure isolation, 304 handling, auto-disable after the threshold, dedup L1–L4.
 - Enrichment: daily budget enforcement (including spend from earlier runs), circuit breaker, fatal errors that keep attempts, invalid output recorded and retried, refusal terminal, cache hits, re-enrichment keeping history with one current row, the kill switch, hidden articles never sent to the LLM.
 - Anthropic wire: the real SDK against a fake Messages API, covering request body, usage, cost, refusal, `max_tokens`, 401/403/404 fatal, 400 non-retryable, 429/529 retried, connection failure.
@@ -53,21 +56,25 @@ The integration fixtures migrate a fresh test database once per session with the
 - Migrations: `upgrade → downgrade → upgrade` with no model/migration drift; migration 0002's triggers (an old writer omits the bridge date; a date correction propagates).
 - CLI: sources sync/validate and refusal of unsafe production configuration.
 - Engine session settings: statement timeout, UTC, `force_custom_plan`.
-- Stories: paraphrases from four outlets form one story while a look-alike fire in another town stays apart; a near-verbatim copy joins its original's story; the 48 h span; idempotency; rebuild with a new threshold; the review report; the backlog check; ratings validation and sync; the story feed's coverage counts (distinct outlets per perspective, factuality, region, ownership), filters, sorting and search; hidden articles leaving the counts; story detail (first report, entities, topics, no excerpt); perspective and region blindspots; source profiles and the "first reports" ranking.
+- Stories: paraphrases from four outlets form one story while a look-alike fire in another town stays apart; a near-verbatim copy joins its original's story; the 48 h span; idempotency; rebuild with a new threshold; the review report; the backlog check; ratings validation and sync; the story feed's coverage counts (distinct outlets per perspective, factuality, region, ownership), filters, sorting and search; hidden articles leaving the counts; story detail (first report, entities, topics, no excerpt); perspective and region blindspots; source profiles and the "first reports" ranking; story link previews for crawlers (the story's own title and coverage, every value HTML-escaped — a hostile headline stays text — and the site card for unknown stories).
 
-**End-to-end (62).** Each of the 31 scenarios runs on a desktop and a Pixel 7 viewport:
+**Frontend unit (53).** Card states; the coverage bar's accessible text; story cards; the reading log (recorded only in the browser, corrupt and stale entries dropped, re-read from another tab) and the preferences store (one key that theme.js reads, hand-edited values rejected); the lens (`?lens=` wins over the remembered choice); the search box (one commit per pause, Enter, follows an outside reset); chunk-load recovery (reloads once, then explains); route prefetch (fills exactly the cache entries the page reads, skips impossible ids); previous data kept only while the *same* resource refetches; the site notice holding its line while the status loads; the placeholder summary never shown.
+
+**End-to-end (72).** Each of the 36 scenarios runs on a desktop and a Pixel 7 viewport:
 - The stories feed: coverage bars, opening a story, every outlet's headline linked to the original, first report.
-- The coverage lens switches the bars and is remembered; feed filters are reflected in the URL.
+- The coverage lens switches the bars, is part of the URL and is remembered; feed filters (folded behind a button on phones) are reflected in the URL; Back to the feed returns to where the reader was.
 - Blindspot page and its type filter; a source profile with ratings and recent stories.
 - My news bias: opening an article is recorded in the browser, shown, and cleared.
 - Overview KPIs, charts and article links render without console errors.
 - The time-range filter updates the URL and the numbers.
 - The chart table view is accessible.
-- Topic and entity drill-downs; article search with filters reflected in the URL; article detail with a link to the original.
+- Topic and entity drill-downs; article and people search reflected in the URL; article detail with a link to the original.
 - An API failure shows an error state with retry.
 - The theme persists.
 - Keyboard: the skip link is the first stop, and client-side navigation moves focus.
 - 404 page.
+- Resilience at the edge: a page whose code fails to load reloads once and then explains, with the navigation still usable; a missing build file is a `404` with `no-store`, never the app shell; deep links revalidate (`no-cache`).
+- A shared story link previews as that story for link-preview crawlers, while readers get the app.
 - axe-core: no serious or critical violations on all 12 pages and on a story page.
 
 ### Failure scenarios (explicitly tested)
@@ -103,6 +110,10 @@ Tests found real bugs, not only regressions. The notable ones:
 - The E2E suite, which fans out ~8 API calls per page from one IP, tripped the original rate limits (120/min, 30/min for search). Real dashboard browsing looks the same, so the limits became 300/90 per minute. CI raises them further because a single runner plays thousands of "users".
 - The first CI image build failed Trivy with 17 fixable HIGH vulnerabilities inside the official Caddy binary. Caddy is now built from source with a patched toolchain; local rescan 0, local E2E 40/40 ([ADR-017](DECISIONS.md#adr-017-build-caddy-from-source-when-upstream-lags-on-fixes)).
 - A near-duplicate threshold of 0.75 merged different events that share place names. The threshold was recalibrated on real headlines ([ADR-008](DECISIONS.md#adr-008-l4-near-duplicate-rule-calibrated-on-real-headlines)).
+- Caddy answered a missing `/assets/*` chunk with `index.html`, status 200, cached as `immutable` for a year — an open tab after a deploy could not recover. Deep links (`/stories/12`) got no `Cache-Control` at all. Both reproduced against a real Caddy 2.11.4 and fixed ([frontend_system.md](architecture/frontend_system.md)).
+- Layout shift on a cold load measured 0.23 (desktop) and 0.33 (mobile): the demo / analysis notice arrived after the status request and pushed the page down, and the footer jumped while a page's code loaded. Now ≤ 0.002.
+- Writing the API contract check found the API declaring always-present fields as optional and tone and entity types as plain strings; the schema now says what the API returns.
+- A redesign that looked better was measured slower: a preloaded 47 KB interface font and React Router's data router delayed first content by ~0.45 s on a slow phone connection. Both were reverted; the numbers are below.
 
 ## Performance
 
@@ -151,6 +162,18 @@ Re-run:
 cd backend
 uv run python scripts/benchmark.py --url postgresql+psycopg://postgres@127.0.0.1:5433/postgres --articles 365000 --runs 9
 ```
+
+### Frontend: cold loads on a slow phone
+
+**Method.** Chromium (Playwright) as a Pixel 7, cache disabled, 1.6 Mbit/s down, 150 ms round trip, CPU slowed 4×; the production build served by Caddy against the demo data. "Content" is the time until the first story headline (or story-page headline) is visible; median of 7 runs. *Before* is the build before the frontend overhaul, measured side by side.
+
+| Page | Content before → after | LCP before → after | Layout shift before → after |
+|---|---:|---:|---:|
+| Home (stories feed) | 2412 → 2357 ms | 1840 → 1836 ms | 0.226 → 0.002 |
+| A story (shared link) | 2256 → 2003 ms | 1732 → 1988 ms | 0.326 → 0.002 |
+| Dashboard (charts) | 3681 → 3733 ms | 2640 → 2912 ms | 0.241 → 0.002 |
+
+The story page's LCP moved later because its headline is set in the self-hosted serif, which swaps in after first paint; it stays inside the 2.5 s "good" threshold. Bundle sizes are guarded in CI by `npm run check:budget` (`frontend/budgets.json`).
 
 ## Accessibility testing
 

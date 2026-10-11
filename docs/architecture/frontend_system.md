@@ -1,9 +1,28 @@
 # Frontend system architecture
 
-**Status:** draft for review, not implemented. Written 2026-10-11 against branch head `2532da1`.
+**Status:** implemented 2026-10-11 (decisions in [ADR-023](../DECISIONS.md#adr-023-a-layered-frontend-chosen-by-measurement), [ADR-024](../DECISIONS.md#adr-024-an-editorial-identity--colour-belongs-to-data), [ADR-025](../DECISIONS.md#adr-025-story-link-previews-for-crawlers-only)). Section 0 keeps the original audit (measured against `2532da1`); sections 1–4 describe the system as built; the [implementation record](#implementation-record) says where the build departs from the first plan, and why.
 **Scope:** the React app in `frontend/` and how it is delivered (Vite build, Caddy). Backend only where it shapes the frontend.
 
-Each section gives the current state (measured, not estimated), the target, the rules that keep the target in place, and the migration steps. Section 6 lists the root decisions to settle before any implementation file is written.
+Each section gives the state before (measured, not estimated), the target, the rules that keep it in place, and the migration steps.
+
+## Implementation record
+
+Every phase was measured before it was kept: unit and end-to-end tests, screenshots in light, dark and phone layouts, and cold loads on a slow phone (1.6 Mbit/s, 150 ms, CPU slowed 4×) against the previous build.
+
+| Decision | Planned | Built | Why it changed |
+|---|---|---|---|
+| D1 layers | adopt | adopted, ESLint-enforced (every rule checked against a deliberate violation) | — |
+| D2 global state | Zustand | Zustand: `stores/preferences` (theme, lens), `stores/reading` | — |
+| D3 lens in the URL | adopt | `?lens=` wins over the remembered lens | — |
+| D4 fonts | Newsreader + Atkinson Hyperlegible Next/Mono | **Newsreader for headlines, the system font for the interface** | Atkinson has no plain zero ("1Ø Oct" in every date); Schibsted Grotesk, tried next, cost ~370 ms to first content as a preloaded 47 KB face |
+| D5 perspective colours | a non-partisan pair | **Ground News' blue / gray / red, unchanged** | The product follows Ground News; its readers already read that convention. The real problem (links in the "Left" blue) is solved by D6 |
+| D6 ink-on-paper chrome | adopt | adopted; control borders now ≥ 3:1 (were 1.75:1) | — |
+| D7 link previews | defer | **built**: crawler-only, ADR-025 | Sharing is how news travels here |
+| Router | data router with loaders | **`BrowserRouter` + prefetch on route entry** | The data router added 13 KB to every page and measured slower; the same per-page query builders now run when a route is entered |
+| Styling | CSS Modules | **one stylesheet per layer and component**, global class names | CSS still splits per chunk; hashed class names would have rewritten every test selector for no user gain |
+| Query keys | hierarchical | `[path, params]` | The app never writes, so nothing needs group invalidation |
+
+**Outcome** (details in [TESTING.md](../TESTING.md#frontend-cold-loads-on-a-slow-phone)): first content on a cold story link 2.26 → 2.00 s, home 2.41 → 2.36 s, layout shift 0.23–0.33 → 0.002, LCP within 2.5 s. Entry bundle 103 KB gzipped (was 99), fonts 38 KB, all guarded by `npm run check:budget`. All eleven audit findings are fixed.
 
 ---
 
@@ -88,49 +107,42 @@ flowchart TD
 
 `ui/Card` keeps its structural `QueryLike` interface. It renders loading, error and empty states for any object of that shape without importing React Query. That decoupling already exists and is the model for the rest of `ui/`.
 
-### Folder structure, mapped from today's files
+### Folder structure
 
 ```
-frontend/src/
+frontend/src/                    (as built)
 ├── app/
-│   ├── main.tsx                 ← main.tsx (bootstrap only)
-│   ├── router.tsx               ← AppRoutes → createBrowserRouter route objects (lazy + loader)
-│   ├── queryClient.ts           ← QueryClient defaults from main.tsx
-│   ├── Shell.tsx                ← components/Layout.tsx (header, nav, footer)
-│   ├── RouteFocus.tsx           ← focus/scroll effect split out of Layout (F8)
-│   └── RouteError.tsx           ← NEW: errorElement + chunk-reload (F1)
+│   ├── main.tsx                 bootstrap: providers, preferences, chunk-load recovery
+│   ├── router.tsx               route table, prefetch on route entry (matchRoutes), AppRoutes
+│   ├── scrollMemory.ts          Back restores the position, retrying while the page fills in
+│   ├── queryClient.ts           retry rules (freshness is per query)
+│   ├── Shell.tsx · shell.css    masthead, navigation, footer, site notice, page boundary
+│   ├── RouteFocus.tsx           focus to <main> on client-side navigation (F8)
+│   ├── RouteError.tsx           page error boundary + chunk-load reload once (F1)
+│   ├── ThemeToggle.tsx · preferences.ts · chunkReload.ts
 ├── design/
-│   ├── tokens/
-│   │   ├── color.css            ← tokens.css (chrome + data roles, light/dark)
-│   │   ├── type.css             ← NEW scale (§4)
-│   │   ├── space.css            ← NEW scale (§4)
-│   │   └── motion.css           ← NEW durations/easings (§4)
-│   ├── fonts/                   ← NEW self-hosted woff2 + @font-face
-│   ├── base.css                 ← reset, body, headings, focus, skip link from app.css
-│   └── index.css
+│   ├── tokens/{color,type,space,motion}.css
+│   ├── fonts.css                Newsreader 600, latin + latin-ext
+│   ├── base.css · primitives.css · index.css
 ├── shared/
-│   ├── api/
-│   │   ├── client.ts            ← api/client.ts (unchanged)
-│   │   └── schema.gen.ts        ← NEW: generated from /api/openapi.json (F10); types.ts re-exports
-│   ├── lib/                     ← format.ts, useTitle.ts, urlState.ts (← filters.ts)
-│   └── model/ratings.ts         ← lib/ratings.ts
-├── stores/
-│   ├── preferences.ts           ← theme (Layout) + lens (reading.ts useLens)
-│   └── reading.ts               ← reading history (reading.ts store)
-├── ui/
-│   ├── Button.tsx, Segmented.tsx, Field.tsx, Badge.tsx    ← NEW, extracted from repeated markup
-│   ├── Card.tsx, States.tsx, StatTile.tsx                 ← components/
-│   ├── CoverageBar.tsx          ← CoverageBar only (segments in)
-│   ├── RankList.tsx             ← lists.tsx, hrefs passed in instead of useFilters (F8)
-│   └── charts/                  ← components/charts.tsx (only ever reached through lazy routes)
+│   ├── api/                     client.ts · types.ts (hand-written) · openapi.json (the API's schema)
+│   │                            schema.gen.ts (generated) · contract.check.ts (compile-time contract)
+│   ├── query/apiQuery.ts        one query definition per endpoint + freshness classes
+│   ├── hooks/                   useFilters (URL state), useTitle
+│   ├── lib/                     format, ids
+│   └── model/ratings.ts         domain values → labels and token names
+├── stores/                      preferences.ts (theme, lens) · reading.ts (my news bias) · storage.ts
+├── ui/                          Card · States · StatTile · CoverageBar · RankList · SentimentChip
+│                                SearchField · charts (Recharts, lazy routes only), each with its CSS
 └── features/
-    ├── stories/   api.ts · StoryCard · SourceDots · BlindspotBadges · LensPicker · StoryCoverage
-    │              · SearchField · pages/{Feed, Story, Blindspot}.tsx · index.ts
-    ├── sources/   api.ts · pages/{Sources, SourceProfile}.tsx · index.ts
-    ├── reading/   pages/MyNews.tsx (readingCoverage, missingSide) · index.ts
-    ├── analytics/ api.ts · pages/{Overview, Trends, Topics, Entities}.tsx
-    ├── articles/  api.ts · ArticleList · pages/Articles.tsx (list + detail)
-    └── system/    StatusPill · DemoBanner · AnalysisBanner · pages/{About, Status, NotFound}.tsx
+    ├── stories/   api · queries · StoryCard · StoryCoverage · StoryTrace · useLens · lensGroup
+    │              stories.css · pages/{Feed, Story, Blindspot} · index
+    ├── sources/   api · queries · pages/{Sources, SourceProfile} · index
+    ├── reading/   queries · readingCoverage · pages/MyNews · index
+    ├── analytics/ api · queries · pages/{Overview, Trends, Topics, Entities} · index
+    ├── articles/  api · queries · ArticleList · articles.css · pages/Articles · index
+    ├── filters/   FilterBar · index
+    └── system/    api · StatusBanners (status pill, site notice) · system.css · pages/Info · index
 ```
 
 Tests stay next to their files (`*.test.tsx`), as they are now.
@@ -162,7 +174,7 @@ Flat config replaces a rule's options per matching block rather than merging the
 
 - **ui components** take data and callbacks as props, render semantic HTML, and style only through tokens. Every visual state (loading, empty, error, disabled, pressed) is a prop, never a fetch. Each gets a Vitest render test. Dark mode needs no test of its own, because it comes from tokens.
 - **Feature blocks** own exactly one concern: they call one or more query hooks, read URL or store state, and pass plain props down. Pages are thin compositions of blocks.
-- **Styling:** move from one global `app.css` to **CSS Modules colocated with `ui/` and `features/` components** (built into Vite; CSS splits per lazy chunk automatically). Globals are limited to `design/`. This is about ownership and dead-code safety, not speed: today's CSS is only 4.1 KB gz. Inline `style={{}}` is allowed only for data-driven custom properties (`--col-color`, `--dot-bias`). The other ~70 move into classes.
+- **Styling:** one stylesheet per layer and component (`design/` tokens, base and primitives; `app/shell.css`; `ui/*.css`; `features/*/*.css`), imported by the component that owns it, so CSS splits per lazy chunk. Class names stay global (the end-to-end tests select by them). Inline `style={{}}` is used only for data-driven values (`--tick`, `--col-color`, segment widths and colours); `npm run check:tokens` rejects any raw colour outside `design/tokens/`.
 
 ---
 
@@ -213,15 +225,15 @@ Two requirements carry over from the current code:
 sequenceDiagram
     autonumber
     participant U as URL
-    participant R as Router (data router)
-    participant L as Route loader
+    participant R as Router
+    participant L as Route prefetch
     participant Q as Query cache
     participant API as /api/v1
     participant P as Page + blocks
     U->>R: navigation (/stories/12?lens=region)
     par code and data start together
         R->>R: import() route chunk
-        R->>L: loader({ params, request })
+        R->>L: prefetchRoute(location) — matchRoutes, then the page's query builder
         L->>Q: queryClient.prefetchQuery(storyQuery(12))
         Q->>API: GET /stories/12 (if missing or stale)
     end
@@ -232,17 +244,10 @@ sequenceDiagram
     Q-->>P: data, then blocks receive plain props
 ```
 
-- **Query options factories**, one per feature (`features/stories/api.ts`), are the single definition of each key, fetcher and freshness. Hooks, loaders and hover prefetch all use them:
-  ```ts
-  export const storyQuery = (id: number) => queryOptions({
-    queryKey: ["stories", "detail", id] as const,
-    queryFn: ({ signal }) => apiGet<StoryDetail>(`/api/v1/stories/${id}`, undefined, signal),
-    staleTime: FRESH.feed,
-  });
-  ```
-  Keys become hierarchical (`["stories", "feed", params]`, `["stories", "detail", id]`) instead of `[path, params]`, so related data can be invalidated as a group.
-- **Loaders prefetch; they do not block.** A loader calls `prefetchQuery` and returns `null`, so navigation is never held behind the network, and the page keeps its loading, error and empty Card states (F4).
-- **Hover and focus prefetch** on story links: `queryClient.prefetchQuery(storyQuery(id))` plus the route's `lazy()`. One line in `StoryCard`.
+- **One query definition per endpoint** (`apiQuery` in `shared/query/apiQuery.ts`, used by each feature's `api.ts`): key `[path, params]`, fetcher and freshness class. The app never writes, so no key hierarchy is needed.
+- **One query builder per page** (`features/*/queries.ts`, e.g. `feedQueries(url)`), a pure function of the URL. The page reads its queries from it, and `prefetchRoute` (in `app/router.tsx`) calls the same function the moment a route is entered, so the prefetch fills exactly the cache entries the page reads (a unit test checks this). Prefetching never blocks: the page keeps its own loading, error and empty states (F4).
+- **Previous data** stays on screen only while the *same* resource refetches with new filters; another story or entity never shows the previous one's data.
+- **Hover and focus prefetch** on story links (after a 120 ms hover, at once on focus) fetches the story and its page code; the feed loads the story page's code when idle.
 
 **Freshness by resource class.** The pipeline refreshes every 15 minutes, and the API sends `Cache-Control: public, max-age=60, stale-while-revalidate=120`:
 
@@ -266,23 +271,23 @@ sequenceDiagram
 
 ### Budgets (enforced in CI)
 
-| Budget | Today | Target |
-|---|---:|---:|
-| Entry closure JS (gz) | 95.2 KB | ≤ 96 KB, and fails CI above |
-| Home route total JS + CSS (gz) | ≈108 KB | ≤ 110 KB |
-| Any non-chart route increment (gz) | 5–9 KB | ≤ 15 KB |
-| Chart route increment (gz) | 109–112 KB | ≤ 115 KB (Recharts is the floor; see below) |
-| Fonts on first paint | 0 (system) | ≤ 1 preloaded file, ≤ 110 KB for all faces combined |
-| LCP, home, mobile, Fast 4G (Playwright trace) | not measured | ≤ 2.5 s |
-| CLS | not measured | ≤ 0.05 (font metric overrides, fixed skeleton heights) |
+| Budget (gzip) | Before | Built | CI limit (`budgets.json`) |
+|---|---:|---:|---:|
+| Entry, JS + CSS, every page | 99.3 KB | 103.3 KB | 106 KB |
+| Home page total | ≈108 KB | 113.3 KB | 118 KB |
+| Any non-chart route | 5–9 KB | 3–10 KB | 15 KB |
+| Chart route | 109–112 KB | 110–113 KB | 115 KB |
+| Fonts (all files, all subsets) | 0 | 38 KB, none preloaded | 48 KB |
+| LCP, slow phone | 1.7–1.8 s | 1.8–2.0 s | ≤ 2.5 s (measured, not in CI) |
+| Layout shift | 0.23–0.33 | 0.002 | ≤ 0.05 (measured, not in CI) |
 
-Implementation: set `build.manifest: true`, and a ~40-line Node script (`frontend/scripts/budget.mjs`) walks the manifest from each route entry, gzips the files and compares the totals with `budgets.json`. It runs in the existing Frontend CI job. No new dependency.
+`frontend/scripts/budget.mjs` walks Vite's build manifest from the entry and from each route, gzips what a visit downloads and fails CI above a limit. Raising a limit is a reviewed change to `budgets.json`. The manifest is not shipped (the Dockerfile deletes it).
 
 ### Code splitting
 
-1. **Keep route-level `lazy`**, moved into router objects (`lazy: () => import(...)`) so React Router can load code and run the loader in parallel (F4).
+1. **Keep route-level `lazy`**, and start each route's requests when it is entered, in parallel with its code (F4). A data router does this natively but added 13 KB to every page and measured slower; a 30-line `prefetchRoute` does the same with `matchRoutes`.
 2. **Make the vendor rule exact.** `/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//` moves `react-redux` and `use-sync-external-store` into the Recharts chunk (−1.1 KB gz measured).
-3. **Prefetch the likely next chunk.** After the feed renders, on `requestIdleCallback` (falling back to `setTimeout`), prefetch the Story route chunk; hover and focus prefetch covers the rest.
+3. **Prefetch the likely next chunk.** Done: After the feed renders, on `requestIdleCallback` (falling back to `setTimeout`), prefetch the Story route chunk; hover and focus prefetch covers the rest.
 4. **Recharts stays for now.** It costs nothing on the home and story routes. Replacing it with hand-rolled SVG (as `CoverageBar` already does) would save ≈90 KB on five secondary routes but rewrite 8 chart components. Revisit only if the dashboard becomes a primary entry route.
 5. **Do not split further.** Chunks under 2 KB (`StatTile`, `filters`, `FilterBar`) cost more in requests than they save. Leave them, and revisit only if request count shows up in the LCP trace.
 
@@ -299,37 +304,41 @@ Implementation: set `build.manifest: true`, and a ~40-line Node script (`fronten
 
 ```caddy
 handle {
-    root * /srv
-    @assets path /assets/*
-    handle @assets {                       # sibling handles are mutually exclusive
+    root * {$SITE_ROOT:/srv}
+    @asset_file {                          # an existing build file
+        path /assets/*
+        file
+    }
+    handle @asset_file {
         header Cache-Control "public, max-age=31536000, immutable"
-        file_server                        # no SPA fallback: a missing chunk is a real 404 (F2)
+        file_server
+    }
+    handle /assets/* {                     # a missing chunk: a real 404, never cached (F2)
+        header Cache-Control "no-store"
+        respond 404
     }
     handle {
-        header Cache-Control "no-cache"    # HTML, deep links, theme.js, manifest, icons (F3)
+        header Cache-Control "no-cache"    # HTML of every route, theme.js, manifest, icons (F3)
         try_files {path} /index.html
         file_server
     }
 }
 ```
 
-The `try_files` must sit inside the non-asset `handle`. At the outer level, Caddy runs `try_files` before `handle`, so `/assets/missing.js` would be rewritten to `/index.html` before the `@assets` matcher ever saw it.
+Verified against Caddy 2.11.4 (and in the end-to-end suite). `try_files` must sit inside the last `handle`: at the outer level Caddy runs it before `handle`, rewriting `/assets/missing.js` to `/index.html`. The long cache applies only to files that exist, so a 404 during a deploy switchover cannot be cached for a year.
 
 ### Deploy-skew resilience (F1)
 
-- `app/RouteError.tsx` is the router's `errorElement`. If the error is a chunk-load failure (`TypeError: Failed to fetch dynamically imported module`, or Vite's `vite:preloadError` event), it reloads **once**, guarded by a `sessionStorage` timestamp so it cannot loop. Otherwise it shows the existing `ErrorState` with "Try again" and keeps the shell and navigation usable.
+- `app/RouteError.tsx` wraps each page inside the shell (and the whole app as a last resort). If the error is a chunk-load failure (`TypeError: Failed to fetch dynamically imported module`, or Vite's `vite:preloadError` event), it reloads **once**, guarded by a `sessionStorage` timestamp so it cannot loop. Otherwise it shows the existing `ErrorState` with "Try again" and keeps the shell and navigation usable.
 - With F2 and F3 fixed, a reload always gets fresh HTML and current chunks.
 
 ### Fonts (see §4)
 
-Self-hosted woff2 is required anyway: the CSP has `font-src 'self'`, and the privacy promise means no third-party requests.
-- Subsets: `latin` + `latin-ext`. Albanian needs ë and ç, and names in the news need č ć š ž đ (Dačić, Vučić).
-- `font-display: swap`. Preload **only** the UI text face. Headline and mono faces load on use.
-- Size-matched fallbacks (`size-adjust`, `ascent-override`, `descent-override`) on a local fallback face keep the swap within the CLS budget.
+Self-hosted woff2 (the CSP has `font-src 'self'`, and the privacy promise means no third-party requests): Newsreader 600, `latin` (ë, ç) and `latin-ext` (č ć š ž đ in names such as Dačić, fetched only when a page contains them) — 38 KB, both checked for every glyph. `font-display: swap`, no preload: a preloaded interface face competed with the JavaScript and delayed first content by ~370 ms on a slow connection, so the interface uses the system font.
 
-### Link previews (F11): a backend item, listed for completeness
+### Link previews (F11)
 
-Shared story links need per-story `<title>` and `og:*` tags. The cheapest fix fits the existing architecture: FastAPI answers `GET /stories/{id}` for **bot user agents only**, with `index.html` plus injected meta (headline, outlet count; never article text, per ADR-003). Readers keep the static SPA. Separate change, separate review.
+Built ([ADR-025](../DECISIONS.md#adr-025-story-link-previews-for-crawlers-only)): Caddy sends link-preview crawlers — by User-Agent, never search engines or readers — for `/stories/{id}` to `/api/share/stories/{id}`, a static HTML page with the story's title, who covered it, canonical URL, image and a redirect to the real page. Metadata only, every value escaped, the API's strict CSP.
 
 ---
 
@@ -375,19 +384,18 @@ The data marks keep their **validated surface**. Only the page background warms 
 - Light categorical: all checks pass. Contrast warns for 3 slots, and the coverage bars already carry the required relief (printed percentages, 2px gaps).
 - Dark categorical: all checks pass, including contrast.
 
-**Open question, decision D5: perspective colours.** The tokens use the US convention Ground News uses (blue = left, red = right). European readers, Albanian-language readers included, more often read **red as the left**. Options: (a) keep US blue/red, matching Ground News, which some readers will know; (b) swap to red-left/blue-right; (c) use a **non-partisan diverging pair** that no party owns (for example teal ↔ amber). Option (c) is the most honest for a bias tool and avoids both conventions, but it must be re-validated and must not collide with the categorical slots used for region. Recommendation: **(c)**, validated with the palette script before adoption.
+**Decision D5: perspective colours stay blue / gray / red**, the convention Ground News uses. European readers may read red as the left; the methodology page states that the colours carry no party meaning. A non-partisan pair was considered and rejected: the product follows Ground News, whose readers already read its bars, and the actual confusion — links drawn in the "Left" blue — is gone with the ink chrome.
 
 ### Type
 
 | Role | Face | Why this one |
 |---|---|---|
-| **Headlines** (story titles, page titles; mostly Albanian text) | **Newsreader** (Production Type, OFL), static 600 + 600 italic, `opsz` set for display | Drawn for news reading on screens. Gives story headlines the authority of a front page and separates "the news" (serif) from "the tool" (sans). Not one of the overused AI-default serifs. |
-| **UI and body** | **Atkinson Hyperlegible Next** (Braille Institute, OFL), variable `wght` 400–700 | Designed for character disambiguation (l/I/1, O/0). That fits a site of names, numbers and percentages, and it signals the accessibility commitment the site already makes. Distinctive without being decorative. |
-| **Figures** (stat tiles, tables, percentages) | **Atkinson Hyperlegible Mono**, 500 | Same skeleton as the body face, fixed-width figures. Numbers align in tables without a third family's voice. |
+| **Headlines** (story titles, page titles; mostly Albanian text) | **Newsreader** (Production Type, OFL), static 600 | Drawn for news reading on screens. Gives story headlines the authority of a front page and separates "the news" (serif) from "the tool". Not one of the overused AI-default serifs. |
+| **Interface, body and figures** | **the system font** (`system-ui`: SF, Roboto, Segoe UI) | Zero bytes and native on every device. Tabular figures only where numbers stack (table cells, tooltips). Atkinson Hyperlegible draws a slashed zero in every date; Schibsted Grotesk cost ~370 ms of first content on slow connections. |
 
-To verify before adoption (D4): glyph coverage for ë ç č ć š ž đ in all three, `tnum` support (or use the mono for figures), and woff2 size after subsetting against the 110 KB budget.
+Verified with fontTools before adoption: every glyph Albanian and the regional names need (ë ç č ć š ž đ), and the file sizes against the budget.
 
-Fallback stack: `"Atkinson Hyperlegible Next", <metric-matched local fallback>, system-ui, sans-serif` and `"Newsreader", <metric-matched Georgia>, Georgia, serif`.
+Stacks: `system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif` and `"Newsreader", Georgia, "Times New Roman", serif`.
 
 **Scale.** It replaces the 22 ad-hoc sizes. Steps are spaced so neighbouring roles are clearly distinct.
 
@@ -435,23 +443,11 @@ The story page timeline becomes a **horizontal trace**: one hairline across the 
 
 ---
 
-## 5. Migration plan
+## 5. Migration (done)
 
-Each phase is one PR, ships independently, and keeps every existing test green. P0 fixes come first because they do not depend on any decision below.
+The phases shipped in this order, each as one commit with every test green: resilience (Caddy cache and 404 fix, chunk-load recovery, exact vendor chunk); structure (layers, alias, lint boundaries); state (Zustand stores, lens in the URL, colocated search input, route focus); data (query definitions, per-page query builders, route prefetch, freshness classes, hover prefetch); identity (tokens, fonts, ink chrome, the trace, phone filters, stable notice line); measured trims (system interface font, `BrowserRouter`), CI guards (budgets, tokens, API contract) and link previews.
 
-| Phase | Content | Depends on | Risk |
-|---|---|---|---|
-| **0. Resilience** | Caddy cache and 404 fix (F2, F3), `RouteError` with chunk-reload (F1), exact vendor chunk rule | — | low |
-| **1. Tokens** | split `tokens.css`; add type, space and motion scales; snap the 22 sizes and 61 spacings; remove ~70 inline styles. Visual change is limited to snapping. | — | low (axe and e2e screenshots) |
-| **2. Structure** | folder moves (`git mv`), ESLint boundaries, CSS Modules for moved components | D1 | medium (mechanical, large diff) |
-| **3. State** | Zustand stores with legacy-key migration, `lens` URL param, `SearchField` colocation, `RouteFocus` | D2, D3 | low |
-| **4. Data router** | `createBrowserRouter`, loaders with `prefetchQuery`, query option factories, freshness classes, hover prefetch | phase 2 | medium |
-| **5. Identity** | fonts, ink chrome, radius/rules, trace timeline, perspective palette | D4, D5, D6 | medium (visual review) |
-| **6. Guards** | bundle budgets in CI, generated OpenAPI types with a CI diff check | phase 4 | low |
-
----
-
-## 6. Root blocks to review before implementation
+## 6. Root decisions (as first proposed)
 
 | # | Decision | Recommendation |
 |---|---|---|
@@ -463,4 +459,4 @@ Each phase is one PR, ships independently, and keeps every existing test green. 
 | **D6** | Ink-on-paper chrome (no brand hue; links and focus in ink), with data marks staying on the validated surface | **Adopt** |
 | **D7** | Per-story link previews through a bot-only FastAPI route (§3) | **Defer** to its own backend PR |
 
-Once D1–D6 are settled, implementation starts at phase 0, which needs none of them.
+The [implementation record](#implementation-record) gives the decision taken for each.
