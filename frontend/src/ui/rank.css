@@ -1,0 +1,39 @@
+/* Ranked bars in ink: magnitude, one neutral hue — never a hue that also means a perspective. */
+.rank-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.rank-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+  padding: var(--space-2) 0;
+  border-bottom: var(--hairline);
+}
+.rank-row:last-child {
+  border-bottom: 0;
+}
+.rank-row a {
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.rank-row a:hover {
+  text-decoration: underline;
+}
+.rank-bar {
+  grid-column: 1 / -1;
+  height: 3px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--magnitude);
+  min-width: 2px;
+}
+@media (forced-colors: active) {
+  .rank-bar {
+    forced-color-adjust: none;
+    border: 1px solid CanvasText;
+  }
+}

@@ -23,6 +23,7 @@ import {
 
 import type { SentimentPoint, VolumePoint } from "@/shared/api/types";
 import { formatChange, formatDay, formatInt, formatPercent, formatScore } from "@/shared/lib/format";
+import "./charts.css";
 
 const AXIS_TICK = { fill: "var(--ink-muted)", fontSize: 11 };
 const GRID = { stroke: "var(--grid)", vertical: false } as const;
@@ -51,7 +52,7 @@ export interface LegendItem {
 
 export function Legend({ items }: { items: LegendItem[] }) {
   return (
-    <ul className="legend" aria-label="Legend" style={{ listStyle: "none", padding: 0, margin: "0 0 6px" }}>
+    <ul className="legend" aria-label="Legend">
       {items.map((it) => (
         <li key={it.label} className="legend__item">
           <span
@@ -118,7 +119,7 @@ export function VolumeChart({ data, height = 260 }: { data: VolumePoint[]; heigh
   const total = data.reduce((s, d) => s + d.articles, 0);
   const last = data.at(-1);
   return (
-    <figure style={{ margin: 0 }}>
+    <figure className="chart-figure">
       <Legend
         items={[
           { label: "Articles per day", color: "var(--bar-muted)" },
@@ -137,7 +138,7 @@ export function VolumeChart({ data, height = 260 }: { data: VolumePoint[]; heigh
             <XAxis dataKey="day" tickFormatter={(d: string) => formatDay(d)} tick={AXIS_TICK}
               tickLine={false} axisLine={{ stroke: "var(--axis)" }} minTickGap={24} />
             <YAxis allowDecimals={false} tick={AXIS_TICK} tickLine={false} axisLine={false} width={48} />
-            <Tooltip content={VolumeTip} cursor={{ fill: "var(--accent-wash)" }} />
+            <Tooltip content={VolumeTip} cursor={{ fill: "var(--hover-wash)" }} />
             <Bar dataKey="articles" fill="var(--bar-muted)" radius={[4, 4, 0, 0]} maxBarSize={24}
               isAnimationActive={!still} />
             <Line dataKey="ma7" stroke="var(--series-1)" strokeWidth={2} dot={false}
@@ -175,7 +176,7 @@ export function SentimentMixChart({ data, height = 240 }: { data: SentimentPoint
   );
   const total = sums.n + sums.u + sums.p;
   return (
-    <figure style={{ margin: 0 }}>
+    <figure className="chart-figure">
       <Legend
         items={[
           { label: "Positive", color: "var(--sent-positive)" },
@@ -199,7 +200,7 @@ export function SentimentMixChart({ data, height = 240 }: { data: SentimentPoint
               tickLine={false} axisLine={{ stroke: "var(--axis)" }} minTickGap={24} />
             <YAxis tickFormatter={(v: number) => formatPercent(v)} tick={AXIS_TICK} tickLine={false}
               axisLine={false} width={48} />
-            <Tooltip content={SentimentTip} cursor={{ fill: "var(--accent-wash)" }} />
+            <Tooltip content={SentimentTip} cursor={{ fill: "var(--hover-wash)" }} />
             {(["negative", "neutral", "positive"] as const).map((key, i) => (
               <Bar key={key} dataKey={key} stackId="s" fill={`var(--sent-${key})`}
                 stroke="var(--surface)" strokeWidth={1} maxBarSize={24}
@@ -229,7 +230,7 @@ export function ToneChart({ data, height = 220 }: { data: SentimentPoint[]; heig
   const bound = Math.min(1, Math.ceil(extent * 10) / 10);
   const last = [...data].reverse().find((d) => d.ma7 !== null);
   return (
-    <figure style={{ margin: 0 }}>
+    <figure className="chart-figure">
       <Legend
         items={[
           { label: "Daily mean tone", color: "var(--series-muted)", kind: "line" },
@@ -292,7 +293,7 @@ export function DivergingBars({ data, label }: { data: DivergingDatum[]; label: 
           <YAxis type="category" dataKey="label" width={150} tick={{ ...AXIS_TICK, fill: "var(--ink-2)" }}
             tickLine={false} axisLine={false} />
           <ReferenceLine x={0} stroke="var(--axis)" />
-          <Tooltip content={DivergingTip} cursor={{ fill: "var(--accent-wash)" }} />
+          <Tooltip content={DivergingTip} cursor={{ fill: "var(--hover-wash)" }} />
           <Bar
             dataKey="value"
             maxBarSize={18}
@@ -336,7 +337,7 @@ export function DailyLine({ data, dataKey, label, height = 200 }: {
           <XAxis dataKey="day" tickFormatter={(d: string) => formatDay(d)} tick={AXIS_TICK}
             tickLine={false} axisLine={{ stroke: "var(--axis)" }} minTickGap={24} />
           <YAxis allowDecimals={false} tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} />
-          <Tooltip content={Tip} cursor={{ fill: "var(--accent-wash)" }} />
+          <Tooltip content={Tip} cursor={{ fill: "var(--hover-wash)" }} />
           <Bar dataKey={dataKey} fill="var(--series-1)" radius={[4, 4, 0, 0]} maxBarSize={24}
             isAnimationActive={!still} />
         </BarChart>
@@ -362,11 +363,10 @@ export function SentimentBar({ negative, neutral, positive }: {
   ];
   const summary = `${formatPercent(negative / total)} negative, ${formatPercent(neutral / total)} neutral, ${formatPercent(positive / total)} positive`;
   return (
-    <span role="img" aria-label={summary} title={summary}
-      style={{ display: "flex", gap: 2, width: "100%", minWidth: 90, height: 10 }}>
+    <span className="tone-bar" role="img" aria-label={summary} title={summary}>
       {parts.map((p) =>
         p.n > 0 ? (
-          <span key={p.key} style={{ flexGrow: p.n, flexBasis: 0, background: p.color, borderRadius: 2 }} />
+          <span key={p.key} style={{ flexGrow: p.n, background: p.color }} />
         ) : null,
       )}
     </span>

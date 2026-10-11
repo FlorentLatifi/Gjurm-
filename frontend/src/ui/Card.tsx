@@ -1,6 +1,7 @@
 import { useId, useState, type ReactNode } from "react";
 
 import { EmptyState, ErrorState, LoadingBlock } from "./States";
+import "./card.css";
 
 interface QueryLike {
   isPending: boolean;
@@ -67,7 +68,7 @@ export function Card({
           <h2 id={headingId}>{title}</h2>
           {question && <p className="card__question">{question}</p>}
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div className="card__actions">
           {actions}
           {table && !query?.isPending && !query?.isError && !empty && (
             <button

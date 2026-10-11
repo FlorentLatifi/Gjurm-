@@ -9,6 +9,7 @@ import {
   formatScore,
   hasComparableHistory,
   hostOf,
+  realSummary,
   safeHref,
   toneLabel,
 } from "@/shared/lib/format";
@@ -92,5 +93,13 @@ describe("query strings", () => {
       "?days=7&q=zgjedhjet&source=koha&source=kallxo",
     );
     expect(buildQuery({})).toBe("");
+  });
+});
+
+describe("realSummary", () => {
+  it("hides the keyword-rule placeholder and keeps real summaries", () => {
+    expect(realSummary("[headline, no AI summary] Arrestohet ish-drejtori")).toBeNull();
+    expect(realSummary(null)).toBeNull();
+    expect(realSummary("Parliament passed the 2027 budget.")).toBe("Parliament passed the 2027 budget.");
   });
 });

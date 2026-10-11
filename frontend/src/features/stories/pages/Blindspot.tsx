@@ -72,7 +72,7 @@ export default function BlindspotPage() {
         {kind !== "region" && column("For the right", "Mostly left-leaning outlets covered these; few or no right-leaning ones.", forRight, "perspective")}
         {kind !== "perspective" && column("By region", "About a country whose outlets did not cover them.", byRegion, "region")}
       </div>
-      {query.data && <p className="card__foot" style={{ marginTop: 12 }}>{query.data.method}</p>}
+      {query.data && <p className="card__foot">{query.data.method}</p>}
     </>
   );
 }

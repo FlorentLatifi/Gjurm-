@@ -51,10 +51,37 @@ function seoFiles(publicUrl: string | undefined): Plugin {
   };
 }
 
+/**
+ * Preloads the interface font (latin subset, the one every page needs) so text renders in it
+ * from the first paint instead of swapping. The headline and figure faces load on use.
+ */
+function preloadUiFont(): Plugin {
+  return {
+    name: "gjurme-preload-ui-font",
+    apply: "build",
+    transformIndexHtml: {
+      order: "post",
+      handler(_html, ctx) {
+        const file = Object.keys(ctx.bundle ?? {}).find((f) =>
+          /schibsted-grotesk-latin-wght-normal-[\w-]+\.woff2$/.test(f),
+        );
+        if (!file) return [];
+        return [
+          {
+            tag: "link",
+            attrs: { rel: "preload", href: `/${file}`, as: "font", type: "font/woff2", crossorigin: "" },
+            injectTo: "head",
+          },
+        ];
+      },
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
   return {
-    plugins: [react(), seoFiles(env.VITE_PUBLIC_URL)],
+    plugins: [react(), seoFiles(env.VITE_PUBLIC_URL), preloadUiFont()],
     resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
     server: {
       port: 5173,

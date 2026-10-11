@@ -128,3 +128,11 @@ export function hasComparableHistory<T>(rows: T[], current: (r: T) => number, pr
   const prev = rows.reduce((s, r) => s + previous(r), 0);
   return cur > 0 && prev >= 0.5 * cur;
 }
+
+/**
+ * The AI summary, or null. Keyword-rule analysis stores a placeholder ("[headline, no AI
+ * summary] …" — the headline again), which must never be shown as if it were a summary.
+ */
+export function realSummary(summary: string | null | undefined): string | null {
+  return summary && !summary.startsWith("[headline") ? summary : null;
+}

@@ -1,4 +1,4 @@
-import { useEffect, useId } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { FilterBar } from "@/features/filters";
@@ -32,7 +32,8 @@ export default function StoriesPage() {
   useTitle("", "Albanian and Balkan news grouped into stories, with how each outlet covered them.");
   const { filters } = useFilters(FEED_DEFAULT_DAYS);
   const [params, setParams] = useSearchParams();
-  const ids = { topic: useId(), region: useId(), q: useId() };
+  const ids = { topic: useId(), region: useId(), q: useId(), panel: useId() };
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const { sort, topic, country, q, page } = feedState(params);
   const queries = feedQueries(params);
   const taxonomy = useApiQuery(queries.taxonomy);
@@ -78,22 +79,29 @@ export default function StoriesPage() {
           <button type="button" aria-pressed={sort === "top"} onClick={() => set("sort", "")}>Most covered</button>
           <button type="button" aria-pressed={sort === "latest"} onClick={() => set("sort", "latest")}>Latest</button>
         </div>
-        <div className="field">
-          <label htmlFor={ids.topic}>Topic</label>
-          <select id={ids.topic} value={topic} onChange={(e) => set("topic", e.target.value)}>
-            <option value="">All topics</option>
-            {taxonomy.data?.map((t) => <option key={t.slug} value={t.slug}>{t.name_en}</option>)}
-          </select>
+        {/* on a phone the secondary filters fold away, so the stories start on the first screen */}
+        <button type="button" className="btn btn--sm filters__toggle" aria-expanded={filtersOpen}
+          aria-controls={ids.panel} onClick={() => setFiltersOpen((o) => !o)}>
+          Filter stories{[topic, country, q].filter(Boolean).length ? ` (${[topic, country, q].filter(Boolean).length})` : ""}
+        </button>
+        <div id={ids.panel} className={`filters__panel ${filtersOpen ? "is-open" : ""}`}>
+          <div className="field">
+            <label htmlFor={ids.topic}>Topic</label>
+            <select id={ids.topic} value={topic} onChange={(e) => set("topic", e.target.value)}>
+              <option value="">All topics</option>
+              {taxonomy.data?.map((t) => <option key={t.slug} value={t.slug}>{t.name_en}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor={ids.region}>Covered by outlets from</label>
+            <select id={ids.region} value={country} onChange={(e) => set("country", e.target.value)}>
+              <option value="">Anywhere</option>
+              {REGION_ORDER.map((c) => <option key={c} value={c}>{countryLabel(c)}</option>)}
+            </select>
+          </div>
+          <SearchField id={ids.q} label="Search stories" value={q} onCommit={(v) => set("q", v)}
+            placeholder="e.g. buxheti, Prizren, KQZ" />
         </div>
-        <div className="field">
-          <label htmlFor={ids.region}>Covered by outlets from</label>
-          <select id={ids.region} value={country} onChange={(e) => set("country", e.target.value)}>
-            <option value="">Anywhere</option>
-            {REGION_ORDER.map((c) => <option key={c} value={c}>{countryLabel(c)}</option>)}
-          </select>
-        </div>
-        <SearchField id={ids.q} label="Search stories" value={q} onCommit={(v) => set("q", v)}
-          placeholder="e.g. buxheti, Prizren, KQZ" />
       </div>
       <div className="lens-row">
         <span className="rank-meta">Split coverage by</span>
@@ -109,7 +117,11 @@ export default function StoriesPage() {
             {() => (
               <>
                 <ol className="story-list">
-                  {items.map((s) => <li key={s.id}><StoryCard story={s} lens={lens} /></li>)}
+                  {items.map((s, i) => (
+                    <li key={s.id}>
+                      <StoryCard story={s} lens={lens} lead={i === 0 && page === 1 && sort === "top" && !q} />
+                    </li>
+                  ))}
                 </ol>
                 {data!.pages > 1 && (
                   <nav className="pagination" aria-label="Pagination">
@@ -138,7 +150,7 @@ export default function StoriesPage() {
           </Card>
           <Card title="My news bias" question="Which outlets you read here, by perspective and region.">
             {() => (
-              <p className="card__question" style={{ marginTop: 0 }}>
+              <p className="card__question mt-0">
                 {readCount
                   ? <>You opened {readCount} {readCount === 1 ? "article" : "articles"} recently. </>
                   : <>Open articles from the stories to see the balance of your reading. </>}

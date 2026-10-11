@@ -175,14 +175,14 @@ export function StatusPage() {
       <div className="stack">
         <Card title="Pipeline" query={status}>
           {() => (
-            <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "6px 18px", margin: 0 }}>
-              <dt>Status</dt><dd style={{ margin: 0 }}><strong>{s!.status}</strong></dd>
-              <dt>Last successful run</dt><dd style={{ margin: 0 }}>{formatDateTime(s!.last_success_at)} ({formatRelative(s!.last_success_at)})</dd>
-              <dt>Last run result</dt><dd style={{ margin: 0 }}>{s!.last_run_status ?? "—"}</dd>
-              <dt>Scheduler heartbeat</dt><dd style={{ margin: 0 }}>{formatRelative(s!.scheduler_heartbeat_at)}</dd>
-              <dt>Articles, last 24 h</dt><dd style={{ margin: 0 }}>{formatInt(s!.articles_last_24h)}</dd>
-              <dt>Waiting for analysis</dt><dd style={{ margin: 0 }}>{formatInt(s!.enrichment_backlog)}</dd>
-              <dt>Version</dt><dd style={{ margin: 0 }}>{s!.version}</dd>
+            <dl className="facts">
+              <dt>Status</dt><dd><strong>{s!.status}</strong></dd>
+              <dt>Last successful run</dt><dd>{formatDateTime(s!.last_success_at)} ({formatRelative(s!.last_success_at)})</dd>
+              <dt>Last run result</dt><dd>{s!.last_run_status ?? "—"}</dd>
+              <dt>Scheduler heartbeat</dt><dd>{formatRelative(s!.scheduler_heartbeat_at)}</dd>
+              <dt>Articles, last 24 h</dt><dd>{formatInt(s!.articles_last_24h)}</dd>
+              <dt>Waiting for analysis</dt><dd>{formatInt(s!.enrichment_backlog)}</dd>
+              <dt>Version</dt><dd>{s!.version}</dd>
             </dl>
           )}
         </Card>
@@ -206,7 +206,7 @@ export function StatusPage() {
 export function NotFoundPage() {
   useTitle("Not found");
   return (
-    <div className="state" style={{ padding: "64px 0" }}>
+    <div className="state state--page">
       <h1>Page not found</h1>
       <p>The page you are looking for does not exist.</p>
       <Link className="btn" to="/">Go to the top stories</Link>

@@ -73,7 +73,7 @@ export default function SourcesPage() {
                     <th className="num" scope="col">Stories</th>
                     <th className="num" scope="col">First</th>
                     <th className="num" scope="col">Original</th>
-                    <th scope="col" style={{ minWidth: 120 }}>Tone mix</th>
+                    <th scope="col" className="col-tone">Tone mix</th>
                     <th className="num" scope="col">Mean tone</th>
                     <th scope="col">Top topics</th>
                     <th scope="col">Feed</th>
@@ -101,7 +101,7 @@ export default function SourcesPage() {
                       <td><SentimentBar negative={s.negative} neutral={s.neutral} positive={s.positive} /></td>
                       <td className="num">{formatScore(s.avg_sentiment)}</td>
                       <td>
-                        <span style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        <span className="chips">
                           {s.top_topics.slice(0, 3).map((t) => (
                             <Link key={t.slug} className="chip" to={withFilters(`/topics/${t.slug}`, { ...filters, sources: [s.slug] })}>
                               {t.slug.replace(/_/g, " ")}

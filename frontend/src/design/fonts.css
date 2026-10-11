@@ -1,0 +1,10 @@
+/*
+ * Self-hosted fonts (the CSP allows fonts from this origin only, and the privacy promise rules out
+ * third-party requests). Latin covers Albanian (ë, ç); latin-ext (č, ć, š, ž, đ in names such as
+ * Dačić) is fetched only when a page contains such letters. Both faces were checked for these
+ * glyphs and for tabular figures. font-display: swap; the interface face is preloaded
+ * (vite.config.ts), the headline face loads on use.
+ */
+@import "@fontsource-variable/schibsted-grotesk/wght.css";
+@import "@fontsource/newsreader/latin-600.css";
+@import "@fontsource/newsreader/latin-ext-600.css";

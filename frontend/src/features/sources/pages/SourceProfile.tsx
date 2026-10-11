@@ -44,10 +44,10 @@ export function SourceProfilePage() {
 
   return (
     <div className="stack">
-      <div className="page-head" style={{ marginBottom: 0 }}>
+      <div className="page-head mb-0">
         <div>
           <p className="rank-meta"><Link to="/sources">Sources</Link> /</p>
-          <h1 style={{ marginTop: 4 }}>{p.name}</h1>
+          <h1>{p.name}</h1>
           <p>
             {countryLabel(p.country)} · {OWNERSHIP_LABEL[p.ownership]}{p.owner && <> ({p.owner})</>}
             {href && <> · <a href={href} target="_blank" rel="noopener noreferrer">{href.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")} ↗</a></>}
