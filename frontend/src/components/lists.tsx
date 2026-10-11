@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { ArticleSummary, SentimentLabel } from "../api/types";
 import { useFilters, withFilters } from "../lib/filters";
 import { formatDateTime, formatInt, hostOf, safeHref } from "../lib/format";
+import { recordRead } from "../lib/reading";
 
 const SENTIMENT_COLOR: Record<SentimentLabel, string> = {
   negative: "var(--sent-negative)",
@@ -34,7 +35,7 @@ export function ArticleList({ items }: { items: ArticleSummary[] }) {
           <li key={a.id} className="article">
             {href ? (
               <a className="article__title" href={href} target="_blank" rel="noopener noreferrer"
-                lang={a.language}>
+                lang={a.language} onClick={() => recordRead(a.source_slug, a.story_id, a.topic_slug)}>
                 {a.title}
                 <span className="visually-hidden"> (opens {hostOf(a.url)} in a new tab)</span>
               </a>
@@ -54,7 +55,13 @@ export function ArticleList({ items }: { items: ArticleSummary[] }) {
                 </Link>
               )}
               <SentimentChip label={a.sentiment_label} />
-              {a.duplicate_of_id && <span className="chip" title="Near-identical headline published by another outlet">Also reported elsewhere</span>}
+              {a.story_id ? (
+                <Link className="chip" to={`/stories/${a.story_id}`} aria-label={`All coverage of: ${a.title}`}>
+                  Full coverage
+                </Link>
+              ) : (
+                a.duplicate_of_id && <span className="chip" title="Near-identical headline published by another outlet">Also reported elsewhere</span>
+              )}
               <Link to={`/articles/${a.id}`} className="chip" aria-label={`Analysis details for: ${a.title}`}>
                 Details
               </Link>

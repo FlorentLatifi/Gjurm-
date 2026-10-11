@@ -4,8 +4,18 @@ import { useSources } from "../api/hooks";
 import { RANGE_PRESETS, useFilters } from "../lib/filters";
 
 /** One filter row above the content it scopes: date range first, then outlet. */
-export function FilterBar({ showSources = true }: { showSources?: boolean }) {
-  const { filters, update } = useFilters();
+export function FilterBar({
+  showSources = true,
+  presets = RANGE_PRESETS,
+  defaultDays = 30,
+  children,
+}: {
+  showSources?: boolean;
+  presets?: readonly { days: number; label: string }[];
+  defaultDays?: number;
+  children?: React.ReactNode;
+}) {
+  const { filters, update } = useFilters(defaultDays);
   const { data: sources } = useSources({ days: 90 });
   const sourceId = useId();
   const options = (sources ?? []).filter((s) => s.articles > 0 || s.is_active);
@@ -13,7 +23,7 @@ export function FilterBar({ showSources = true }: { showSources?: boolean }) {
   return (
     <div className="filters" role="group" aria-label="Filters">
       <div className="segmented" role="group" aria-label="Time range">
-        {RANGE_PRESETS.map((p) => (
+        {presets.map((p) => (
           <button
             key={p.days}
             type="button"
@@ -41,6 +51,7 @@ export function FilterBar({ showSources = true }: { showSources?: boolean }) {
           </select>
         </div>
       )}
+      {children}
     </div>
   );
 }

@@ -494,6 +494,7 @@ class RelatedArticle(Model):
     title: str
     url: str
     published_at: datetime
+    source_slug: str
     source_name: str
 
 

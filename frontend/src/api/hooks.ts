@@ -4,6 +4,7 @@ import { apiGet, type Params } from "./client";
 import type {
   ArticleDetail,
   ArticleSummary,
+  Blindspots,
   CoOccurrence,
   EntityDetail,
   EntitySpikes,
@@ -14,7 +15,10 @@ import type {
   SentimentGroups,
   SentimentSeries,
   SentimentShift,
+  SourceProfile,
   SourceStat,
+  StoryDetail,
+  StorySummary,
   TaxonomyTopic,
   TopicDetail,
   TopicMomentum,
@@ -60,3 +64,9 @@ export const useArticles = (p: Params) => useApi<Page<ArticleSummary>>("/api/v1/
 export const useArticle = (id: number) =>
   useApi<ArticleDetail>(`/api/v1/articles/${id}`, undefined, Number.isInteger(id) && id > 0);
 export const useStatus = () => useApi<PublicStatus>("/api/v1/status");
+export const useStories = (p: Params) => useApi<Page<StorySummary>>("/api/v1/stories", p);
+export const useStory = (id: number) =>
+  useApi<StoryDetail>(`/api/v1/stories/${id}`, undefined, Number.isInteger(id) && id > 0);
+export const useBlindspots = (p: Params) => useApi<Blindspots>("/api/v1/stories/blindspots", p);
+export const useSourceProfile = (slug: string, p: Params) =>
+  useApi<SourceProfile>(`/api/v1/sources/${encodeURIComponent(slug)}`, p, /^[a-z0-9-]{2,64}$/.test(slug));

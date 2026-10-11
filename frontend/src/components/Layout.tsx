@@ -5,10 +5,13 @@ import { useStatus } from "../api/hooks";
 import { formatRelative } from "../lib/format";
 
 const NAV = [
-  { to: "/", label: "Overview", end: true },
+  { to: "/", label: "Stories", end: true },
+  { to: "/blindspot", label: "Blindspot" },
+  { to: "/my-news", label: "My bias" },
+  { to: "/dashboard", label: "Dashboard" },
   { to: "/trends", label: "Trends" },
   { to: "/topics", label: "Topics" },
-  { to: "/entities", label: "People & orgs" },
+  { to: "/entities", label: "People" },
   { to: "/sources", label: "Sources" },
   { to: "/articles", label: "Articles" },
   { to: "/about", label: "Methodology" },
@@ -149,7 +152,8 @@ export function Layout() {
         <div className="site-footer__inner">
           <p>
             Headlines belong to their publishers — every item links to the original article.
-            Topics, entities, tone and summaries are AI-generated and can be wrong.{" "}
+            Topics, entities, tone and summaries are AI-generated and can be wrong; outlet ratings
+            are editorial.{" "}
             <Link to="/about">How it works</Link>
           </p>
           <p>

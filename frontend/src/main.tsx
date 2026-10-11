@@ -9,7 +9,14 @@ import { ApiError } from "./api/client";
 import { Layout } from "./components/Layout";
 import { LoadingBlock } from "./components/States";
 
-// Route-level code splitting: the overview loads first; other pages load on demand.
+// Route-level code splitting: the stories feed loads first; other pages load on demand.
+const Stories = lazy(() => import("./pages/Stories"));
+const Story = lazy(() => import("./pages/Story").then((m) => ({ default: m.StoryPage })));
+const Blindspot = lazy(() => import("./pages/Blindspot"));
+const MyNews = lazy(() => import("./pages/MyNews"));
+const SourceProfile = lazy(() =>
+  import("./pages/SourceProfile").then((m) => ({ default: m.SourceProfilePage })),
+);
 const Overview = lazy(() => import("./pages/Overview"));
 const Trends = lazy(() => import("./pages/Trends"));
 const Sources = lazy(() => import("./pages/Sources"));
@@ -37,13 +44,18 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<Overview />} />
+        <Route index element={<Stories />} />
+        <Route path="stories/:id" element={<Story />} />
+        <Route path="blindspot" element={<Blindspot />} />
+        <Route path="my-news" element={<MyNews />} />
+        <Route path="dashboard" element={<Overview />} />
         <Route path="trends" element={<Trends />} />
         <Route path="topics" element={<Topics />} />
         <Route path="topics/:slug" element={<Topic />} />
         <Route path="entities" element={<Entities />} />
         <Route path="entities/:id" element={<Entity />} />
         <Route path="sources" element={<Sources />} />
+        <Route path="sources/:slug" element={<SourceProfile />} />
         <Route path="articles" element={<Articles />} />
         <Route path="articles/:id" element={<Article />} />
         <Route path="about" element={<About />} />
