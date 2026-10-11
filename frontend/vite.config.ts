@@ -65,7 +65,8 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks: (id) => {
             if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-")) return "recharts";
-            if (id.includes("node_modules/react")) return "react";
+            // exact package names: react-redux and use-sync-external-store belong to Recharts
+            if (/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) return "react";
             return undefined;
           },
         },

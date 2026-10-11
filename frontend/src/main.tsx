@@ -1,13 +1,13 @@
 import "./styles/app.css";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { lazy, StrictMode, Suspense } from "react";
+import { lazy, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import { ApiError } from "./api/client";
 import { Layout } from "./components/Layout";
-import { LoadingBlock } from "./components/States";
+import { installPreloadRecovery } from "./lib/chunkReload";
 
 // Route-level code splitting: the stories feed loads first; other pages load on demand.
 const Stories = lazy(() => import("./pages/Stories"));
@@ -68,13 +68,12 @@ export function AppRoutes() {
 
 const root = document.getElementById("root");
 if (root) {
+  installPreloadRecovery();
   createRoot(root).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <Suspense fallback={<main style={{ padding: 24 }}><LoadingBlock /></main>}>
-            <AppRoutes />
-          </Suspense>
+          <AppRoutes />
         </BrowserRouter>
       </QueryClientProvider>
     </StrictMode>,

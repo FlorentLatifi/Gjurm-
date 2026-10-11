@@ -202,7 +202,7 @@ Base path `/api/v1`. OpenAPI UI at `/api/docs` (disable with `EXPOSE_DOCS=false`
 
 ## Request lifecycle (API)
 
-1. Caddy: TLS, HSTS, strict CSP for the SPA, static files with immutable caching for hashed assets, reverse proxy with `X-Forwarded-For`.
+1. Caddy: TLS, HSTS, strict CSP for the SPA, static files with immutable caching for hashed assets (a missing chunk is a `404` with `no-store`, never the app shell) and `no-cache` revalidation for the HTML of every route and the other unhashed files, reverse proxy with `X-Forwarded-For`.
 2. Middleware: request id → rate limit (per client IP; token buckets `default` / `search` / `admin`) → security headers → timing metrics.
 3. Router: validated query params → cache lookup (key = path + normalized query) → one `analytics/queries.py` function → typed response.
 4. Exceptions become the error envelope; 5xx never leak internals and are logged with the request id.
