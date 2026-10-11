@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useId } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { useArticles, ArticleList } from "@/features/articles";
@@ -6,9 +6,17 @@ import { FilterBar } from "@/features/filters";
 import type { EntityType } from "@/shared/api/types";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
 import { useTitle } from "@/shared/hooks/useTitle";
-import { ENTITY_TYPE_LABEL, formatChange, formatDay, formatInt, formatScore, hasComparableHistory } from "@/shared/lib/format";
+import {
+  ENTITY_TYPE_LABEL,
+  formatChange,
+  formatDay,
+  formatInt,
+  formatScore,
+  hasComparableHistory,
+} from "@/shared/lib/format";
 import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
+import { SearchField } from "@/ui/SearchField";
 import { ErrorState } from "@/ui/States";
 import { DailyLine } from "@/ui/charts";
 import { useCoOccurrence, useEntities, useEntity } from "../api";
@@ -20,32 +28,22 @@ const TYPES: { value: EntityType | ""; label: string }[] = [
   { value: "location", label: "Places" },
 ];
 
-function useDebounced<T>(value: T, ms = 300): T {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(id);
-  }, [value, ms]);
-  return v;
-}
-
 export function EntitiesPage() {
   useTitle("People & organisations", "Who and what is most discussed in Albanian-language news.");
   const { filters, apiParams } = useFilters();
   const [params, setParams] = useSearchParams();
   const type = (params.get("type") ?? "") as EntityType | "";
-  const [search, setSearch] = useState(params.get("q") ?? "");
-  const q = useDebounced(search.trim());
+  const q = params.get("q") ?? "";
   const searchId = useId();
   const entities = useEntities({ ...apiParams, type: type || undefined, q: q.length >= 2 ? q : undefined, limit: 30 });
   const pairs = useCoOccurrence(apiParams);
   const comparable = hasComparableHistory(entities.data ?? [], (e) => e.mentions, (e) => e.previous);
 
-  const setType = (value: string) =>
+  const set = (key: "type" | "q", value: string) =>
     setParams((prev) => {
       const out = new URLSearchParams(prev);
-      if (value) out.set("type", value);
-      else out.delete("type");
+      if (value) out.set(key, value);
+      else out.delete(key);
       return out;
     }, { replace: true });
 
@@ -62,16 +60,13 @@ export function EntitiesPage() {
       <div className="filters">
         <div className="segmented" role="group" aria-label="Entity type">
           {TYPES.map((t) => (
-            <button key={t.value} type="button" aria-pressed={type === t.value} onClick={() => setType(t.value)}>
+            <button key={t.value} type="button" aria-pressed={type === t.value} onClick={() => set("type", t.value)}>
               {t.label}
             </button>
           ))}
         </div>
-        <div className="field field--grow">
-          <label htmlFor={searchId} className="visually-hidden">Search names</label>
-          <input id={searchId} type="search" placeholder="Search a name, e.g. Kurti, Prishtina…" value={search}
-            onChange={(e) => setSearch(e.target.value)} maxLength={80} />
-        </div>
+        <SearchField id={searchId} label="Search names" hideLabel value={q} onCommit={(v) => set("q", v)}
+          placeholder="Search a name, e.g. Kurti, Prishtina…" maxLength={80} delay={300} />
       </div>
       <div className="grid grid--2">
         <Card title="Most mentioned" question="Who and what is most discussed?" query={entities}
@@ -180,7 +175,7 @@ export function EntityPage() {
         </div>
         <Card title="Articles" query={articles} empty={!articles.data?.items.length}
           actions={<Link className="btn btn--ghost btn--sm" to={withFilters("/articles", filters, { entity: String(id) })}>All</Link>}>
-          {() => <ArticleList items={articles.data!.items} />}
+          {() => <ArticleList items={articles.data!.items} filters={filters} />}
         </Card>
       </div>
     </>

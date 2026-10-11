@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useId } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { useEntitySpikes } from "@/features/analytics";
@@ -8,12 +8,15 @@ import { useFilters, withFilters } from "@/shared/hooks/useFilters";
 import { useTitle } from "@/shared/hooks/useTitle";
 import { ENTITY_TYPE_LABEL, formatInt } from "@/shared/lib/format";
 import { countryLabel, noneRated, REGION_ORDER } from "@/shared/model/ratings";
-import { useLens, useReading } from "@/stores/reading";
+import { useReadingCount } from "@/stores/reading";
 import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
+import { SearchField } from "@/ui/SearchField";
+
 import { StoryCard } from "../StoryCard";
 import { LensPicker } from "../StoryCoverage";
 import { useBlindspots, useStories } from "../api";
+import { useLens } from "../useLens";
 
 export const FEED_PRESETS = [
   { days: 1, label: "Today" },
@@ -38,7 +41,6 @@ export default function StoriesPage() {
   const country = params.get("country") ?? "";
   const q = params.get("q") ?? "";
   const page = Math.max(1, Number(params.get("page")) || 1);
-  const [text, setText] = useState(q);
 
   const set = (key: string, value: string) =>
     setParams((prev) => {
@@ -49,14 +51,6 @@ export default function StoriesPage() {
       return out;
     });
 
-  useEffect(() => {
-    const id = setTimeout(() => {
-      const v = text.trim();
-      if (v !== q && (v.length >= 2 || v.length === 0)) set("q", v);
-    }, 350);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text]);
 
   const stories = useStories({
     ...apiParams, sort, topic: topic || undefined, country: country || undefined, q: q || undefined,
@@ -65,7 +59,7 @@ export default function StoriesPage() {
   });
   const blind = useBlindspots({ days: Math.max(filters.days, 7) });
   const spikes = useEntitySpikes(6);
-  const reading = useReading();
+  const readCount = useReadingCount();
   const items = stories.data?.items ?? [];
   const [lens, setLens] = useLens(stories.data ? noneRated(items.map((s) => s.coverage)) : false);
   const data = stories.data;
@@ -102,11 +96,8 @@ export default function StoriesPage() {
             {REGION_ORDER.map((c) => <option key={c} value={c}>{countryLabel(c)}</option>)}
           </select>
         </div>
-        <div className="field field--grow">
-          <label htmlFor={ids.q}>Search stories</label>
-          <input id={ids.q} type="search" value={text} onChange={(e) => setText(e.target.value)}
-            placeholder="e.g. buxheti, Prizren, KQZ" maxLength={120} />
-        </div>
+        <SearchField id={ids.q} label="Search stories" value={q} onCommit={(v) => set("q", v)}
+          placeholder="e.g. buxheti, Prizren, KQZ" />
       </div>
       <div className="lens-row">
         <span className="rank-meta">Split coverage by</span>
@@ -152,8 +143,8 @@ export default function StoriesPage() {
           <Card title="My news bias" question="Which outlets you read here, by perspective and region.">
             {() => (
               <p className="card__question" style={{ marginTop: 0 }}>
-                {reading.length
-                  ? <>You opened {reading.length} {reading.length === 1 ? "article" : "articles"} recently. </>
+                {readCount
+                  ? <>You opened {readCount} {readCount === 1 ? "article" : "articles"} recently. </>
                   : <>Open articles from the stories to see the balance of your reading. </>}
                 <Link to="/my-news">See your balance →</Link> Stored only in this browser.
               </p>

@@ -1,10 +1,11 @@
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { AnalysisBanner, DemoBanner, StatusPill } from "@/features/system";
 import { LoadingBlock } from "@/ui/States";
 
 import { RouteError } from "./RouteError";
+import { RouteFocus } from "./RouteFocus";
 import { ThemeToggle } from "./ThemeToggle";
 
 const NAV = [
@@ -20,22 +21,22 @@ const NAV = [
   { to: "/about", label: "Methodology" },
 ];
 
-export function Shell() {
-  const location = useLocation();
-  const firstRender = useRef(true);
-  useEffect(() => {
-    // On client-side navigation, move focus to the main landmark so screen readers announce the
-    // new page. Not on the initial load: keyboard users must start at the skip link / nav.
-    if (firstRender.current) {
-      firstRender.current = false;
-      return;
-    }
-    document.getElementById("main")?.focus({ preventScroll: true });
-    window.scrollTo(0, 0);
-  }, [location.pathname]);
+/** The current page, isolated: its error or its loading state never replaces the shell. */
+function RoutePage() {
+  const { pathname } = useLocation();
+  return (
+    <RouteError key={pathname}>
+      <Suspense fallback={<LoadingBlock height={320} label="Loading page" />}>
+        <Outlet />
+      </Suspense>
+    </RouteError>
+  );
+}
 
+export function Shell() {
   return (
     <>
+      <RouteFocus />
       <a href="#main" className="skip-link">
         Skip to content
       </a>
@@ -64,12 +65,7 @@ export function Shell() {
       <main id="main" tabIndex={-1}>
         <DemoBanner />
         <AnalysisBanner />
-        {/* One page failing (or its code not loading) never takes the header and navigation down. */}
-        <RouteError key={location.pathname}>
-          <Suspense fallback={<LoadingBlock height={320} label="Loading page" />}>
-            <Outlet />
-          </Suspense>
-        </RouteError>
+        <RoutePage />
       </main>
       <footer className="site-footer">
         <div className="site-footer__inner">

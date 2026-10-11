@@ -1,5 +1,17 @@
 import { buildQuery } from "@/shared/api/client";
-import { formatChange, formatCompact, formatDay, formatInt, formatPercent, formatRelative, formatScore, hasComparableHistory, hostOf, safeHref, toneLabel } from "@/shared/lib/format";
+import {
+  formatChange,
+  formatCompact,
+  formatDay,
+  formatInt,
+  formatPercent,
+  formatRelative,
+  formatScore,
+  hasComparableHistory,
+  hostOf,
+  safeHref,
+  toneLabel,
+} from "@/shared/lib/format";
 
 describe("number formatting", () => {
   it("formats integers and compact numbers", () => {

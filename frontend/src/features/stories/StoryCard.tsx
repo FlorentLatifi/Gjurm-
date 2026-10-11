@@ -2,7 +2,14 @@ import { Link } from "react-router-dom";
 
 import type { StorySummary } from "@/shared/api/types";
 import { formatRelative } from "@/shared/lib/format";
-import { BIAS_GROUP_COLOR, BIAS_LABEL, biasGroup, blindspotLabel, countryLabel, type Lens } from "@/shared/model/ratings";
+import {
+  BIAS_GROUP_COLOR,
+  BIAS_LABEL,
+  biasGroup,
+  blindspotLabel,
+  countryLabel,
+  type Lens,
+} from "@/shared/model/ratings";
 import { StoryCoverage } from "./StoryCoverage";
 
 function initials(name: string): string {

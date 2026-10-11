@@ -23,10 +23,13 @@ test.describe("GJURMË stories", () => {
 
   test("coverage lens switches the bars and is remembered", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("group", { name: "Split coverage by" }).getByRole("button", { name: "Region" }).click();
-    await expect(page.locator(".story-card").first().getByRole("img", { name: /^Coverage by region/ })).toBeVisible();
+    await page.getByRole("group", { name: "Split coverage by" }).getByRole("button", { name: "Ownership" }).click();
+    await expect(page.locator(".story-card").first().getByRole("img", { name: /^Coverage by ownership/ })).toBeVisible();
+    await expect(page).toHaveURL(/lens=ownership/); // a shared link shows the same split
     await page.reload();
-    await expect(page.getByRole("button", { name: "Region", pressed: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Ownership", pressed: true })).toBeVisible();
+    await page.goto("/"); // no ?lens=: the reader's last choice
+    await expect(page.getByRole("button", { name: "Ownership", pressed: true })).toBeVisible();
   });
 
   test("story feed filters are reflected in the URL", async ({ page }) => {
@@ -123,6 +126,14 @@ test.describe("GJURMË dashboard", () => {
     await page.getByLabel("Tone").selectOption("negative");
     await expect(page).toHaveURL(/sentiment=negative/);
     await expect(page.getByRole("heading", { level: 2 }).first()).toContainText("articles");
+  });
+
+  test("people search is part of the URL", async ({ page }) => {
+    await page.goto("/entities");
+    await page.getByLabel("Search names").fill("Kurti");
+    await expect(page).toHaveURL(/q=Kurti/);
+    await page.reload();
+    await expect(page.getByLabel("Search names")).toHaveValue("Kurti");
   });
 
   test("entity drill-down from the people list", async ({ page }) => {

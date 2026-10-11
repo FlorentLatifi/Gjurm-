@@ -10,7 +10,10 @@ import { StoryCard } from "@/features/stories/StoryCard";
 import { StoryCoverage } from "@/features/stories/StoryCoverage";
 import type { Coverage, SourceStat, StorySummary } from "@/shared/api/types";
 import { biasGroup, blindspotLabel, noneRated, segments } from "@/shared/model/ratings";
-import { clearReading, recordRead, useLens, useReading } from "@/stores/reading";
+import { useLens } from "@/features/stories/useLens";
+import type { Filters } from "@/shared/hooks/useFilters";
+import { usePreferences } from "@/stores/preferences";
+import { clearReading, recordRead, useReading, useReadingStore } from "@/stores/reading";
 import { CoverageBar } from "@/ui/CoverageBar";
 
 function wrap(ui: ReactNode) {
@@ -55,7 +58,13 @@ const story: StorySummary = {
   blindspots: [{ kind: "region", missing: "AL" }],
 };
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  useReadingStore.setState({ entries: [] });
+  usePreferences.setState({ theme: "system", lens: null });
+});
+
+const NO_FILTERS: Filters = { days: 30, sources: [] };
 
 describe("coverage segments", () => {
   it("folds perspective into left / center / right / unrated in a fixed order", () => {
@@ -129,11 +138,13 @@ describe("reading log (My news bias)", () => {
       "gjurme-reading",
       JSON.stringify([{ s: "<script>", at: Date.now() }, { s: "koha", at: 1 }, { s: "koha", at: Date.now() }]),
     );
+    // what another tab (or an earlier visit) wrote is re-read through the store's storage
+    act(() => void useReadingStore.persist.rehydrate());
     const { result } = renderHook(() => useReading());
     expect(result.current.map((e) => e.s)).toEqual(["koha"]);
     localStorage.setItem("gjurme-reading", "{not json");
-    const again = renderHook(() => useReading());
-    expect(again.result.current).toEqual([]);
+    act(() => void useReadingStore.persist.rehydrate());
+    expect(result.current).toEqual([]);
   });
 
   it("is recorded when an article link is opened", async () => {
@@ -142,7 +153,7 @@ describe("reading log (My news bias)", () => {
       published_at_estimated: false, language: "sq", summary_en: null, sentiment_label: null,
       sentiment_score: null, event_type: null, enrichment_status: "succeeded", duplicate_of_id: null,
       story_id: 7, source_slug: "koha", source_name: "KOHA", topic_slug: null, topic_name: null,
-    }]} />);
+    }]} filters={NO_FILTERS} />);
     expect(screen.getByRole("link", { name: "All coverage of: Titulli" })).toHaveAttribute("href", "/stories/7");
     const link = screen.getByRole("link", { name: /^Titulli/ });
     link.addEventListener("click", (e) => e.preventDefault()); // jsdom cannot open new tabs
@@ -167,13 +178,30 @@ describe("reading log (My news bias)", () => {
 });
 
 describe("useLens", () => {
+  const router = (entries: string[]) => ({ children }: { children: ReactNode }) => (
+    <MemoryRouter initialEntries={entries}>{children}</MemoryRouter>
+  );
+
   it("defaults to region while nothing is rated, and remembers the reader's choice", () => {
-    const { result, rerender } = renderHook(({ none }) => useLens(none), { initialProps: { none: true } });
+    const { result, rerender } = renderHook(({ none }) => useLens(none), {
+      initialProps: { none: true }, wrapper: router(["/"]),
+    });
     expect(result.current[0]).toBe("region");
     rerender({ none: false });
     expect(result.current[0]).toBe("perspective");
     act(() => result.current[1]("ownership"));
     expect(result.current[0]).toBe("ownership");
-    expect(localStorage.getItem("gjurme-lens")).toBe("ownership");
+    expect(JSON.parse(localStorage.getItem("gjurme-prefs")!).state.lens).toBe("ownership");
+    // a new view without ?lens= starts from the remembered choice
+    const fresh = renderHook(() => useLens(false), { wrapper: router(["/"]) });
+    expect(fresh.result.current[0]).toBe("ownership");
+  });
+
+  it("lets a shared link's ?lens= win over the remembered choice", () => {
+    usePreferences.setState({ lens: "ownership" });
+    const { result } = renderHook(() => useLens(false), { wrapper: router(["/stories/7?lens=factuality"]) });
+    expect(result.current[0]).toBe("factuality");
+    const bogus = renderHook(() => useLens(false), { wrapper: router(["/?lens=<x>"]) });
+    expect(bogus.result.current[0]).toBe("ownership");
   });
 });

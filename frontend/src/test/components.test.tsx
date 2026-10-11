@@ -6,12 +6,15 @@ import { MemoryRouter } from "react-router-dom";
 
 import { Shell } from "@/app/Shell";
 import { ArticleList } from "@/features/articles/ArticleList";
+import type { Filters } from "@/shared/hooks/useFilters";
 import { ApiError } from "@/shared/api/client";
 import type { ArticleSummary, PublicStatus } from "@/shared/api/types";
 import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
 import { StatTile } from "@/ui/StatTile";
 import { SentimentBar } from "@/ui/charts";
+
+const NO_FILTERS: Filters = { days: 30, sources: [] };
 
 function wrap(ui: ReactNode, route = "/") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -99,7 +102,7 @@ const article = (over: Partial<ArticleSummary>): ArticleSummary => ({
 
 describe("ArticleList", () => {
   it("links headlines to the original publisher safely, with attribution", () => {
-    wrap(<ArticleList items={[article({})]} />);
+    wrap(<ArticleList items={[article({})]} filters={NO_FILTERS} />);
     const link = screen.getByRole("link", { name: /^Kuvendi miraton buxhetin/ });
     expect(link).toHaveAttribute("href", "https://www.koha.net/lajme/1");
     expect(link).toHaveAttribute("target", "_blank");
@@ -110,7 +113,7 @@ describe("ArticleList", () => {
   });
 
   it("never renders dangerous URLs as links and never interprets markup", () => {
-    wrap(<ArticleList items={[article({ url: "javascript:alert(1)", title: "<img src=x onerror=alert(1)>" })]} />);
+    wrap(<ArticleList items={[article({ url: "javascript:alert(1)", title: "<img src=x onerror=alert(1)>" })]} filters={NO_FILTERS} />);
     expect(screen.queryByRole("link", { name: /^<img/ })).not.toBeInTheDocument();
     // the internal details link has a descriptive accessible name
     expect(screen.getByRole("link", { name: /^Analysis details for: <img/ })).toHaveAttribute("href", "/articles/1");
@@ -119,7 +122,7 @@ describe("ArticleList", () => {
   });
 
   it("marks estimated dates and syndicated copies", () => {
-    wrap(<ArticleList items={[article({ published_at_estimated: true, duplicate_of_id: 7 })]} />);
+    wrap(<ArticleList items={[article({ published_at_estimated: true, duplicate_of_id: 7 })]} filters={NO_FILTERS} />);
     expect(screen.getByText("(est.)")).toBeInTheDocument();
     expect(screen.getByText("Also reported elsewhere")).toBeInTheDocument();
   });
