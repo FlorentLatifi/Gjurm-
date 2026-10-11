@@ -4,8 +4,23 @@ import { FilterBar } from "@/features/filters";
 import { StoryCard } from "@/features/stories";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
 import { useTitle } from "@/shared/hooks/useTitle";
-import { ENTITY_TYPE_LABEL, formatDateTime, formatInt, formatPercent, formatScore, safeHref, toneLabel } from "@/shared/lib/format";
-import { BIAS_GROUP_COLOR, BIAS_LABEL, biasGroup, countryLabel, FACTUALITY_LABEL, OWNERSHIP_LABEL } from "@/shared/model/ratings";
+import {
+  ENTITY_TYPE_LABEL,
+  formatDateTime,
+  formatInt,
+  formatPercent,
+  formatScore,
+  safeHref,
+  toneLabel,
+} from "@/shared/lib/format";
+import {
+  BIAS_GROUP_COLOR,
+  BIAS_LABEL,
+  biasGroup,
+  countryLabel,
+  FACTUALITY_LABEL,
+  OWNERSHIP_LABEL,
+} from "@/shared/model/ratings";
 import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
 import { StatTile } from "@/ui/StatTile";

@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-import { useFilters, withFilters } from "@/shared/hooks/useFilters";
+import { type Filters, withFilters } from "@/shared/hooks/useFilters";
 import type { ArticleSummary } from "@/shared/api/types";
 import { formatDateTime, hostOf, safeHref } from "@/shared/lib/format";
 import { recordRead } from "@/stores/reading";
@@ -8,10 +8,10 @@ import { SentimentChip } from "@/ui/SentimentChip";
 
 /**
  * Article rows: the headline links to the ORIGINAL publisher page (never republished here),
- * with the source named next to it; the English summary is our own AI-generated text.
+ * with the source named next to it; the English summary is our own AI-generated text. Topic links
+ * carry the page's filters, which the page passes in (no URL subscription down here).
  */
-export function ArticleList({ items }: { items: ArticleSummary[] }) {
-  const { filters } = useFilters();
+export function ArticleList({ items, filters }: { items: ArticleSummary[]; filters: Filters }) {
   return (
     <ol className="articles">
       {items.map((a) => {

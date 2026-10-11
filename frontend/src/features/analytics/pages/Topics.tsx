@@ -4,7 +4,15 @@ import { useArticles, ArticleList } from "@/features/articles";
 import { FilterBar } from "@/features/filters";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
 import { useTitle } from "@/shared/hooks/useTitle";
-import { ENTITY_TYPE_LABEL, formatChange, formatDay, formatInt, formatPercent, formatScore, hasComparableHistory } from "@/shared/lib/format";
+import {
+  ENTITY_TYPE_LABEL,
+  formatChange,
+  formatDay,
+  formatInt,
+  formatPercent,
+  formatScore,
+  hasComparableHistory,
+} from "@/shared/lib/format";
 import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
 import { ErrorState } from "@/ui/States";
@@ -131,7 +139,7 @@ export function TopicPage() {
         </Card>
         <Card title="Recent articles" query={articles} empty={!articles.data?.items.length}
           actions={<Link className="btn btn--ghost btn--sm" to={withFilters("/articles", filters, { topic: slug })}>All</Link>}>
-          {() => <ArticleList items={articles.data!.items} />}
+          {() => <ArticleList items={articles.data!.items} filters={filters} />}
         </Card>
       </div>
     </>

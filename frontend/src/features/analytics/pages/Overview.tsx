@@ -4,7 +4,16 @@ import { useArticles, ArticleList } from "@/features/articles";
 import { FilterBar } from "@/features/filters";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
 import { useTitle } from "@/shared/hooks/useTitle";
-import { ENTITY_TYPE_LABEL, formatChange, formatDay, formatInt, formatPercent, formatScore, hasComparableHistory, toneLabel } from "@/shared/lib/format";
+import {
+  ENTITY_TYPE_LABEL,
+  formatChange,
+  formatDay,
+  formatInt,
+  formatPercent,
+  formatScore,
+  hasComparableHistory,
+  toneLabel,
+} from "@/shared/lib/format";
 import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
 import { StatTile } from "@/ui/StatTile";
@@ -133,7 +142,7 @@ export default function OverviewPage() {
       <Card title="Latest articles" question="The newest items, linked to their original publishers."
         query={latest} empty={!latest.data?.items.length}
         actions={<Link className="btn btn--ghost btn--sm" to={withFilters("/articles", filters)}>Search articles</Link>}>
-        {() => <ArticleList items={latest.data!.items} />}
+        {() => <ArticleList items={latest.data!.items} filters={filters} />}
       </Card>
     </>
   );

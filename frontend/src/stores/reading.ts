@@ -1,6 +1,7 @@
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { create } from "zustand";
+import { persist, type PersistStorage } from "zustand/middleware";
 
-import type { Lens } from "@/shared/model/ratings";
+import { safeStorage } from "./storage";
 
 /**
  * "My news bias": which outlets this reader opened, kept ONLY in this browser (localStorage).
@@ -19,100 +20,75 @@ export interface ReadEntry {
   at: number;
 }
 
-const KEY = "gjurme-reading";
+export const READING_KEY = "gjurme-reading";
 const MAX_ENTRIES = 500;
 const MAX_AGE_MS = 90 * 24 * 3600 * 1000;
-const listeners = new Set<() => void>();
-let cachedRaw: string | null = null;
-let cached: ReadEntry[] = [];
 
-function load(): ReadEntry[] {
-  let raw: string | null = null;
-  try {
-    raw = localStorage.getItem(KEY);
-  } catch {
-    return [];
-  }
-  if (raw === cachedRaw) return cached;
-  cachedRaw = raw;
-  try {
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    const cutoff = Date.now() - MAX_AGE_MS;
-    cached = Array.isArray(parsed)
-      ? parsed.filter(
-          (e): e is ReadEntry =>
-            typeof e === "object" && e !== null && typeof e.s === "string" &&
-            /^[a-z0-9-]{2,64}$/.test(e.s) && typeof e.at === "number" && e.at >= cutoff,
-        )
-      : [];
-  } catch {
-    cached = [];
-  }
-  return cached;
+interface ReadingState {
+  entries: ReadEntry[];
+  record: (source: string, story?: number | null, topic?: string | null) => void;
+  clear: () => void;
 }
 
-function save(entries: ReadEntry[]) {
-  try {
-    if (entries.length) localStorage.setItem(KEY, JSON.stringify(entries.slice(-MAX_ENTRIES)));
-    else localStorage.removeItem(KEY);
-  } catch {
-    /* storage unavailable: nothing is remembered */
-  }
-  listeners.forEach((l) => l());
-}
-
-export function recordRead(source: string, story: number | null = null, topic: string | null = null) {
-  save([...load(), { s: source, st: story, t: topic, at: Date.now() }]);
-}
-
-export function clearReading() {
-  save([]);
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === KEY) listener();
-  };
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
-  };
-}
-
-export function useReading(): ReadEntry[] {
-  return useSyncExternalStore(subscribe, load, () => []);
-}
-
-// ---------------------------------------------------------------------------------------------
-// Coverage lens preference (per browser)
-// ---------------------------------------------------------------------------------------------
-const LENS_KEY = "gjurme-lens";
-const LENSES: Lens[] = ["perspective", "region", "ownership", "factuality"];
-
-function readLens(): Lens | null {
-  try {
-    const v = localStorage.getItem(LENS_KEY);
-    return LENSES.includes(v as Lens) ? (v as Lens) : null;
-  } catch {
-    return null;
-  }
+function valid(e: unknown, cutoff: number): e is ReadEntry {
+  if (typeof e !== "object" || e === null) return false;
+  const r = e as Partial<ReadEntry>;
+  return typeof r.s === "string" && /^[a-z0-9-]{2,64}$/.test(r.s) && typeof r.at === "number" && r.at >= cutoff;
 }
 
 /**
- * The dimension coverage bars split by. Until the reader picks one, it is "perspective" — or
- * "region" when no outlet has a perspective rating yet (an all-"unrated" bar says nothing).
+ * Stored as a plain array (the format used since the feature shipped), not zustand's
+ * {state, version} envelope, so existing reading histories keep working.
  */
-export function useLens(nothingRated: boolean): [Lens, (lens: Lens) => void] {
-  const [chosen, setChosen] = useState<Lens | null>(readLens);
-  const choose = useCallback((lens: Lens) => {
-    setChosen(lens);
+const storage: PersistStorage<Pick<ReadingState, "entries">> = {
+  getItem(name) {
+    const raw = safeStorage.getItem(name);
+    if (!raw) return null;
     try {
-      localStorage.setItem(LENS_KEY, lens);
+      const parsed: unknown = JSON.parse(raw);
+      const cutoff = Date.now() - MAX_AGE_MS;
+      const entries = Array.isArray(parsed) ? parsed.filter((e) => valid(e, cutoff)) : [];
+      return { state: { entries }, version: 0 };
     } catch {
-      /* preference lasts for this page view only */
+      return { state: { entries: [] }, version: 0 };
     }
-  }, []);
-  return [chosen ?? (nothingRated ? "region" : "perspective"), choose];
+  },
+  setItem(name, value) {
+    const entries = value.state.entries.slice(-MAX_ENTRIES);
+    if (entries.length) safeStorage.setItem(name, JSON.stringify(entries));
+    else safeStorage.removeItem(name);
+  },
+  removeItem(name) {
+    safeStorage.removeItem(name);
+  },
+};
+
+export const useReadingStore = create<ReadingState>()(
+  persist(
+    (set) => ({
+      entries: [],
+      record: (source, story = null, topic = null) =>
+        set((s) => ({ entries: [...s.entries, { s: source, st: story, t: topic, at: Date.now() }].slice(-MAX_ENTRIES) })),
+      clear: () => set({ entries: [] }),
+    }),
+    { name: READING_KEY, storage, partialize: (s) => ({ entries: s.entries }) },
+  ),
+);
+
+export function recordRead(source: string, story: number | null = null, topic: string | null = null) {
+  useReadingStore.getState().record(source, story, topic);
+}
+
+export function clearReading() {
+  useReadingStore.getState().clear();
+}
+
+/** Every entry (the My news bias page). */
+export function useReading(): ReadEntry[] {
+  return useReadingStore((s) => s.entries);
+}
+
+/** Only the count, so a component showing it does not re-render for anything else. */
+export function useReadingCount(): number {
+  return useReadingStore((s) => s.entries.length);
 }

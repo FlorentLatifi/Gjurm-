@@ -8,6 +8,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ApiError } from "@/shared/api/client";
 import { Shell } from "./Shell";
 import { installPreloadRecovery } from "./chunkReload";
+import { installPreferences } from "./preferences";
 
 // Route-level code splitting: the stories feed loads first; other pages load on demand.
 const Stories = lazy(() => import("@/features/stories/pages/Feed"));
@@ -69,6 +70,7 @@ export function AppRoutes() {
 const root = document.getElementById("root");
 if (root) {
   installPreloadRecovery();
+  installPreferences();
   createRoot(root).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>

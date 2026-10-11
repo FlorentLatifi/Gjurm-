@@ -3,14 +3,27 @@ import { Link, useParams } from "react-router-dom";
 import type { StoryArticle, StoryDetail } from "@/shared/api/types";
 import { useTitle } from "@/shared/hooks/useTitle";
 import { ENTITY_TYPE_LABEL, formatDateTime, formatRelative, hostOf, safeHref } from "@/shared/lib/format";
-import { BIAS_GROUP_COLOR, BIAS_LABEL, biasGroup, countryLabel, FACTUALITY_LABEL, type Lens, LENS_LABEL, noneRated, OWNERSHIP_LABEL, REGION_ORDER, segments } from "@/shared/model/ratings";
-import { recordRead, useLens } from "@/stores/reading";
+import {
+  BIAS_GROUP_COLOR,
+  BIAS_LABEL,
+  biasGroup,
+  countryLabel,
+  FACTUALITY_LABEL,
+  type Lens,
+  LENS_LABEL,
+  noneRated,
+  OWNERSHIP_LABEL,
+  REGION_ORDER,
+  segments,
+} from "@/shared/model/ratings";
+import { recordRead } from "@/stores/reading";
 import { Card } from "@/ui/Card";
 import { SentimentChip } from "@/ui/SentimentChip";
 import { ErrorState, LoadingBlock } from "@/ui/States";
 import { BlindspotBadges, StoryCard } from "../StoryCard";
 import { LensPicker, StoryCoverage } from "../StoryCoverage";
 import { useStory } from "../api";
+import { useLens } from "../useLens";
 
 function groupOf(a: StoryArticle, lens: Lens): string {
   if (lens === "perspective") return biasGroup(a.source_bias);

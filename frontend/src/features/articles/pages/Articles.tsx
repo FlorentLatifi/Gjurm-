@@ -1,14 +1,24 @@
-import { useEffect, useId, useState } from "react";
+import { useId } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { FilterBar } from "@/features/filters";
 import { useTaxonomy } from "@/features/system";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
 import { useTitle } from "@/shared/hooks/useTitle";
-import { ENTITY_TYPE_LABEL, EVENT_TYPE_LABEL, formatDateTime, formatInt, formatPercent, formatScore, hostOf, safeHref } from "@/shared/lib/format";
+import {
+  ENTITY_TYPE_LABEL,
+  EVENT_TYPE_LABEL,
+  formatDateTime,
+  formatInt,
+  formatPercent,
+  formatScore,
+  hostOf,
+  safeHref,
+} from "@/shared/lib/format";
 import { recordRead } from "@/stores/reading";
 import { Card } from "@/ui/Card";
 import { SentimentChip } from "@/ui/SentimentChip";
+import { SearchField } from "@/ui/SearchField";
 import { ErrorState, LoadingBlock } from "@/ui/States";
 import { ArticleList } from "../ArticleList";
 import { useArticle, useArticles } from "../api";
@@ -18,7 +28,6 @@ export function ArticlesPage() {
   const { filters, apiParams } = useFilters();
   const [params, setParams] = useSearchParams();
   const taxonomy = useTaxonomy();
-  const [text, setText] = useState(params.get("q") ?? "");
   const ids = { q: useId(), topic: useId(), sentiment: useId(), sort: useId() };
 
   const q = params.get("q") ?? "";
@@ -37,14 +46,6 @@ export function ArticlesPage() {
       return out;
     });
 
-  useEffect(() => {
-    const id = setTimeout(() => {
-      const v = text.trim();
-      if (v !== q && (v.length >= 2 || v.length === 0)) set("q", v);
-    }, 350);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text]);
 
   const articles = useArticles({
     ...apiParams, q: q || undefined, topic: topic || undefined, sentiment: sentiment || undefined,
@@ -61,12 +62,9 @@ export function ArticlesPage() {
         </div>
       </div>
       <FilterBar />
-      <form className="filters" role="search" onSubmit={(e) => { e.preventDefault(); set("q", text.trim()); }}>
-        <div className="field field--grow">
-          <label htmlFor={ids.q}>Keyword in headline</label>
-          <input id={ids.q} type="search" value={text} onChange={(e) => setText(e.target.value)}
-            placeholder="e.g. zgjedhjet, Prizren, buxheti" maxLength={120} />
-        </div>
+      <form className="filters" role="search" onSubmit={(e) => e.preventDefault()}>
+        <SearchField id={ids.q} label="Keyword in headline" value={q} onCommit={(v) => set("q", v)}
+          placeholder="e.g. zgjedhjet, Prizren, buxheti" />
         <div className="field">
           <label htmlFor={ids.topic}>Topic</label>
           <select id={ids.topic} value={topic} onChange={(e) => set("topic", e.target.value)}>
@@ -101,7 +99,7 @@ export function ArticlesPage() {
         emptyText="No articles match these filters. Try a longer time range or fewer filters.">
         {() => (
           <>
-            <ArticleList items={data!.items} />
+            <ArticleList items={data!.items} filters={filters} />
             <nav className="pagination" aria-label="Pagination">
               <button type="button" className="btn btn--sm" disabled={page <= 1}
                 onClick={() => set("page", String(page - 1))}>← Newer</button>
