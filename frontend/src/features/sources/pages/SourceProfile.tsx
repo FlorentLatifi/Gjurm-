@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { FilterBar } from "@/features/filters";
 import { StoryCard } from "@/features/stories";
@@ -25,13 +25,16 @@ import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
 import { StatTile } from "@/ui/StatTile";
 import { ErrorState, LoadingBlock } from "@/ui/States";
-import { useSourceProfile } from "../api";
+import { useApiQuery } from "@/shared/query/apiQuery";
+import { validSlug } from "../api";
+import { sourceProfileQueries } from "../queries";
 
 /** One outlet, as on Ground News' source pages: ratings, ownership, and how it covers the news. */
 export function SourceProfilePage() {
   const slug = useParams().slug ?? "";
-  const { filters, apiParams } = useFilters();
-  const query = useSourceProfile(slug, { days: apiParams.days });
+  const { filters } = useFilters();
+  const [search] = useSearchParams();
+  const query = useApiQuery(sourceProfileQueries(slug, search).profile, validSlug(slug));
   const p = query.data;
   useTitle(p?.name ?? "Source", p ? `${p.name}: ratings, ownership and coverage.` : undefined);
   if (query.isPending) return <LoadingBlock height={320} />;

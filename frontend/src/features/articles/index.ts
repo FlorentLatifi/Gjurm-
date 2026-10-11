@@ -1,2 +1,2 @@
-export { useArticle, useArticles } from "./api";
+export { articlesQuery } from "./api";
 export { ArticleList } from "./ArticleList";

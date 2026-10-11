@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { FilterBar } from "@/features/filters";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
@@ -15,12 +15,14 @@ import {
 import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
 import { SentimentBar } from "@/ui/charts";
-import { useSources } from "../api";
+import { useApiQuery } from "@/shared/query/apiQuery";
+import { sourcesQueries } from "../queries";
 
 export default function SourcesPage() {
   useTitle("Sources", "How Albanian-language outlets differ in volume, topics and tone.");
-  const { filters, apiParams } = useFilters();
-  const sources = useSources(apiParams);
+  const { filters } = useFilters();
+  const [search] = useSearchParams();
+  const sources = useApiQuery(sourcesQueries(search).sources);
   const rows = sources.data ?? [];
 
   return (

@@ -1,6 +1,6 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
-import { useArticles, ArticleList } from "@/features/articles";
+import { ArticleList } from "@/features/articles";
 import { FilterBar } from "@/features/filters";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
 import { useTitle } from "@/shared/hooks/useTitle";
@@ -18,18 +18,21 @@ import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
 import { StatTile } from "@/ui/StatTile";
 import { SentimentMixChart, VolumeChart } from "@/ui/charts";
-import { useEntitySpikes, useOverview, useSentiment, useTopicMomentum, useTopics, useVolume } from "../api";
+import { useApiQuery } from "@/shared/query/apiQuery";
+import { overviewQueries } from "../queries";
 
 export default function OverviewPage() {
   useTitle("Dashboard", "What Albanian and Balkan media are reporting right now: topics, people, tone.");
-  const { filters, apiParams } = useFilters();
-  const overview = useOverview(apiParams);
-  const volume = useVolume(apiParams);
-  const sentiment = useSentiment(apiParams);
-  const topics = useTopics(apiParams);
-  const momentum = useTopicMomentum();
-  const spikes = useEntitySpikes(6);
-  const latest = useArticles({ ...apiParams, page_size: 8 });
+  const { filters } = useFilters();
+  const [search] = useSearchParams();
+  const queries = overviewQueries(search);
+  const overview = useApiQuery(queries.overview);
+  const volume = useApiQuery(queries.volume);
+  const sentiment = useApiQuery(queries.sentiment);
+  const topics = useApiQuery(queries.topics);
+  const momentum = useApiQuery(queries.momentum);
+  const spikes = useApiQuery(queries.spikes);
+  const latest = useApiQuery(queries.latest);
   const o = overview.data;
   const loading = overview.isPending;
   const dayDelta = o && o.yesterday > 0 ? (o.today - o.yesterday) / o.yesterday : null;

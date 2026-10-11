@@ -1,3 +1,5 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import { Link } from "react-router-dom";
 
 import type { StorySummary } from "@/shared/api/types";
@@ -10,6 +12,7 @@ import {
   countryLabel,
   type Lens,
 } from "@/shared/model/ratings";
+import { storyQuery } from "./api";
 import { StoryCoverage } from "./StoryCoverage";
 
 function initials(name: string): string {
@@ -45,11 +48,36 @@ export function BlindspotBadges({ story }: { story: StorySummary }) {
   );
 }
 
+/** The story page's code; the router lazy-loads the same module. */
+export const loadStoryPage = () => import("./pages/Story");
+
+/**
+ * Starts loading a story (its data and the page's code) when the reader shows intent: focus at
+ * once, hover after a short pause so sweeping the pointer across the feed fetches nothing.
+ */
+function usePrefetchStory(id: number) {
+  const client = useQueryClient();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const start = () => {
+    void client.prefetchQuery(storyQuery(id));
+    void loadStoryPage();
+  };
+  return {
+    onFocus: start,
+    onPointerEnter: () => {
+      clearTimeout(timer.current);
+      timer.current = setTimeout(start, 120);
+    },
+    onPointerLeave: () => clearTimeout(timer.current),
+  };
+}
+
 /**
  * One story in a feed: topic and time, the representative headline (links to the story page,
  * which links every outlet's original), the coverage bar, and who covered it first.
  */
 export function StoryCard({ story, lens, compact = false }: { story: StorySummary; lens: Lens; compact?: boolean }) {
+  const prefetch = usePrefetchStory(story.id);
   return (
     <article className={`card story-card ${compact ? "story-card--compact" : ""}`} aria-labelledby={`story-${story.id}`}>
       <div className="story-card__top">
@@ -58,7 +86,7 @@ export function StoryCard({ story, lens, compact = false }: { story: StorySummar
         <BlindspotBadges story={story} />
       </div>
       <h3 className="story-card__title" id={`story-${story.id}`} lang={story.language}>
-        <Link to={`/stories/${story.id}`}>{story.title}</Link>
+        <Link to={`/stories/${story.id}`} {...prefetch}>{story.title}</Link>
       </h3>
       {!compact && story.summary_en && !story.summary_en.startsWith("[headline") && (
         <p className="story-card__summary">{story.summary_en}</p>

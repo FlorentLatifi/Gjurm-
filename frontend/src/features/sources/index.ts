@@ -1,1 +1,1 @@
-export { useSourceProfile, useSources } from "./api";
+export { sourcesQuery, useSources } from "./api";

@@ -3,8 +3,9 @@ import { useLocation } from "react-router-dom";
 
 /**
  * On client-side navigation, move focus to the main landmark so screen readers announce the new
- * page, and scroll to the top. Not on the initial load: keyboard users must start at the skip
- * link / nav. A separate component, so only it (not the whole shell) subscribes to the location.
+ * page (scrolling is ScrollRestoration's job). Not on the initial load: keyboard users must start
+ * at the skip link / nav. A separate component, so only it (not the whole shell) subscribes to
+ * the location.
  */
 export function RouteFocus() {
   const { pathname } = useLocation();
@@ -15,7 +16,6 @@ export function RouteFocus() {
       return;
     }
     document.getElementById("main")?.focus({ preventScroll: true });
-    window.scrollTo(0, 0);
   }, [pathname]);
   return null;
 }

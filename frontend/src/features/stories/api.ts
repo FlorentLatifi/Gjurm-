@@ -1,8 +1,7 @@
 import type { Params } from "@/shared/api/client";
 import type { Blindspots, Page, StoryDetail, StorySummary } from "@/shared/api/types";
-import { useApi } from "@/shared/query/useApi";
+import { apiQuery } from "@/shared/query/apiQuery";
 
-export const useStories = (p: Params) => useApi<Page<StorySummary>>("/api/v1/stories", p);
-export const useStory = (id: number) =>
-  useApi<StoryDetail>(`/api/v1/stories/${id}`, undefined, Number.isInteger(id) && id > 0);
-export const useBlindspots = (p: Params) => useApi<Blindspots>("/api/v1/stories/blindspots", p);
+export const storiesQuery = (p: Params) => apiQuery<Page<StorySummary>>("/api/v1/stories", p, "feed");
+export const storyQuery = (id: number) => apiQuery<StoryDetail>(`/api/v1/stories/${id}`, undefined, "feed");
+export const blindspotsQuery = (p: Params) => apiQuery<Blindspots>("/api/v1/stories/blindspots", p, "feed");

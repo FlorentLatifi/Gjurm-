@@ -5,7 +5,6 @@ import type {
   EntitySpikes,
   EntityStat,
   Overview,
-  SentimentGroups,
   SentimentSeries,
   SentimentShift,
   TopicDetail,
@@ -13,22 +12,22 @@ import type {
   TopicStat,
   VolumeSeries,
 } from "@/shared/api/types";
-import { useApi } from "@/shared/query/useApi";
+import { apiQuery } from "@/shared/query/apiQuery";
 
-export const useOverview = (p: Params) => useApi<Overview>("/api/v1/analytics/overview", p);
-export const useVolume = (p: Params) => useApi<VolumeSeries>("/api/v1/analytics/volume", p);
-export const useSentiment = (p: Params) => useApi<SentimentSeries>("/api/v1/analytics/sentiment", p);
-export const useSentimentBy = (p: Params, groupBy: "source" | "topic") =>
-  useApi<SentimentGroups>("/api/v1/analytics/sentiment", { ...p, group_by: groupBy });
-export const useSentimentShift = () => useApi<SentimentShift>("/api/v1/analytics/sentiment/shift");
-export const useTopicMomentum = () => useApi<TopicMomentum>("/api/v1/analytics/trends/topics");
-export const useEntitySpikes = (limit = 10) =>
-  useApi<EntitySpikes>("/api/v1/analytics/trends/entities", { limit });
-export const useCoOccurrence = (p: Params) =>
-  useApi<CoOccurrence[]>("/api/v1/analytics/cooccurrence", { ...p, limit: 20 });
-export const useTopics = (p: Params) => useApi<TopicStat[]>("/api/v1/topics", p);
-export const useTopic = (slug: string, p: Params) =>
-  useApi<TopicDetail>(`/api/v1/topics/${encodeURIComponent(slug)}`, p);
-export const useEntities = (p: Params) => useApi<EntityStat[]>("/api/v1/entities", p);
-export const useEntity = (id: number, p: Params) =>
-  useApi<EntityDetail>(`/api/v1/entities/${id}`, p, Number.isInteger(id) && id > 0);
+export const overviewQuery = (p: Params) => apiQuery<Overview>("/api/v1/analytics/overview", p, "analytics");
+export const volumeQuery = (p: Params) => apiQuery<VolumeSeries>("/api/v1/analytics/volume", p, "analytics");
+export const sentimentQuery = (p: Params) => apiQuery<SentimentSeries>("/api/v1/analytics/sentiment", p, "analytics");
+export const sentimentShiftQuery = () =>
+  apiQuery<SentimentShift>("/api/v1/analytics/sentiment/shift", undefined, "analytics");
+export const topicMomentumQuery = () =>
+  apiQuery<TopicMomentum>("/api/v1/analytics/trends/topics", undefined, "analytics");
+export const entitySpikesQuery = (limit = 10) =>
+  apiQuery<EntitySpikes>("/api/v1/analytics/trends/entities", { limit }, "analytics");
+export const coOccurrenceQuery = (p: Params) =>
+  apiQuery<CoOccurrence[]>("/api/v1/analytics/cooccurrence", { ...p, limit: 20 }, "analytics");
+export const topicsQuery = (p: Params) => apiQuery<TopicStat[]>("/api/v1/topics", p, "analytics");
+export const topicQuery = (slug: string, p: Params) =>
+  apiQuery<TopicDetail>(`/api/v1/topics/${encodeURIComponent(slug)}`, p, "analytics");
+export const entitiesQuery = (p: Params) => apiQuery<EntityStat[]>("/api/v1/entities", p, "analytics");
+export const entityQuery = (id: number, p: Params) =>
+  apiQuery<EntityDetail>(`/api/v1/entities/${id}`, p, "analytics");

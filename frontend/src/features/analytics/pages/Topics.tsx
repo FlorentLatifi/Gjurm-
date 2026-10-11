@@ -1,6 +1,6 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
-import { useArticles, ArticleList } from "@/features/articles";
+import { ArticleList } from "@/features/articles";
 import { FilterBar } from "@/features/filters";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
 import { useTitle } from "@/shared/hooks/useTitle";
@@ -17,12 +17,14 @@ import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
 import { ErrorState } from "@/ui/States";
 import { DailyLine, SentimentBar } from "@/ui/charts";
-import { useTopic, useTopics } from "../api";
+import { useApiQuery } from "@/shared/query/apiQuery";
+import { topicQueries, topicsQueries } from "../queries";
 
 export function TopicsPage() {
   useTitle("Topics", "Which topics dominate Albanian-language news, and how each is trending.");
-  const { filters, apiParams } = useFilters();
-  const topics = useTopics(apiParams);
+  const { filters } = useFilters();
+  const [search] = useSearchParams();
+  const topics = useApiQuery(topicsQueries(search).topics);
   const rows = topics.data ?? [];
   const comparable = hasComparableHistory(rows, (t) => t.articles, (t) => t.previous);
   return (
@@ -82,9 +84,11 @@ export function TopicsPage() {
 
 export function TopicPage() {
   const { slug = "" } = useParams();
-  const { filters, apiParams } = useFilters();
-  const topic = useTopic(slug, apiParams);
-  const articles = useArticles({ ...apiParams, topic: slug, page_size: 10 });
+  const { filters } = useFilters();
+  const [search] = useSearchParams();
+  const queries = topicQueries(slug, search);
+  const topic = useApiQuery(queries.topic);
+  const articles = useApiQuery(queries.articles);
   const t = topic.data?.topic;
   useTitle(t ? t.name_en : "Topic", t?.description);
   if (topic.isError) return <ErrorState error={topic.error} onRetry={() => topic.refetch()} />;
