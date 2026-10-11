@@ -271,7 +271,13 @@ def test_unicode_survives_round_trip(db, settings, make_fetcher) -> None:
         db,
         make_fetcher(
             feed_server(
-                {"https://moji.example.com/feed/": (200, fixture_bytes("mojibake.xml"), {})}
+                {
+                    "https://moji.example.com/feed/": (
+                        200,
+                        fixture_bytes("mojibake.xml", fresh=True),
+                        {},
+                    )
+                }
             )
         ),
         settings,
