@@ -47,7 +47,7 @@ export function Shell() {
             <img src="/favicon.svg" width={28} height={28} alt="" />
             <span>
               <span className="brand__name">GJURMË</span>
-              <small>Albanian &amp; Balkan news intelligence</small>
+              <small>Every side of the Albanian-language news</small>
             </span>
           </Link>
           <nav className="nav" aria-label="Main">

@@ -240,6 +240,18 @@ test.describe("GJURMË dashboard", () => {
     expect(deepLink.headers()["cache-control"]).toBe("no-cache");
   });
 
+  test("a shared story link previews as that story for link-preview crawlers only", async ({ request }) => {
+    const list = await (await request.get("/api/v1/stories?days=30&min_sources=2&page_size=1")).json();
+    const story = list.items[0] as { id: number; title: string };
+    const escaped = story.title.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const crawler = await request.get(`/stories/${story.id}`, { headers: { "User-Agent": "facebookexternalhit/1.1" } });
+    const card = await crawler.text();
+    expect(card).toContain(`<meta property="og:title" content="${escaped} · GJURMË">`);
+    expect(card).toMatch(/og:description" content="\d+ outlets covered this story/);
+    const reader = await request.get(`/stories/${story.id}`, { headers: { "User-Agent": "Mozilla/5.0 (iPhone)" } });
+    expect(await reader.text()).toContain('<div id="root">');
+  });
+
   test("unknown routes show a 404 page", async ({ page }) => {
     await page.goto("/does-not-exist");
     await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();

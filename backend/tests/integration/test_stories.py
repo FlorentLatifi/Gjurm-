@@ -492,3 +492,38 @@ def test_source_profile_and_compare(client: TestClient, clustered: dict[str, Any
     assert rows["qendra"]["bias"] == "center" and rows["qendra"]["first_reports"] >= 1
     assert rows["pavleresuar"]["bias"] == "unrated"
     assert rows["djathtas"]["stories"] == 3
+
+
+def test_link_preview_carries_the_story_and_escapes_it(
+    client: TestClient, db: sessionmaker[Session], clustered: dict[str, Any]
+) -> None:
+    story_id = clustered["budget_story"]
+    resp = client.get(f"/api/share/stories/{story_id}")
+    assert resp.status_code == 200 and resp.headers["content-type"].startswith("text/html")
+    assert resp.headers["cache-control"] == "public, max-age=300"
+    detail = client.get(f"/api/v1/stories/{story_id}").json()
+    assert (
+        f'<meta property="og:url" content="http://localhost:5173/stories/{story_id}">' in resp.text
+    )
+    assert "outlets covered this story" in resp.text
+    assert "kritikoi" not in resp.text  # metadata only: never excerpt text
+    assert "og:title" in resp.text and escape_attr(detail["title"]) in resp.text
+
+    # a hostile headline is text, never markup
+    with db() as s, s.begin():
+        s.execute(
+            update(Article)
+            .where(Article.story_id == story_id)
+            .values(title='Buxheti "><script>alert(1)</script>')
+        )
+    hostile = client.get(f"/api/share/stories/{story_id}").text
+    assert "<script>" not in hostile and "&lt;script&gt;" in hostile
+
+    missing = client.get("/api/share/stories/999999")
+    assert missing.status_code == 404 and 'content="http://localhost:5173/"' in missing.text
+
+
+def escape_attr(value: str) -> str:
+    from html import escape
+
+    return escape(value, quote=True)
