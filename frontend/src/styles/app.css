@@ -528,6 +528,10 @@ a.chip:hover {
 .state--error {
   color: var(--bad);
 }
+.state__title {
+  font-size: 1.15rem;
+  color: var(--ink);
+}
 
 .banner {
   border: 1px solid var(--border);

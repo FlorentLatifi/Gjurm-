@@ -192,6 +192,24 @@ test.describe("GJURMË dashboard", () => {
     expect(serious.map((v) => `${v.id}: ${v.nodes.length} nodes — ${v.help}`)).toEqual([]);
   });
 
+  test("a page whose code fails to load reloads once, then explains, with the site still usable", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Top stories");
+    await page.route(/\/assets\/Trends-[^/]+\.js$/, (route) => route.abort());
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Trends" }).click();
+    await expect(page.getByRole("alert")).toContainText("This page could not be loaded");
+    await expect(page).toHaveURL(/\/trends$/);
+    await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
+  });
+
+  test("the edge never answers a missing build file with the app shell", async ({ request }) => {
+    const missing = await request.get("/assets/does-not-exist-0000.js");
+    expect(missing.status()).toBe(404);
+    expect(missing.headers()["cache-control"]).toBe("no-store");
+    const deepLink = await request.get("/stories/1");
+    expect(deepLink.headers()["cache-control"]).toBe("no-cache");
+  });
+
   test("unknown routes show a 404 page", async ({ page }) => {
     await page.goto("/does-not-exist");
     await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();

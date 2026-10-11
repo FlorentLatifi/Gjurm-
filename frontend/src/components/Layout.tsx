@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { useStatus } from "../api/hooks";
 import { formatRelative } from "../lib/format";
+import { RouteError } from "./RouteError";
+import { LoadingBlock } from "./States";
 
 const NAV = [
   { to: "/", label: "Stories", end: true },
@@ -146,7 +148,12 @@ export function Layout() {
       <main id="main" tabIndex={-1}>
         <DemoBanner />
         <AnalysisBanner />
-        <Outlet />
+        {/* One page failing (or its code not loading) never takes the header and navigation down. */}
+        <RouteError key={location.pathname}>
+          <Suspense fallback={<LoadingBlock height={320} label="Loading page" />}>
+            <Outlet />
+          </Suspense>
+        </RouteError>
       </main>
       <footer className="site-footer">
         <div className="site-footer__inner">
