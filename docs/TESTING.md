@@ -2,14 +2,14 @@
 
 | Layer | Tool | Count | Runs |
 |---|---|---|---|
-| Backend unit | pytest | 126 | CI `backend` job, locally `uv run pytest tests/unit` |
-| Backend integration (real PostgreSQL 16) | pytest | 93 | CI `backend` job (Postgres service container) |
-| Frontend unit / component | Vitest + Testing Library | 23 | CI `frontend` job |
-| End-to-end (full Docker stack, demo data, real browser) | Playwright + axe-core | 20 scenarios × 2 viewports = 40 | CI `e2e` job |
-| Live sources (real feeds on GitHub runners) | `gjurme` CLI in a workflow | 1 pipeline run | *Source validation* workflow (weekly + manual) |
+| Backend unit | pytest | 186 | CI `backend` job, locally `uv run pytest tests/unit` |
+| Backend integration (real PostgreSQL 16) | pytest | 108 | CI `backend` job (Postgres service container) |
+| Frontend unit / component | Vitest + Testing Library | 35 | CI `frontend` job |
+| End-to-end (full Docker stack, demo data, real browser) | Playwright + axe-core | 31 scenarios × 2 viewports = 62 | CI `e2e` job |
+| Live sources (real feeds on GitHub runners) | `gjurme` CLI in a workflow | 1 pipeline run + story clustering review | *Source validation* workflow (weekly + manual) |
 | Performance (365k articles) | `backend/scripts/benchmark.py` | 19 queries | manual ([below](#performance)) |
 
-Backend coverage gate: **85%** (currently 89%). CI on GitHub passed all four check jobs (backend, frontend, security, E2E) for the full stack, for example [run #1](https://github.com/FlorentLatifi/Gjurm-/actions/runs/36052875049).
+Backend coverage gate: **85%** (currently 90%). CI on GitHub passed all four check jobs (backend, frontend, security, E2E) for the full stack, for example [run #1](https://github.com/FlorentLatifi/Gjurm-/actions/runs/36052875049).
 
 ## Running the tests
 
@@ -36,14 +36,15 @@ The integration fixtures migrate a fresh test database once per session with the
 
 ## What the suites cover
 
-**Unit (126).**
+**Unit (186).**
 - Normalization: HTML stripping, Unicode NFC, mojibake repair for `ë`/`ç`, zero-width characters, URL canonicalization and tracking parameters, date parsing including time zones, future and missing dates.
 - Feed parsing: RSS/Atom, malformed XML recovery, autodiscovery.
 - Fetcher: robots.txt (allow, disallow, 404 → allowed, 5xx → disallowed, caching), conditional GET/304, timeouts, oversize (declared and streamed), redirects (followed, loop, to a private address → blocked), DNS SSRF guard.
 - Enrichment: schema validation and repair, the sentiment-contradiction rule, entity grounding with Albanian inflection, pricing, and budget reservations under concurrency (never overshoots).
 - Alert rules and payload formats; configuration guards.
+- Story similarity: Albanian folding and stemming, IDF weighting, the name guard (shared, partial and conflicting places and people; noisy entity types), "a shared person is not a shared event", and hand-written calibration pairs against the default threshold.
 
-**Integration (92).**
+**Integration (108).**
 - Ingest → process: idempotency (a second run creates 0 rows), per-source failure isolation, 304 handling, auto-disable after the threshold, dedup L1–L4.
 - Enrichment: daily budget enforcement (including spend from earlier runs), circuit breaker, fatal errors that keep attempts, invalid output recorded and retried, refusal terminal, cache hits, re-enrichment keeping history with one current row, the kill switch, hidden articles never sent to the LLM.
 - Anthropic wire: the real SDK against a fake Messages API, covering request body, usage, cost, refusal, `max_tokens`, 401/403/404 fatal, 400 non-retryable, 429/529 retried, connection failure.
@@ -52,8 +53,13 @@ The integration fixtures migrate a fresh test database once per session with the
 - Migrations: `upgrade → downgrade → upgrade` with no model/migration drift; migration 0002's triggers (an old writer omits the bridge date; a date correction propagates).
 - CLI: sources sync/validate and refusal of unsafe production configuration.
 - Engine session settings: statement timeout, UTC, `force_custom_plan`.
+- Stories: paraphrases from four outlets form one story while a look-alike fire in another town stays apart; a near-verbatim copy joins its original's story; the 48 h span; idempotency; rebuild with a new threshold; the review report; the backlog check; ratings validation and sync; the story feed's coverage counts (distinct outlets per perspective, factuality, region, ownership), filters, sorting and search; hidden articles leaving the counts; story detail (first report, entities, topics, no excerpt); perspective and region blindspots; source profiles and the "first reports" ranking.
 
-**End-to-end (40).** Each of the 20 scenarios runs on a desktop and a Pixel 7 viewport:
+**End-to-end (62).** Each of the 31 scenarios runs on a desktop and a Pixel 7 viewport:
+- The stories feed: coverage bars, opening a story, every outlet's headline linked to the original, first report.
+- The coverage lens switches the bars and is remembered; feed filters are reflected in the URL.
+- Blindspot page and its type filter; a source profile with ratings and recent stories.
+- My news bias: opening an article is recorded in the browser, shown, and cleared.
 - Overview KPIs, charts and article links render without console errors.
 - The time-range filter updates the URL and the numbers.
 - The chart table view is accessible.
@@ -62,7 +68,7 @@ The integration fixtures migrate a fresh test database once per session with the
 - The theme persists.
 - Keyboard: the skip link is the first stop, and client-side navigation moves focus.
 - 404 page.
-- axe-core: no serious or critical violations on all 8 pages.
+- axe-core: no serious or critical violations on all 12 pages and on a story page.
 
 ### Failure scenarios (explicitly tested)
 

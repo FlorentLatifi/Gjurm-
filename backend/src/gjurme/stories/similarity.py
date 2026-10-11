@@ -5,8 +5,9 @@ headline trigram similarity cannot tell this apart on Albanian news (paraphrases
 score lower than different events that share a place name), so clustering uses:
 
 * **TF-IDF vectors** over headline + feed excerpt + extracted entities. Words are folded
-  (ë → e), stopwords and outlet labels removed, and stemmed by truncation to six letters, which
-  merges Albanian inflections (Prishtinë/Prishtinës/Prishtinën, Kuvendi/Kuvendit). Rare words
+  (ë → e), stopwords and outlet labels removed, and stemmed by truncating to six letters and
+  dropping one Albanian case ending, which merges inflections (Prishtinë/Prishtinës/Prishtinën,
+  Kuvendi/Kuvendit, Kurti/Kurtin/Kurtit). Rare words
   (names, places) weigh more than words every headline uses.
 * **A shared event word**: the two sides must share at least one term that is not part of a
   person's name. A person new to the news has a rare (heavily weighted) name and appears in
@@ -56,15 +57,32 @@ STOPWORDS = _words("""
     after over says said will not but new out
 """)
 
-# Places too broad to identify an event (countries, regions, blocs), as stems.
-BROAD_PLACES = _words("""
-    kosova kosove kosoves kosovo shqipe shqipt albani serbia serbis serbie serbin serbi maqedo
-    macedo evropa evrope europe europa ballka balkan rajoni amerik verior veriut
+# Places too broad to identify an event (countries, regions, blocs), folded; compared as stems.
+_BROAD_PLACE_WORDS = _words("""
+    kosova kosove kosoves koseves kosoven kosovo shqiperi shqiperia shqiperise shqiperine
+    shqiptar shqiptare albania serbi serbia serbise serbine serbie maqedoni maqedonia maqedonise
+    macedonia evrope evropa evropes europe europa ballkan ballkani ballkanit balkan balkans
+    rajon rajoni rajonit amerike amerika amerikes veri veriu veriut verior veriore
 """)
 
 
+# Albanian case and definiteness endings, folded (ë → e), longest first. Truncation alone misses
+# short words: "Kurtin" / "Kurtit" / "Kurti" keep their endings within six letters.
+SUFFIXES = ("it", "in", "is", "es", "en", "ut", "un", "us", "i", "u", "a", "e", "n", "s", "t")
+MIN_ROOT = 3
+
+
 def stem(token: str) -> str:
-    return token[:STEM_LENGTH] if token.isalpha() else token
+    """Truncate to six letters, then drop one ending: Kurti/Kurtin/Kurtit → kurt,
+    Prizren/Prizrenit → prizr, Rama/Ramës → ram. Truncating first keeps long words apart
+    (presidenti → presid, presioni → presio)."""
+    if not token.isalpha():
+        return token
+    token = token[:STEM_LENGTH]
+    for suffix in SUFFIXES:
+        if token.endswith(suffix) and len(token) - len(suffix) >= MIN_ROOT:
+            return token[: -len(suffix)]
+    return token
 
 
 def tokens(text: str | None, *, max_words: int | None = None) -> list[str]:
@@ -84,6 +102,9 @@ def tokens(text: str | None, *, max_words: int | None = None) -> list[str]:
             continue
         out.append(stem(w))
     return out
+
+
+BROAD_PLACES = frozenset(stem(w) for w in _BROAD_PLACE_WORDS)
 
 
 def name_stems(names: Iterable[str]) -> frozenset[str]:
@@ -174,6 +195,19 @@ def _weak_overlap(a: frozenset[str], b: frozenset[str]) -> bool:
     return bool(a and b) and len(a & b) <= 0.5 * min(len(a), len(b))
 
 
+def conflict_reason(a: Names, b: Names) -> str | None:
+    """Which name guard separates ``a`` and ``b`` ("places", "people", "names") or None."""
+    if _weak_overlap(a.places, b.places):
+        return "places"
+    if _weak_overlap(a.people, b.people):
+        return "people"
+    a_all = a.people | a.places | a.orgs
+    b_all = b.people | b.places | b.orgs
+    if len(a_all) >= 2 and len(b_all) >= 2 and _weak_overlap(a_all, b_all):
+        return "names"
+    return None
+
+
 def names_conflict(a: Names, b: Names) -> bool:
     """True when both sides name specific places (or people) and mostly different ones.
 
@@ -184,8 +218,4 @@ def names_conflict(a: Names, b: Names) -> bool:
     when both sides name at least two name words of any type, those combined sets must overlap
     as well.
     """
-    if _weak_overlap(a.places, b.places) or _weak_overlap(a.people, b.people):
-        return True
-    a_all = a.people | a.places | a.orgs
-    b_all = b.people | b.places | b.orgs
-    return len(a_all) >= 2 and len(b_all) >= 2 and _weak_overlap(a_all, b_all)
+    return conflict_reason(a, b) is not None

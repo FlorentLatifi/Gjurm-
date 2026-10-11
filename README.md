@@ -1,17 +1,23 @@
 # GJURMË
 
-**AI-powered news intelligence for Albanian-language media.** GJURMË (*"trace, footprint"*) reads Kosovo and Albanian news feeds every 15 minutes, removes duplicates, uses Claude to classify each story (topic, tone, people, organizations, places, and a one-line English summary), and turns the result into a public dashboard: what dominates coverage, who is suddenly in the news, and how outlets differ.
+**See every side of the Albanian-language news.** GJURMË (*"trace, footprint"*) reads Kosovo, Albanian and North Macedonian news feeds every 15 minutes and, like [Ground News](https://ground.news/), groups the articles that report the same event into **stories**: for each story you see which outlets covered it, how their coverage splits by perspective, region, ownership and factuality, who reported it first, and how each outlet headlined it. **Blindspots** show what one side, or one country's media, barely covered, and **My news bias** shows the balance of your own reading. Underneath, Claude (or keyword rules at $0) classifies every article — topic, tone, people, organizations, places, a one-line summary — for a dashboard of what dominates coverage and who is suddenly in the news.
 
-> **Status:** V1 is complete and tested (CI green on GitHub: lint, strict types, 219 backend tests on PostgreSQL, 23 frontend tests, 40 end-to-end browser tests, security scans). **It is not deployed yet.** Deployment is scripted and rehearsed locally. It can run for **$0**: on an Oracle Cloud Always Free ARM server with a free subdomain, with keyword-rule analysis that the site discloses until a Claude API key or a [free model](docs/AI_ENRICHMENT.md#free-models) is added ([DEPLOYMENT.md](docs/DEPLOYMENT.md#oracle-cloud), [LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md)).
+> **Status:** V1 is complete and tested (CI green on GitHub: lint, strict types, 294 backend tests on PostgreSQL, 35 frontend tests, 62 end-to-end browser tests, security scans). **It is not deployed yet.** Deployment is scripted and rehearsed locally. It can run for **$0**: on an Oracle Cloud Always Free ARM server with a free subdomain, with keyword-rule analysis that the site discloses until a Claude API key or a [free model](docs/AI_ENRICHMENT.md#free-models) is added ([DEPLOYMENT.md](docs/DEPLOYMENT.md#oracle-cloud), [LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md)).
 
 ## What it does
+
+- **Stories, as on Ground News.** The home page lists the news as stories, most covered first. Each story has a coverage bar (left · center · right · unrated, or by region, ownership, factuality), the outlets that covered it and who was first. The story page puts every outlet's headline side by side, linked to the original, with a timeline and related stories ([ADR-020](docs/DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings)).
+- **Blindspot.** Stories that left- or right-leaning outlets barely covered, and stories about a country whose own outlets did not report them.
+- **Source profiles.** Each outlet's ratings and their basis, ownership, how much of the news it covers, how often it reports first, its exclusives and which outlets cover the same stories. Perspective and factuality ratings are editorial and documented in `sources.yaml`; real outlets stay *unrated* until reviewed ([ADR-021](docs/DECISIONS.md#adr-021-outlet-ratings-are-editorial-declared-with-their-basis-unrated-by-default), [how to rate](docs/SOURCES.md#ratings)).
+- **My news bias.** The balance of the outlets you read here, kept only in your browser ([ADR-022](docs/DECISIONS.md#adr-022-my-news-bias-without-accounts)).
 
 - **Ingests** RSS feeds from 5 verified outlets (Telegrafi, KOHA, Gazeta Express, Kallxo, Radio Evropa e Lirë) politely: robots.txt, conditional GET, per-source isolation, auto-disable on repeated failure.
 - **Cleans and deduplicates** in four layers: feed entry, canonical URL, same-source headline, and cross-outlet near-verbatim copies.
 - **Enriches** each headline and excerpt with Claude, using structured JSON output that is validated, repaired, and checked against the source text so the model cannot invent names. It runs under a hard daily budget with a kill switch.
-- **Analyses:** volume with a moving average, topic momentum, entity spikes (z-scores), tone shifts, co-occurrence, source profiles. Every method is stated next to the chart.
-- **Serves** a typed FastAPI (OpenAPI docs) and an accessible React dashboard: Overview, Trends, Topics, Entities, Sources, Articles, About/Methodology, Status.
-- **Operates itself:** scheduler with overlap protection, 12 data-quality checks per run, webhook alerts, an external uptime monitor, nightly backups with weekly restore tests, and deploy with automatic rollback.
+- **Clusters** articles from different outlets into stories: TF-IDF over headline, excerpt and names with Albanian word folding, guards against look-alike events in different places, a 48 h span; reviewable on live data with `gjurme stories-review`.
+- **Analyses:** volume with a moving average, topic momentum, entity spikes (z-scores), tone shifts, co-occurrence, source profiles, first reports, blindspots. Every method is stated next to the chart.
+- **Serves** a typed FastAPI (OpenAPI docs) and an accessible React site: Stories, Story, Blindspot, My news bias, Source profiles, Dashboard, Trends, Topics, Entities, Sources, Articles, About/Methodology, Status.
+- **Operates itself:** scheduler with overlap protection, 13 data-quality checks per run, webhook alerts, an external uptime monitor, nightly backups with weekly restore tests, and deploy with automatic rollback.
 
 It stores metadata and its own analysis only. It never republishes article text, and every item links to the original ([why](docs/DECISIONS.md#adr-003-store-metadata-and-derived-data-only)).
 
@@ -21,6 +27,7 @@ It stores metadata and its own analysis only. It never republishes article text,
 flowchart LR
     FEEDS[(RSS feeds)] --> ING[ingest] --> RAW[(raw)] --> PROC[process + dedup] --> CORE[(core)]
     CORE --> ENR[enrich<br/>Claude · budget · validation] --> CORE
+    CORE --> CLU[cluster<br/>stories] --> CORE
     CORE --> DQ[quality checks + alerts] --> OPS[(ops)]
     CORE --> API[FastAPI] --> WEB[React dashboard<br/>via Caddy · HTTPS]
 ```
@@ -41,7 +48,7 @@ docker compose --profile demo up --build
 # open http://localhost:8080
 ```
 
-This builds the images, migrates the database, seeds 45 days of **fictional** demo news (clearly labelled in the UI) through the real pipeline with the zero-cost heuristic enricher, and serves the dashboard. For the live pipeline against real feeds, copy `.env.example` to `.env` and run `docker compose up --build`. The heuristic enricher is the default; set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` for Claude, or `LLM_PROVIDER=openai_compatible` for a free local or hosted model.
+This builds the images, migrates the database, seeds 45 days of **fictional** demo news (clearly labelled in the UI) — including events several fictional outlets cover with differently worded headlines, and fictional outlet ratings — through the real pipeline with the zero-cost heuristic enricher, and serves the site. For the live pipeline against real feeds, copy `.env.example` to `.env` and run `docker compose up --build`. The heuristic enricher is the default; set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` for Claude, or `LLM_PROVIDER=openai_compatible` for a free local or hosted model.
 
 ## Development
 
@@ -60,13 +67,13 @@ npm ci
 npm run dev                        # http://localhost:5173, proxies /api to :8000
 ```
 
-Useful commands: `gjurme sources validate`, `gjurme run --stages ingest,process`, `gjurme enrich --limit 20`, `gjurme quality`, `gjurme retention`, `gjurme scheduler`. Tests: [TESTING.md](docs/TESTING.md).
+Useful commands: `gjurme sources validate`, `gjurme run --stages ingest,process`, `gjurme enrich --limit 20`, `gjurme cluster`, `gjurme stories-review`, `gjurme quality`, `gjurme retention`, `gjurme scheduler`. Tests: [TESTING.md](docs/TESTING.md).
 
 ## Repository layout
 
 ```
-backend/    gjurme package (ingestion, enrichment, analytics, api, pipeline), tests, migrations
-frontend/   React dashboard, Vitest + Playwright tests, Caddy config
+backend/    gjurme package (ingestion, enrichment, stories, analytics, api, pipeline), tests, migrations
+frontend/   React site (stories, blindspot, dashboard), Vitest + Playwright tests, Caddy config
 deploy/     production compose, deploy/rollback script, backups, server bootstrap
 docs/       blueprint, architecture, data model, AI, sources, deployment, operations,
             security, testing, decisions, launch checklist, portfolio
@@ -93,7 +100,7 @@ docs/       blueprint, architecture, data model, AI, sources, deployment, operat
 
 ## Data and attribution
 
-Headlines and links belong to their publishers; GJURMË links every item to its original. Topic, tone, entity and summary data are machine-generated and can be wrong. The methodology page explains how every number is produced. Publishers or people who want an item removed can use the contact on the About page ([takedown process](docs/OPERATIONS.md#takedown-request)).
+Headlines and links belong to their publishers; GJURMË links every item to its original. Topic, tone, entity and summary data are machine-generated and can be wrong; story grouping is automatic; outlet ratings are editorial and state their basis. The methodology page explains how every number is produced. Publishers or people who want an item removed can use the contact on the About page ([takedown process](docs/OPERATIONS.md#takedown-request)).
 
 ## License
 
