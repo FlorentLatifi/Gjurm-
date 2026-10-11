@@ -271,7 +271,7 @@ def test_review_report_lists_stories_weak_members_and_near_misses(
     assert "### Weakest members" in report
     # the Gjakovë fire is the closest miss of the Prizren fire, kept apart by the name guard
     near = report.split("### Near misses")[1]
-    assert "| yes |" in near and "Gjakovë" in near
+    assert "| places |" in near and "Gjakovë" in near
     assert "kritikoi" not in report  # headlines only, never excerpts
 
 

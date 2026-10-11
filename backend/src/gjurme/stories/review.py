@@ -24,13 +24,29 @@ from sqlalchemy.orm import Session
 
 from gjurme.config import Settings
 from gjurme.stories.clustering import STORY_WINDOW, _load
-from gjurme.stories.similarity import cosine, idf_table, names_conflict, vector
+from gjurme.stories.similarity import (
+    Names,
+    conflict_reason,
+    cosine,
+    idf_table,
+    shares_event_term,
+    vector,
+)
 
 MAX_ARTICLES = 2000
 
 
 def _cell(value: str) -> str:
     return value.replace("|", "\\|").replace("\n", " ")
+
+
+def _names(n: Names) -> str:
+    parts = [
+        f"{label}: {', '.join(sorted(keys))}"
+        for label, keys in (("people", n.people), ("places", n.places), ("orgs", n.orgs))
+        if keys
+    ]
+    return "; ".join(parts) or "—"
 
 
 def review_report(session: Session, settings: Settings, *, hours: int = 48, top: int = 25) -> str:
@@ -102,11 +118,25 @@ def review_report(session: Session, settings: Settings, *, hours: int = 48, top:
             pairs.append((sim, a, b))
     pairs.sort(key=lambda p: -p[0])
     out += ["### Near misses (different stories, different outlets)", ""]
-    out += ["| similarity | names conflict | headline A | headline B |", "|---:|:-:|---|---|"]
     out += [
-        f"| {sim:.2f} | {'yes' if names_conflict(a.doc.names, b.doc.names) else 'no'} "
-        f"| `{slugs[a.id]}` {_cell(a.doc.title)} | `{slugs[b.id]}` {_cell(b.doc.title)} |"
-        for sim, a, b in pairs[:top]
+        "Kept apart by: *places* / *people* / *names* (the name guards), *no event word* (only a",
+        "person in common), or *similarity* (below the threshold). Names are the analysis' entity",
+        "stems.",
+        "",
+        "| similarity | kept apart by | headline A (names) | headline B (names) |",
+        "|---:|:-:|---|---|",
     ]
+    for sim, a, b in pairs[:top]:
+        people = a.doc.names.people | b.doc.names.people
+        reason = conflict_reason(a.doc.names, b.doc.names) or (
+            "similarity"
+            if sim < threshold
+            else ("no event word" if not shares_event_term(vec[a.id], vec[b.id], people) else "—")
+        )
+        out.append(
+            f"| {sim:.2f} | {reason} "
+            f"| `{slugs[a.id]}` {_cell(a.doc.title)} <br>*{_cell(_names(a.doc.names))}* "
+            f"| `{slugs[b.id]}` {_cell(b.doc.title)} <br>*{_cell(_names(b.doc.names))}* |"
+        )
     out.append("")
     return "\n".join(out)

@@ -42,6 +42,7 @@ The five sources added on 2026-10-05 passed the weekly scheduled validation twic
      language: sq
      country: XK
      enabled: false
+     ownership: private       # ratings: see "Ratings" below
      notes: Candidate — why this source matters.
    ```
 2. Validate it from a machine with open egress (a server, a laptop, or GitHub Actions: *Actions → Source validation → Run workflow*):
@@ -53,6 +54,28 @@ The five sources added on 2026-10-05 passed the weekly scheduled validation twic
    The report shows the HTTP status, content type, robots.txt verdict, feed format, item count, the share of items with title / link / date / summary, the date range, and any autodiscovered feed URLs.
 3. If it passes, set `enabled: true`, put the validated URL in `feed_url`, add a dated note, and commit.
 4. Apply it: `gjurme sources sync`. The `migrate` step of every deploy (`gjurme db upgrade`) also syncs, so merging the YAML change and deploying is enough. Syncing is idempotent: it inserts new sources and updates changed metadata. It never deletes a source or its articles; disabling is the removal mechanism.
+
+## Ratings
+
+Stories show how their coverage splits by the outlets' **perspective** (bias), **factuality**, **ownership** and **region**, as on Ground News. Region is the `country` field. The rest is declared per source in `sources.yaml`:
+
+```yaml
+    bias: center                  # left | lean_left | center | lean_right | right | unrated
+    factuality: high              # very_high | high | mixed | low | very_low | unrated
+    ownership: private            # private | media_group | public | state |
+                                  # public_international | nonprofit | unknown
+    owner: Example Media Group    # optional, public information
+    ratings_note: "Editorial review 2026-11 by …: …"   # required once bias/factuality is set
+```
+
+Rules ([ADR-021](DECISIONS.md#adr-021-outlet-ratings-are-editorial-declared-with-their-basis-unrated-by-default)):
+
+- **Bias and factuality are editorial judgements about the outlet**, never about an article, and are only set from a documented review: who rated it, when, on what evidence (a sample of its coverage, corrections policy, ownership, published methodology of an outside rater). The registry refuses a rating without a `ratings_note`, and the note is shown on the outlet's page.
+- **Never guess.** An outlet without a review stays `unrated`; every coverage bar shows unrated outlets as a hatched segment, and perspective blindspots only count rated outlets.
+- **Ownership** comes from public information about the publisher. Today: Kallxo and Reporter.al are non-profit (BIRN), Radio Evropa e Lirë is international public media (RFE/RL), the other enabled outlets are private companies. Verify before relying on it, and add `owner` where it is known.
+- The scale is the Ground News one (left ↔ right). If another axis describes Albanian-language media better (for example *towards / against the government*), relabel it in `frontend/src/lib/ratings.ts` and say so on the methodology page; the stored values stay the same.
+
+After editing, `gjurme sources sync` (or the next deploy) applies the ratings; they affect all stories immediately.
 
 ## What the fetcher guarantees for every source
 

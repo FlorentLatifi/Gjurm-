@@ -21,23 +21,27 @@ from gjurme.stories.similarity import (
 
 def test_tokens_fold_stem_and_drop_noise() -> None:
     # Inflections of one word share a stem; stopwords, outlet labels and 1-digit numbers go.
-    assert tokens("Prishtinë, Prishtinës dhe Prishtinën") == ["prisht", "prisht", "prisht"]
-    assert tokens("VIDEO: Kuvendi i Kosovës për 2 orë") == ["kuvend", "kosove"]
-    assert tokens("Buxheti 2027") == ["buxhet", "2027"]
+    assert tokens("Prishtinë, Prishtinës dhe Prishtinën") == ["prish", "prish", "prish"]
+    # short names keep their case endings within six letters; one ending is dropped
+    assert tokens("Kurti, Kurtin, Kurtit") == ["kurt", "kurt", "kurt"]
+    assert tokens("Prizren Prizrenit") == ["prizr", "prizr"]
+    assert tokens("presidenti presioni") == ["presid", "presio"]  # long words stay apart
+    assert tokens("VIDEO: Kuvendi i Kosovës për 2 orë") == ["kuvend", "kosov"]
+    assert tokens("Buxheti 2027") == tokens("buxhetin 2027") == ["buxhe", "2027"]
     assert tokens(None) == [] and tokens("") == []
 
 
 def test_name_stems_match_partial_names() -> None:
-    assert name_stems(["Vjosa Osmani"]) & name_stems(["Osmani"]) == {"osmani"}
+    assert name_stems(["Vjosa Osmani"]) & name_stems(["Osmanit"]) == {"osman"}
     assert name_stems(["e"]) == frozenset()
 
 
 def test_idf_weights_rare_terms_higher() -> None:
     docs = [Doc(i, "Kuvendi mblidhet sot") for i in range(5)] + [Doc(9, "Kuvendi dhe Prizreni")]
     idf = idf_table(docs)
-    assert idf["prizre"] > idf["kuvend"]
+    assert idf["prizr"] > idf["kuvend"]
     v = vector(docs[-1], idf)
-    assert v["prizre"] > v["kuvend"]
+    assert v["prizr"] > v["kuvend"]
     assert cosine(v, v) == pytest.approx(1.0)
     assert vector(Doc(1, "dhe e në"), idf) == {}  # nothing but stopwords
 
@@ -47,11 +51,11 @@ def test_idf_weights_rare_terms_higher() -> None:
     [
         # same places / one side names none → no conflict
         (Names(places=frozenset({"durres"})), Names(places=frozenset({"durres", "tirane"})), False),
-        (Names(places=frozenset({"prizre"})), Names(), False),
+        (Names(places=frozenset({"prizr"})), Names(), False),
         # two accidents on two roads: half shared → conflict
         (
-            Names(places=frozenset({"prizre", "prisht"})),
-            Names(places=frozenset({"peje", "prisht"})),
+            Names(places=frozenset({"prizr", "prish"})),
+            Names(places=frozenset({"pej", "prish"})),
             True,
         ),
         # an extra person named on one side does not split a story
@@ -68,7 +72,7 @@ def test_idf_weights_rare_terms_higher() -> None:
             True,
         ),
         # a single combined name on one side is not enough to call it a conflict
-        (Names(places=frozenset({"prisht"})), Names(people=frozenset({"muriqi", "rashic"})), False),
+        (Names(places=frozenset({"prish"})), Names(people=frozenset({"muriqi", "rashic"})), False),
     ],
 )
 def test_names_conflict(a: Names, b: Names, conflict: bool) -> None:
