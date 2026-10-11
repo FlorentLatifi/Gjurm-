@@ -53,7 +53,7 @@
             }
           },
           "503": {
-            "description": "Service Unavailable",
+            "description": "Database unreachable",
             "content": {
               "application/json": {
                 "schema": {
@@ -291,24 +291,24 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           }
         }
       }
@@ -446,24 +446,24 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           }
         }
       }
@@ -499,34 +499,34 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           },
           "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           }
         }
       }
@@ -632,24 +632,24 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           }
         }
       }
@@ -783,24 +783,24 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           }
         }
       }
@@ -934,24 +934,24 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           }
         }
       }
@@ -989,24 +989,24 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           }
         }
       }
@@ -1044,24 +1044,24 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           }
         }
       }
@@ -1099,24 +1099,24 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           }
         }
       }
@@ -1238,24 +1238,24 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           }
         }
       }
@@ -1365,24 +1365,24 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           }
         }
       }
@@ -1410,7 +1410,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
@@ -1420,7 +1420,7 @@
             }
           },
           "429": {
-            "description": "Too Many Requests",
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
@@ -1543,34 +1543,34 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           },
           "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           }
         }
       }
@@ -1743,24 +1743,24 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           }
         }
       }
@@ -1876,34 +1876,34 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           },
           "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           }
         }
       }
@@ -2013,24 +2013,24 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           }
         }
       }
@@ -2146,34 +2146,34 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           },
           "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           }
         }
       }
@@ -2390,24 +2390,24 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           }
         }
       }
@@ -2443,34 +2443,34 @@
             }
           },
           "422": {
+            "description": "Invalid request parameters",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Unprocessable Content"
+            }
           },
           "429": {
+            "description": "Too many requests",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Too Many Requests"
+            }
           },
           "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           }
         }
       }

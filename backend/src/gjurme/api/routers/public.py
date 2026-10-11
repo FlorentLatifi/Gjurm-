@@ -38,9 +38,18 @@ from gjurme.api.schemas import (
     VolumeSeries,
 )
 
-NOT_FOUND: dict[int | str, dict[str, Any]] = {404: {"model": ErrorResponse}}
+# Descriptions are spelled out: FastAPI otherwise takes them from Python's status-phrase table,
+# which changes between versions (422 is "Unprocessable Content" from 3.13), and the committed
+# OpenAPI snapshot must not depend on the interpreter that generated it.
+NOT_FOUND: dict[int | str, dict[str, Any]] = {
+    404: {"model": ErrorResponse, "description": "Not found"}
+}
 router = APIRouter(
-    prefix="/api/v1", responses={422: {"model": ErrorResponse}, 429: {"model": ErrorResponse}}
+    prefix="/api/v1",
+    responses={
+        422: {"model": ErrorResponse, "description": "Invalid request parameters"},
+        429: {"model": ErrorResponse, "description": "Too many requests"},
+    },
 )
 
 GroupBy = Literal["source", "topic"]
