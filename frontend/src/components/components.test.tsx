@@ -88,6 +88,7 @@ const article = (over: Partial<ArticleSummary>): ArticleSummary => ({
   event_type: "policy_decision",
   enrichment_status: "succeeded",
   duplicate_of_id: null,
+  story_id: null,
   source_slug: "koha",
   source_name: "KOHA",
   topic_slug: "politics",

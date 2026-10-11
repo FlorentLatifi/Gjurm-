@@ -28,7 +28,7 @@ import {
 import { useTitle } from "../lib/useTitle";
 
 export default function OverviewPage() {
-  useTitle("", "What Albanian and Balkan media are reporting right now: topics, people, tone.");
+  useTitle("Dashboard", "What Albanian and Balkan media are reporting right now: topics, people, tone.");
   const { filters, apiParams } = useFilters();
   const overview = useOverview(apiParams);
   const volume = useVolume(apiParams);

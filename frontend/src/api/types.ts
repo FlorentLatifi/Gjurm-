@@ -147,6 +147,18 @@ export interface CoOccurrence {
   together: number;
 }
 
+export type BiasRating = "left" | "lean_left" | "center" | "lean_right" | "right" | "unrated";
+export type BiasGroup = "left" | "center" | "right" | "unrated";
+export type FactualityRating = "very_high" | "high" | "mixed" | "low" | "very_low" | "unrated";
+export type OwnershipType =
+  | "private"
+  | "media_group"
+  | "public"
+  | "state"
+  | "public_international"
+  | "nonprofit"
+  | "unknown";
+
 export interface SourceStat {
   slug: string;
   name: string;
@@ -157,6 +169,14 @@ export interface SourceStat {
   verification_status: string;
   last_success_at: string | null;
   consecutive_failures: number;
+  bias: BiasRating;
+  factuality: FactualityRating;
+  ownership: OwnershipType;
+  owner: string | null;
+  /** Stories (started in the range) this outlet covered. */
+  stories: number;
+  /** Stories covered by 2+ outlets that this outlet published first. */
+  first_reports: number;
   articles: number;
   original: number;
   per_day: number | null;
@@ -181,10 +201,107 @@ export interface ArticleSummary {
   event_type: string | null;
   enrichment_status: string;
   duplicate_of_id: number | null;
+  story_id: number | null;
   source_slug: string;
   source_name: string;
   topic_slug: string | null;
   topic_name: string | null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Stories
+// ---------------------------------------------------------------------------------------------
+/** Distinct outlets that covered a story, split four ways. */
+export interface Coverage {
+  bias: Record<BiasGroup, number>;
+  factuality: { high: number; mixed: number; low: number; unrated: number };
+  ownership: Partial<Record<OwnershipType, number>>;
+  /** By the outlet's country: XK, AL, MK, REG … */
+  region: Record<string, number>;
+}
+
+export interface Blindspot {
+  kind: "perspective" | "region";
+  /** perspective: "left" | "right" (the side that barely covered it); region: a country code. */
+  missing: string;
+}
+
+export interface StorySummary {
+  id: number;
+  title: string;
+  url: string;
+  language: string;
+  summary_en: string | null;
+  source_slug: string;
+  source_name: string;
+  first_published_at: string;
+  last_published_at: string;
+  article_count: number;
+  source_count: number;
+  topic_slug: string | null;
+  topic_name: string | null;
+  first_source_slug: string;
+  first_source_name: string;
+  coverage: Coverage;
+  tone: { negative: number; neutral: number; positive: number };
+  sources: { slug: string; name: string; bias: BiasRating; country: string }[];
+  blindspots: Blindspot[];
+}
+
+export interface StoryArticle {
+  id: number;
+  title: string;
+  url: string;
+  published_at: string;
+  language: string;
+  summary_en: string | null;
+  sentiment_label: SentimentLabel | null;
+  source_slug: string;
+  source_name: string;
+  source_country: string;
+  source_bias: BiasRating;
+  source_factuality: FactualityRating;
+  source_ownership: OwnershipType;
+  is_first: boolean;
+}
+
+export interface StoryDetail extends StorySummary {
+  articles: StoryArticle[];
+  entities: (EntityRef & { articles: number })[];
+  topics: { slug: string; name_en: string; articles: number }[];
+  related: StorySummary[];
+}
+
+export interface Blindspots {
+  method: string;
+  items: StorySummary[];
+}
+
+export interface SourceProfile {
+  slug: string;
+  name: string;
+  homepage_url: string;
+  language: string;
+  country: string;
+  is_active: boolean;
+  verification_status: string;
+  last_success_at: string | null;
+  bias: BiasRating;
+  factuality: FactualityRating;
+  ownership: OwnershipType;
+  owner: string | null;
+  ratings_note: string | null;
+  range: DateRange;
+  articles: number;
+  avg_sentiment: number | null;
+  stories: number;
+  first_reports: number;
+  exclusives: number;
+  coverage_share: number | null;
+  top_topics: { slug: string; name_en: string; articles: number }[];
+  top_entities: (EntityRef & { mentions: number })[];
+  overlap: { slug: string; name: string; bias: BiasRating; shared: number }[];
+  recent_stories: StorySummary[];
 }
 
 export interface ArticleDetail extends ArticleSummary {
@@ -199,7 +316,14 @@ export interface ArticleDetail extends ArticleSummary {
   source_url: string;
   topics: { slug: string; name_en: string; is_primary: boolean }[];
   entities: EntityRef[];
-  related: { id: number; title: string; url: string; published_at: string; source_name: string }[];
+  related: {
+    id: number;
+    title: string;
+    url: string;
+    published_at: string;
+    source_slug: string;
+    source_name: string;
+  }[];
 }
 
 export interface Page<T> {

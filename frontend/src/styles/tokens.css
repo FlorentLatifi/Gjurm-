@@ -31,6 +31,23 @@
   --div-neg: #e34948;
   --div-pos: #2a78d6;
 
+  /* coverage bars: perspective = diverging (blue ← gray → red); region/ownership = categorical
+     slots in fixed order; factuality = ordinal one-hue ramp; unrated = hatched neutral */
+  --bias-left: #2a78d6;
+  --bias-center: #a8a79f;
+  --bias-right: #e34948;
+  --cat-1: #2a78d6;
+  --cat-2: #eb6834;
+  --cat-3: #1baf7a;
+  --cat-4: #eda100;
+  --cat-5: #e87ba4;
+  --cat-6: #008300;
+  --fact-high: #1c5cab;
+  --fact-mixed: #3987e5;
+  --fact-low: #86b6ef;
+  --unrated: #e6e4dd;
+  --unrated-ink: #b5b3ab;
+
   --good: #006300;
   --bad: #b3261e;
   --status-good: #0ca30c;
@@ -71,6 +88,20 @@
     --sent-positive: #3987e5;
     --div-neg: #e66767;
     --div-pos: #3987e5;
+    --bias-left: #3987e5;
+    --bias-center: #5f5e59;
+    --bias-right: #e66767;
+    --cat-1: #3987e5;
+    --cat-2: #d95926;
+    --cat-3: #199e70;
+    --cat-4: #c98500;
+    --cat-5: #d55181;
+    --cat-6: #008300;
+    --fact-high: #86b6ef;
+    --fact-mixed: #3987e5;
+    --fact-low: #184f95;
+    --unrated: #2c2c2a;
+    --unrated-ink: #4a4a46;
     --good: #0ca30c;
     --bad: #e66767;
   }
@@ -101,6 +132,20 @@
   --sent-positive: #3987e5;
   --div-neg: #e66767;
   --div-pos: #3987e5;
+  --bias-left: #3987e5;
+  --bias-center: #5f5e59;
+  --bias-right: #e66767;
+  --cat-1: #3987e5;
+  --cat-2: #d95926;
+  --cat-3: #199e70;
+  --cat-4: #c98500;
+  --cat-5: #d55181;
+  --cat-6: #008300;
+  --fact-high: #86b6ef;
+  --fact-mixed: #3987e5;
+  --fact-low: #184f95;
+  --unrated: #2c2c2a;
+  --unrated-ink: #4a4a46;
   --good: #0ca30c;
   --bad: #e66767;
 }

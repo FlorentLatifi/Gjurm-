@@ -13,13 +13,14 @@ export interface Filters {
   sources: string[];
 }
 
-export function useFilters() {
+/** ``defaultDays`` is the range when the URL names none (the stories feed starts at 3 days). */
+export function useFilters(defaultDays = 30) {
   const [params, setParams] = useSearchParams();
   const filters: Filters = useMemo(() => {
     const raw = Number(params.get("days"));
-    const days = Number.isInteger(raw) && raw >= 1 && raw <= 366 ? raw : 30;
+    const days = Number.isInteger(raw) && raw >= 1 && raw <= 366 ? raw : defaultDays;
     return { days, sources: params.getAll("source").filter((s) => /^[a-z0-9-]{2,64}$/.test(s)) };
-  }, [params]);
+  }, [params, defaultDays]);
 
   const update = useCallback(
     (next: Partial<Filters>) => {
@@ -27,7 +28,7 @@ export function useFilters() {
         (prev) => {
           const out = new URLSearchParams(prev);
           if (next.days !== undefined) {
-            if (next.days === 30) out.delete("days");
+            if (next.days === defaultDays) out.delete("days");
             else out.set("days", String(next.days));
           }
           if (next.sources !== undefined) {
@@ -40,7 +41,7 @@ export function useFilters() {
         { replace: true },
       );
     },
-    [setParams],
+    [setParams, defaultDays],
   );
 
   const apiParams = useMemo(

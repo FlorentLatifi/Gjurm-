@@ -21,7 +21,9 @@ export function AboutPage() {
       <h1 style={{ color: "var(--ink)" }}>Methodology, sources &amp; limitations</h1>
       <p>
         <strong>GJURMË</strong> (Albanian: “trace, footprint”) follows what Albanian-language and
-        regional media publish and turns it into comparable numbers: which topics dominate, who is in
+        regional media publish, groups the articles that report the same event into stories, and
+        shows who covered each story and who did not — by the outlets’ perspective, region and
+        ownership. It also turns the news into comparable numbers: which topics dominate, who is in
         the news, how the tone of coverage shifts, and how outlets differ.
       </p>
 
@@ -70,7 +72,50 @@ export function AboutPage() {
         <li><strong>Moving averages</strong> are trailing 7-day means.</li>
       </ul>
 
-      <h2>4. Limitations</h2>
+      <h2 id="stories">4. Stories, coverage bars and blindspots</h2>
+      <ul>
+        <li>A <strong>story</strong> groups the articles of different outlets that report the same
+          event, so you can see who covered it and compare their headlines. Headline, excerpt and
+          the names the analysis found are compared as weighted word lists (rare words such as names
+          and places weigh more; Albanian word endings are folded). An article joins the most similar
+          story that started within 48 hours, unless the two name mostly different places or people
+          — “a fire in Prizren” and “a fire in Gjakovë” stay separate.</li>
+        <li>The grouping errs on the side of keeping stories apart: two different events merged into
+          one would misstate coverage. Some paraphrases of one event therefore end up as separate
+          stories.</li>
+        <li><strong>Coverage bars</strong> count each outlet once per story and split them by the
+          outlet’s perspective, region (where it is based), ownership or factuality. The headline
+          shown for a story is the one whose wording is closest to all the others.</li>
+        <li><strong>Blindspot</strong>: at least 3 rated outlets covered a story, 60% or more of them
+          from one side and at most 15% from the other — or the story is about a country (named in
+          at least half of its analysed articles) whose own outlets did not report it.</li>
+        <li><strong>Reported first</strong> is the outlet with the earliest publication time among a
+          story’s articles, as stated by the feeds.</li>
+      </ul>
+
+      <h2 id="ratings">5. How outlets are rated</h2>
+      <ul>
+        <li><strong>Perspective</strong> (left · lean left · center · lean right · right) and
+          <strong> factuality</strong> (very high … very low) are editorial judgements about the
+          <em> outlet</em>, never about a single article. GJURMË only shows a rating that rests on a
+          documented review, and states its basis on the outlet’s page. Until then the outlet is
+          shown as <em>unrated</em> (a hatched segment in every bar).</li>
+        <li><strong>Ownership</strong> (private company, media group, public broadcaster,
+          international public media, non-profit …) comes from public information about the
+          publisher.</li>
+        <li>Ratings can be wrong or out of date. Outlets and readers can ask for a correction through
+          the contact below.</li>
+      </ul>
+
+      <h2 id="my-news">6. My news bias</h2>
+      <p>
+        When you open an article from GJURMË, this browser notes the outlet, so the{" "}
+        <Link to="/my-news">My news bias</Link> page can show the balance of what you read. The
+        record never leaves your browser (it is kept in its local storage, for at most 90 days) and
+        can be cleared on that page at any time.
+      </p>
+
+      <h2>7. Limitations</h2>
       <ul>
         <li>The AI can misclassify topics or tone, merge or split names (“Kurti” vs “Albin Kurti”), and
           miss entities. Treat individual labels as indicative; aggregates are more reliable.</li>
@@ -79,7 +124,7 @@ export function AboutPage() {
         <li>Feeds sometimes lack or mislabel publication times; those articles are marked “(est.)”.</li>
       </ul>
 
-      <h2>5. Sources</h2>
+      <h2>8. Sources</h2>
       {status.data ? (
         <ul>
           {status.data.sources.map((s) => (
@@ -89,7 +134,7 @@ export function AboutPage() {
         </ul>
       ) : <p>Loading…</p>}
 
-      <h2 id="contact">6. Corrections, removal requests &amp; privacy</h2>
+      <h2 id="contact">9. Corrections, removal requests &amp; privacy</h2>
       <p>
         Publishers or individuals can request correction or removal of any item; we hide it from all
         pages and statistics.{" "}
@@ -103,7 +148,8 @@ export function AboutPage() {
           </>
         )}{" "}
         GJURMË uses no cookies, no trackers and no analytics; server logs keep no full IP addresses
-        (they are truncated before being written).
+        (they are truncated before being written). The reading record behind “My news bias” stays in
+        your browser.
       </p>
       <p>
         Developers: the full data is available through the documented <a href="/api/docs">public API</a>.
@@ -161,7 +207,7 @@ export function NotFoundPage() {
     <div className="state" style={{ padding: "64px 0" }}>
       <h1>Page not found</h1>
       <p>The page you are looking for does not exist.</p>
-      <Link className="btn" to="/">Go to the overview</Link>
+      <Link className="btn" to="/">Go to the top stories</Link>
     </div>
   );
 }

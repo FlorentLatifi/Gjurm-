@@ -1,7 +1,18 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 
-const ROUTES = ["/", "/trends", "/topics", "/entities", "/sources", "/articles", "/about", "/status"];
+const ROUTES = [
+  "/",
+  "/blindspot",
+  "/dashboard",
+  "/trends",
+  "/topics",
+  "/entities",
+  "/sources",
+  "/articles",
+  "/about",
+  "/status",
+];
 
 /** Emits sitemap.xml + robots.txt for the public URL the build targets (VITE_PUBLIC_URL). */
 function seoFiles(publicUrl: string | undefined): Plugin {

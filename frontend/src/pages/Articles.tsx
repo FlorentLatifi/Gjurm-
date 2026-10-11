@@ -17,6 +17,7 @@ import {
   hostOf,
   safeHref,
 } from "../lib/format";
+import { recordRead } from "../lib/reading";
 import { useTitle } from "../lib/useTitle";
 
 export function ArticlesPage() {
@@ -145,10 +146,12 @@ export function ArticlePage() {
           {a.author && <> · {a.author}</>}
         </p>
         {href && (
-          <p style={{ marginTop: 12 }}>
-            <a className="btn" href={href} target="_blank" rel="noopener noreferrer">
+          <p style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <a className="btn" href={href} target="_blank" rel="noopener noreferrer"
+              onClick={() => recordRead(a.source_slug, a.story_id, a.topic_slug)}>
               Read the full article on {hostOf(a.url)} ↗
             </a>
+            {a.story_id && <Link className="btn" to={`/stories/${a.story_id}`}>Compare how other outlets covered it</Link>}
           </p>
         )}
       </div>
@@ -194,7 +197,8 @@ export function ArticlePage() {
           <ul style={{ margin: "10px 0 0", paddingLeft: 18, display: "grid", gap: 6 }}>
             {a.related.map((r) => (
               <li key={r.id}>
-                {safeHref(r.url) ? <a href={safeHref(r.url)} target="_blank" rel="noopener noreferrer">{r.title}</a> : r.title}
+                {safeHref(r.url) ? <a href={safeHref(r.url)} target="_blank" rel="noopener noreferrer"
+                  onClick={() => recordRead(r.source_slug, a.story_id, a.topic_slug)}>{r.title}</a> : r.title}
                 <span className="rank-meta"> · {r.source_name} · {formatDateTime(r.published_at)}</span>
               </li>
             ))}

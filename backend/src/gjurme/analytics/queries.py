@@ -852,7 +852,7 @@ def article_detail(session: Session, article_id: int) -> dict[str, Any] | None:
     art["related"] = _rows(
         session,
         """
-        SELECT a.id, a.title, a.url, a.published_at, s.name AS source_name
+        SELECT a.id, a.title, a.url, a.published_at, s.slug AS source_slug, s.name AS source_name
         FROM core.articles a JOIN core.sources s ON s.id = a.source_id
         WHERE NOT a.is_hidden AND a.id <> :id AND (
               a.duplicate_of_id = coalesce(:root, :id) OR a.id = coalesce(:root, :id)
