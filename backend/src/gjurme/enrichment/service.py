@@ -16,6 +16,7 @@ Control flow per run::
 from __future__ import annotations
 
 import logging
+import time
 from collections import Counter
 from collections.abc import Callable, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
@@ -123,6 +124,7 @@ class EnrichStats:
     fatal_error: str | None = None
     skipped_reason: str | None = None
     spent_today_usd: Decimal = Decimal(0)
+    time_limited: bool = False  # stopped starting calls after ENRICH_MAX_SECONDS
 
     def as_dict(self) -> dict[str, Any]:
         calls = self.attempted - self.cached
@@ -144,6 +146,7 @@ class EnrichStats:
             "budget_exhausted": self.budget_exhausted,
             "circuit_open": self.circuit_open,
             "fatal_error": self.fatal_error,
+            "time_limited": self.time_limited,
             "skipped_reason": self.skipped_reason,
         }
 
@@ -484,6 +487,13 @@ def run_enrichment(
     pending: dict[Future[CallOutcome], QueueItem] = {}
     queue_iter = iter(queue)
     stop_dispatch = False
+    deadline = (
+        time.monotonic() + settings.enrich_max_seconds if settings.enrich_max_seconds else None
+    )
+    # Anthropic prompt caching: a cached system prompt can be read only once the first response
+    # has started, and runs are further apart than the cache lives. Sent together, the first
+    # calls of a run would each pay a cache write; sent first and alone, one call writes it.
+    warm_cache = provider.name == "anthropic"
 
     def record(outcome: CallOutcome, cached_from: Enrichment | None = None) -> None:
         nonlocal consecutive_failures
@@ -532,7 +542,15 @@ def run_enrichment(
     ) as pool:
         while True:
             # Fill the worker pool.
-            while not stop_dispatch and len(pending) < settings.enrich_concurrency:
+            limit = 1 if warm_cache else settings.enrich_concurrency
+            while not stop_dispatch and len(pending) < limit:
+                if deadline is not None and time.monotonic() > deadline:
+                    stats.time_limited = stop_dispatch = True
+                    log.info(
+                        "enrichment time limit reached; the rest waits for the next run",
+                        extra={"max_seconds": settings.enrich_max_seconds},
+                    )
+                    break
                 item = next(queue_iter, None)
                 if item is None:
                     stop_dispatch = True
@@ -576,6 +594,7 @@ def run_enrichment(
             for fut in done:
                 pending.pop(fut)
                 outcome = fut.result()
+                warm_cache = False
                 budget.settle(outcome.estimate, outcome.cost)
                 record(outcome)
                 if outcome.fatal and not stats.fatal_error:

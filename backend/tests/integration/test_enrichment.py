@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from itertools import pairwise
 from typing import Any
 
 import pytest
@@ -368,3 +369,49 @@ def test_two_runs_at_once_record_every_call(db, settings) -> None:
         ).all()
     assert recorded == sum(p.calls for p in providers)  # every paid call is in the spend
     assert sorted(a for a, _ in current) == ids and all(n == 1 for _, n in current)
+
+
+def test_time_limit_leaves_the_rest_for_the_next_run(db, settings) -> None:
+    import time
+
+    _articles(db, 6)
+
+    class Slow(ScriptedProvider):
+        def complete(self, system: str, user: str, schema: dict[str, Any]) -> LLMResult:
+            time.sleep(0.6)
+            return super().complete(system, user, schema)
+
+    cfg = settings.model_copy(update={"enrich_max_seconds": 1, "enrich_concurrency": 1})
+    stats = run_enrichment(db, cfg, Slow([GOOD]))
+    assert stats.time_limited and stats.queued == 6 and 1 <= stats.attempted < 6
+    with db() as s:
+        waiting = s.scalar(
+            select(func.count()).select_from(Article).where(Article.enrichment_status == "pending")
+        )
+    assert waiting == 6 - stats.attempted
+
+
+def test_first_claude_call_of_a_run_goes_alone(db, settings) -> None:
+    """The cached system prompt is readable only once a response has started: sent together,
+    the first calls of a run would each pay a cache write."""
+    import threading
+    import time
+
+    _articles(db, 5)
+    spans: list[tuple[float, float]] = []
+    lock = threading.Lock()
+
+    class Timed(ScriptedProvider):
+        def complete(self, system: str, user: str, schema: dict[str, Any]) -> LLMResult:
+            start = time.monotonic()
+            time.sleep(0.05)
+            result = super().complete(system, user, schema)
+            with lock:
+                spans.append((start, time.monotonic()))
+            return result
+
+    run_enrichment(db, settings.model_copy(update={"enrich_concurrency": 4}), Timed([GOOD]))
+    spans.sort()
+    first_end = spans[0][1]
+    assert len(spans) == 5 and all(start >= first_end for start, _ in spans[1:])
+    assert any(b[0] < a[1] for a, b in pairwise(spans[1:]))  # then in parallel
