@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from gjurme.config import get_settings
 from gjurme.db.models import DataQualityResult
 
 
@@ -164,12 +165,16 @@ def check_enrichment_consistency(s: Session) -> CheckResult:
 
 
 def check_story_backlog(s: Session) -> CheckResult:
-    """Articles the CLUSTER stage should have grouped into a story by now."""
+    """Articles the CLUSTER stage should have grouped into a story by now (an article waiting
+    for its analysis is clustered after STORY_ENRICHMENT_WAIT_MINUTES at the latest)."""
     backlog = s.execute(
         text("""
         SELECT count(*) FROM core.articles
         WHERE story_id IS NULL AND NOT is_hidden AND ingested_at < now() - interval '2 hours'
-    """)
+          AND (enrichment_status IN ('succeeded', 'skipped')
+               OR ingested_at < now() - interval '2 hours' - make_interval(mins => :wait))
+    """),
+        {"wait": get_settings().story_enrichment_wait_minutes},
     ).scalar_one()
     return CheckResult(
         "story_backlog_2h",

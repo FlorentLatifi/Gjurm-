@@ -244,6 +244,82 @@ def test_clustering_groups_paraphrases_and_separates_lookalikes(
         assert story.representative_article_id in newsroom["budget"] + [newsroom["copy"]]
 
 
+LOOKALIKES = [  # (place a, place b, headline template)
+    ("Prizren", "Gjakovë", "Zjarr në një ndërtesë banimi në {}"),
+    ("Pejë", "Prizren", "Gjykata në {} dënon ish-zyrtarin për korrupsion"),
+    ("Ferizaj", "Gjilan", "Aksident trafiku në {}, një i vdekur"),
+]
+
+
+def unanalysed(s: Session, source: Source, title: str, at: datetime, *, waited: bool) -> int:
+    """An article whose analysis has not run (budget spent, kill switch): no entities yet."""
+    art = Article(
+        source_id=source.id,
+        url=f"https://{source.slug}.example.com/{sha256_hex(title)[:12]}",
+        canonical_url="x",
+        url_hash=sha256_hex(title, source.slug),
+        title=title,
+        title_normalized=normalize_key(title),
+        title_hash=sha256_hex(title),
+        language="sq",
+        published_at=at,
+        published_date=at.astimezone(TZ).date(),
+        content_hash=sha256_hex(title),
+        ingested_at=at if waited else NOW,
+    )
+    s.add(art)
+    s.flush()
+    return art.id
+
+
+def test_clustering_waits_for_the_analysis_and_keeps_lookalikes_apart_without_one(
+    db: sessionmaker[Session], settings: Settings
+) -> None:
+    pairs: list[tuple[int, int]] = []
+    with db() as s, s.begin():
+        a, b, old = rated_source(s, "qendra"), rated_source(s, "djathtas"), add_source(s, "arkiv")
+        # Earlier analyses typed the towns as places (the lexicon an unanalysed article uses).
+        towns = sorted({p for pair in LOOKALIKES for p in pair[:2]})
+        for i, town in enumerate(towns):
+            title = f"Komuna e {town} hap tenderin për rrugët"
+            article(s, old, title, NOW - timedelta(days=5, hours=i), entities=[(town, "location")])
+        t = NOW - timedelta(hours=10)  # waited longer than STORY_ENRICHMENT_WAIT_MINUTES
+        for i, (place_a, place_b, headline) in enumerate(LOOKALIKES):
+            at = t + timedelta(hours=i)
+            pairs.append(
+                (
+                    unanalysed(s, a, headline.format(place_a), at, waited=True),
+                    unanalysed(
+                        s, b, headline.format(place_b), at + timedelta(minutes=20), waited=True
+                    ),
+                )
+            )
+        fresh = unanalysed(s, a, "Protestë para Kuvendit për pagat", NOW, waited=False)
+    with db() as s:
+        stats = cluster_pending(s, settings)
+    assert stats.considered == len(towns) + len(LOOKALIKES) * 2  # the fresh article waits
+    for left, right in pairs:
+        assert story_of(db, left) is not None
+        assert story_of(db, left) != story_of(db, right)
+    assert story_of(db, fresh) is None
+
+    with db() as s, s.begin():  # its analysis arrives: the next run clusters it
+        s.execute(update(Article).where(Article.id == fresh).values(enrichment_status="succeeded"))
+    with db() as s:
+        assert cluster_pending(s, settings).considered == 1
+    assert story_of(db, fresh) is not None
+
+
+def test_clustering_does_not_wait_when_analysis_is_turned_off(
+    db: sessionmaker[Session], settings: Settings
+) -> None:
+    with db() as s, s.begin():
+        fresh = unanalysed(s, add_source(s, "qendra"), "Protestë para Kuvendit", NOW, waited=False)
+    with db() as s:
+        cluster_pending(s, settings.model_copy(update={"enrichment_enabled": False}))
+    assert story_of(db, fresh) is not None
+
+
 def test_rebuild_reclusters_with_a_new_threshold(
     db: sessionmaker[Session], settings: Settings, newsroom: dict[str, Any]
 ) -> None:
@@ -286,6 +362,20 @@ def test_story_backlog_check(
     with db() as s, s.begin():
         result = check_story_backlog(s)
     assert result.status == "pass" and result.observed == 0
+    with db() as s, s.begin():  # waiting for its analysis is not a backlog, yet
+        waiting = unanalysed(s, add_source(s, "arkiv"), "Protestë", NOW, waited=False)
+        s.execute(
+            update(Article)
+            .where(Article.id == waiting)
+            .values(ingested_at=NOW - timedelta(hours=3))
+        )
+        assert check_story_backlog(s).observed == 0
+        s.execute(
+            update(Article)
+            .where(Article.id == waiting)
+            .values(ingested_at=NOW - timedelta(hours=9))
+        )
+        assert check_story_backlog(s).observed == 1
 
 
 # =============================================================================================
