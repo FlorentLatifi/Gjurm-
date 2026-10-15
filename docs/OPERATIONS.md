@@ -54,13 +54,14 @@ Run after every pipeline run (and on demand: `gj quality`). Results are in `ops.
 | `raw_rejection_rate_24h` | 24 h | > 10% / > 30% | A feed changed format (missing links/dates) → `admin failures` |
 | `duplicate_rate_24h` | 24 h | > 95% (info) | A feed republishing old items |
 | `estimated_publication_dates_24h` | 24 h | > 20% | A feed dropped or broke its dates |
-| `enrichment_backlog_6h` | pending > 6 h old | > 200 / > 1000 | Budget too small, enrichment paused, or LLM failing |
+| `enrichment_backlog_6h` | still due an analysis > 6 h after arriving (pending, or failed with attempts left) | > 200 / > 1000 | Budget too small, enrichment paused, or LLM failing |
 | `enrichment_failure_rate_24h` | 24 h | > 10% / > 30% (critical) | LLM incident, bad key, schema problem |
 | `enrichment_consistency` | all | any (critical) | `succeeded` article without a current enrichment, or the reverse (a bug) |
-| `story_backlog_2h` | unclustered > 2 h old | > 50 / > 500 | CLUSTER stage failing or skipped (`gjurme cluster` runs it alone) |
+| `story_backlog_2h` | unclustered > 2 h after it could be clustered (analysed, or `STORY_ENRICHMENT_WAIT_MINUTES` passed) | > 50 / > 500 | CLUSTER stage failing or skipped (`gjurme cluster` runs it alone) |
 | `malformed_entities` | all | any | Empty or markup-like entity names (prompt or repair regression) |
 | `ungrounded_entity_rate_24h` | 24 h | > 15% | The model is inventing entities: review the prompt or model |
-| `source_freshness_6h` | active sources | any stale / all stale (critical) | No successful fetch in 6 h |
+| `source_freshness_6h` | sources | any stale or auto-disabled / all stale or none active (critical) | No successful fetch in 6 h; an auto-disabled source is retried every 6 h and re-enabled when it works |
+| `feed_overflow_24h` | 24 h | any (warning) | A fetch in which every item (≥ 5) was new: the feed published more between two polls than it lists, so items were probably missed. Poll that source more often or ask the outlet for a longer feed |
 | `article_volume_anomaly` | 24 h vs 14-day baseline | \|z\| > 3, or 0 articles with a baseline ≥ 10 | Sources silently broken, or a real news surge |
 | `foreign_domain_links_24h` | 24 h | > 5% (info) | Feed links pointing off-site (syndication, tracking redirects) |
 | `low_confidence_rate_24h` | 24 h | > 30% (info) | Unusual content mix, or the model struggling |

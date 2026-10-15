@@ -351,7 +351,7 @@ Applied daily by the scheduler (`gjurme retention --no-dry-run` does the same by
 | Data | Kept | Then | Why |
 |---|---|---|---|
 | `raw.feed_items.payload` (verbatim feed entry) | 30 days (`RETENTION_RAW_PAYLOAD_DAYS`) after processing | set to NULL; the row, hashes and outcome stay | Reprocessing window; the row keeps dedup working |
-| `core.articles.excerpt` | 90 days (`RETENTION_EXCERPT_DAYS`) once enriched or skipped | set to NULL | Publisher text is only needed as LLM input |
+| `core.articles.excerpt` | 90 days (`RETENTION_EXCERPT_DAYS`), whatever the analysis status | set to NULL | Publisher text is only needed as LLM input |
 | `core.enrichments.raw_response` | 90 days | set to NULL | Debugging failed calls |
 | `raw.feed_fetches` | 90 days | deleted | Source-health history |
 | `ops.pipeline_runs`, `ops.alert_events` | 180 days | deleted | Operational history |
