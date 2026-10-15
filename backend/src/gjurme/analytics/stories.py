@@ -61,6 +61,10 @@ _FACTUALITY_GROUP = {
 # =============================================================================================
 # Building blocks
 # =============================================================================================
+# A story spans at most 48 h from its first article (clustering.STORY_WINDOW), and its local
+# date is that first article's. So the members of stories dated [start, end] were published on
+# [start, end + 2]; queries bound articles by ``published_date`` to [start, end + 3] (a day of
+# margin) to use its index instead of scanning every article for matching story ids.
 _PAGE_SQL = """
     WITH cand AS (
       SELECT st.id FROM core.stories st
@@ -71,7 +75,8 @@ _PAGE_SQL = """
       SELECT a.story_id, a.source_id, count(*) AS n,
              min(a.published_at) AS first_at, max(a.published_at) AS last_at
       FROM core.articles a JOIN cand ON cand.id = a.story_id
-      WHERE NOT a.is_hidden GROUP BY 1, 2),
+      WHERE NOT a.is_hidden AND a.published_date BETWEEN :start AND CAST(:end AS date) + 3
+      GROUP BY 1, 2),
     agg AS (
       SELECT p.story_id, count(*) AS source_count, sum(p.n)::int AS article_count,
              min(p.first_at) AS first_at, max(p.last_at) AS last_at
@@ -258,22 +263,58 @@ def list_stories(
     return total, _summaries(session, aggs)
 
 
+# Stories that may be blindspots: the rules of ``blindspots_of`` applied in SQL, so every story
+# in the range is checked (not only the biggest few thousand) and only these are summarised.
+# ``blindspots_of`` still decides; this only has to keep every story it would accept.
+_BLINDSPOT_SQL = f"""
+    WITH cand AS (
+      SELECT st.id FROM core.stories st WHERE st.published_date BETWEEN :start AND :end),
+    mem AS MATERIALIZED (
+      SELECT a.story_id, a.id, a.source_id, a.published_at, a.enrichment_status, a.countries,
+             s.bias, s.country
+      FROM core.articles a JOIN cand ON cand.id = a.story_id
+      JOIN core.sources s ON s.id = a.source_id
+      WHERE NOT a.is_hidden AND a.published_date BETWEEN :start AND CAST(:end AS date) + 3),
+    agg AS MATERIALIZED (
+      SELECT story_id, count(DISTINCT source_id) AS source_count, count(*)::int AS article_count,
+             min(published_at) AS first_at, max(published_at) AS last_at,
+             count(DISTINCT source_id) FILTER (WHERE bias IN ('left', 'lean_left')) AS l,
+             count(DISTINCT source_id) FILTER (WHERE bias = 'center') AS c,
+             count(DISTINCT source_id) FILTER (WHERE bias IN ('lean_right', 'right')) AS r,
+             array_agg(DISTINCT country) AS covering,
+             count(*) FILTER (WHERE enrichment_status = 'succeeded') AS analysed
+      FROM mem GROUP BY 1 HAVING count(DISTINCT source_id) >= :min_sources),
+    followed AS (
+      SELECT DISTINCT s.country FROM core.sources s
+      WHERE s.is_active OR EXISTS (SELECT 1 FROM core.articles a WHERE a.source_id = s.id)),
+    named AS MATERIALIZED (  -- per story and country: analysed articles that name it
+      SELECT m.story_id, c.country, count(*) AS n
+      FROM mem m CROSS JOIN LATERAL (SELECT DISTINCT unnest(m.countries) AS country) c
+      WHERE m.enrichment_status = 'succeeded'
+      GROUP BY 1, 2),
+    region AS MATERIALIZED (  -- about a followed country whose outlets did not cover it
+      SELECT DISTINCT nm.story_id FROM named nm
+      JOIN agg ON agg.story_id = nm.story_id
+      JOIN followed f ON f.country = nm.country
+      WHERE nm.n >= {REGION_ABOUT_SHARE} * agg.analysed AND NOT nm.country = ANY(agg.covering))
+    SELECT agg.story_id, agg.source_count, agg.article_count, agg.first_at, agg.last_at
+    FROM agg LEFT JOIN region ON region.story_id = agg.story_id
+    WHERE (l + c + r >= {BLINDSPOT_MIN_RATED}
+           AND ((l >= {BLINDSPOT_DOMINANT_SHARE} * (l + c + r)
+                 AND r <= {BLINDSPOT_MISSING_SHARE} * (l + c + r))
+             OR (r >= {BLINDSPOT_DOMINANT_SHARE} * (l + c + r)
+                 AND l <= {BLINDSPOT_MISSING_SHARE} * (l + c + r))))
+       OR region.story_id IS NOT NULL
+    ORDER BY {STORY_SORTS["top"]}
+"""  # noqa: S608 - module constants only, no request input
+
+
 def blindspots(
     session: Session, rng: Range, *, kind: str | None = None, limit: int = 30
 ) -> dict[str, Any]:
     """Stories one side of the spectrum (or one country's outlets) barely covered."""
     candidates = _rows(
-        session,
-        _PAGE_SQL.format(order=STORY_SORTS["top"]),
-        {
-            **rng.params(),
-            "topic": None,
-            "country": None,
-            "key": None,
-            "min_sources": BLINDSPOT_MIN_SOURCES,
-            "limit": 2000,
-            "offset": 0,
-        },
+        session, _BLINDSPOT_SQL, {**rng.params(), "min_sources": BLINDSPOT_MIN_SOURCES}
     )
     items = [
         s
@@ -357,13 +398,17 @@ def _related(session: Session, story_id: int, limit: int = 6) -> list[dict[str, 
           SELECT DISTINCT ae.entity_id FROM core.articles a
           JOIN core.article_entities ae ON ae.article_id = a.id
           WHERE a.story_id = :id AND NOT a.is_hidden),
-        me AS (SELECT first_published_at AS at FROM core.stories WHERE id = :id),
+        me AS (SELECT first_published_at AS at, published_date AS d
+               FROM core.stories WHERE id = :id),
         shared AS (
           SELECT a.story_id, count(DISTINCT ae.entity_id) AS shared
           FROM core.article_entities ae JOIN mine USING (entity_id)
           JOIN core.articles a ON a.id = ae.article_id
           JOIN core.stories st ON st.id = a.story_id, me
           WHERE a.story_id <> :id AND NOT a.is_hidden
+            -- mentions in the days such stories can span: uses (published_date, entity_id)
+            -- instead of every mention of a name in the archive
+            AND ae.published_date BETWEEN me.d - 4 AND me.d + 6
             AND st.first_published_at
                 BETWEEN me.at - interval '3 days' AND me.at + interval '3 days'
           GROUP BY 1 HAVING count(DISTINCT ae.entity_id) >= 2
@@ -404,6 +449,7 @@ def source_profile(session: Session, slug: str, rng: Range) -> dict[str, Any] | 
                  (array_agg(a.source_id ORDER BY a.published_at, a.id))[1] AS first_source
           FROM core.articles a JOIN core.stories s ON s.id = a.story_id
           WHERE s.published_date BETWEEN :start AND :end AND NOT a.is_hidden
+            AND a.published_date BETWEEN :start AND CAST(:end AS date) + 3
           GROUP BY 1)
         SELECT
           (SELECT count(*) FROM core.articles a WHERE a.source_id = :sid AND NOT a.is_hidden
@@ -458,11 +504,13 @@ def source_profile(session: Session, slug: str, rng: Range) -> dict[str, Any] | 
         WITH mine AS (
           SELECT DISTINCT a.story_id FROM core.articles a JOIN core.stories s ON s.id = a.story_id
           WHERE a.source_id = :sid AND NOT a.is_hidden
-            AND s.published_date BETWEEN :start AND :end)
+            AND s.published_date BETWEEN :start AND :end
+            AND a.published_date BETWEEN :start AND CAST(:end AS date) + 3)
         SELECT src.slug, src.name, src.bias, count(DISTINCT a.story_id) AS shared
         FROM core.articles a JOIN mine USING (story_id)
         JOIN core.sources src ON src.id = a.source_id
         WHERE a.source_id <> :sid AND NOT a.is_hidden
+          AND a.published_date BETWEEN :start AND CAST(:end AS date) + 3
         GROUP BY src.slug, src.name, src.bias ORDER BY shared DESC, src.slug LIMIT 8
         """,
         p,

@@ -163,6 +163,24 @@ cd backend
 uv run python scripts/benchmark.py --url postgresql+psycopg://postgres@127.0.0.1:5433/postgres --articles 365000 --runs 9
 ```
 
+### Stories at a year of data (audit, October 2026)
+
+The table above predates stories. The audit added 105,685 stories to the same 365k-article dataset and timed the story queries as the API calls them (best of 3–5 runs, ms). Story membership was read by joining articles on `story_id` with no date bound, so every story query scanned all of `core.articles`. A story spans at most 48 h from its first article, so members of stories dated [start, end] were published on [start, end + 2]; the queries now bound articles by `published_date` and use its index. Results are **byte-identical** before and after (JSON comparison of every changed function).
+
+| Query | Before | After |
+|---|---:|---:|
+| story feed 30d (home page) | 182 | **57** |
+| story feed 30d, page 3, latest | 170 | **56** |
+| sources compare 30d | 527 | **136** |
+| source profile 30d | 656 | **172** |
+| 16 story pages (incl. related stories) | 2,121 | **314** |
+| blindspots 30d | 392 | **149** |
+| story feed / sources compare / source profile, 366d | 705 / 4,119 / 2,248 | unchanged (the bound covers the whole year) |
+
+Blindspots also changed in *what* they find. They were computed in Python for the 2,000 biggest stories of the range only; over 30 days there were 4,888 candidates and the page found 81 blindspots, fewer than the 7-day page (162). The rules now run in SQL over every story in the range (the Python rule still makes the final decision): 685 blindspots for 30 days, and identical results to before for 3 and 7 days (under 2,000 candidates).
+
+The year-long source pages stay slow (2–4 s uncached). They are cached for 2 minutes per filter, and at most `API_MAX_CONCURRENT_COMPUTATIONS` such computations run at once.
+
 ### Frontend: cold loads on a slow phone
 
 **Method.** Chromium (Playwright) as a Pixel 7, cache disabled, 1.6 Mbit/s down, 150 ms round trip, CPU slowed 4×; the production build served by Caddy against the demo data. "Content" is the time until the first story headline (or story-page headline) is visible; median of 7 runs. *Before* is the build before the frontend overhaul, measured side by side.
