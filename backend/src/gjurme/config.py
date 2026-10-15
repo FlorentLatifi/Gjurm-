@@ -91,6 +91,9 @@ class Settings(BaseSettings):
     # Cosine similarity of an article to a story's TF-IDF centroid needed to join it. Hand
     # calibrated (ADR-020): lower merges more paraphrases but also more different events.
     story_similarity_threshold: float = Field(default=0.45, gt=0, lt=1)
+    # How long an article waits for its analysis before it is clustered without one. The guards
+    # that keep look-alike events apart read the analysis' place and person names.
+    story_enrichment_wait_minutes: int = Field(default=360, ge=0)
 
     # --- scheduler -------------------------------------------------------------------------
     scheduler_interval_minutes: int = Field(default=15, ge=1)
