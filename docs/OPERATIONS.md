@@ -100,7 +100,7 @@ A publisher or person asks for an article to be removed:
 ```bash
 admin articles/<id>/hide -X POST -H 'Content-Type: application/json' -d '{"reason":"takedown request <ref>"}'
 ```
-The article disappears from every public endpoint immediately; cached responses expire within 2 minutes (`API_CACHE_TTL_SECONDS`). The row is kept (hidden) for the audit trail. Undo with `.../unhide`. If a publisher asks to stop being monitored altogether: `gj sources disable <slug> --reason "publisher request"`, and set `enabled: false` with a note in `sources.yaml`.
+The article disappears from every public endpoint immediately (the API drops its cached responses). A browser that loaded a page just before may keep showing it for up to 3 minutes (`Cache-Control: max-age=60, stale-while-revalidate=120`). The row is kept (hidden) for the audit trail. Undo with `.../unhide`. If a publisher asks to stop being monitored altogether: `gj sources disable <slug> --reason "publisher request"`, and set `enabled: false` with a note in `sources.yaml`.
 
 ### Reprocess after a prompt or model change
 Bump `PROMPT_VERSION`, deploy, then `gj enrich-requeue --older-than-version <old>`. The scheduler works through the queue within the daily budget. See [AI_ENRICHMENT.md](AI_ENRICHMENT.md#versioning-and-reprocessing).

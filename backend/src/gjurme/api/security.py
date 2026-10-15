@@ -8,6 +8,7 @@ ever scaled horizontally, both move to Redis (documented in docs/ARCHITECTURE.md
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import threading
 import time
 from collections import OrderedDict
@@ -65,6 +66,21 @@ def client_ip(request: Request, trust_proxy: bool) -> str:
         if forwarded:
             return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
+
+
+def rate_key(ip: str) -> str:
+    """The client a rate limit applies to: an IPv4 address, or an IPv6 /64. One IPv6
+    subscriber is handed a whole /64, so per-address buckets let a client rotate addresses
+    and get a fresh limit on every request."""
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped is not None:
+            return str(addr.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{addr}/64", strict=False))
+    return str(addr)
 
 
 def bucket_for(path: str) -> str:
