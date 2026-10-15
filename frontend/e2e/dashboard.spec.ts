@@ -23,14 +23,13 @@ test.describe("GJURMË stories", () => {
 
   test("going back to the feed restores where the reader was", async ({ page }) => {
     // Every scroll event (time, path, scrollY, page height): printed if the restore falls short.
-    await page.addInitScript(() => {
-      const log: number[][] & { path?: string[] } = [];
-      (window as unknown as { scrollLog: unknown[] }).scrollLog = log;
+    await page.addInitScript(`
+      window.scrollLog = []; window.scrollLog.path = [];
       addEventListener("scroll", () => {
-        log.push([Math.round(performance.now()), Math.round(scrollY), document.documentElement.scrollHeight]);
-        (log.path ??= []).push(location.pathname);
+        scrollLog.push([Math.round(performance.now()), Math.round(scrollY), document.documentElement.scrollHeight]);
+        scrollLog.path.push(location.pathname);
       }, { capture: true, passive: true });
-    });
+    `);
     await page.goto("/");
     const card = page.locator(".story-card").nth(6);
     await card.scrollIntoViewIfNeeded();
