@@ -36,6 +36,7 @@ from gjurme.api.security import (
     TTLCache,
     bucket_for,
     client_ip,
+    rate_key,
 )
 from gjurme.config import Settings, get_settings
 from gjurme.logging_setup import configure_logging, request_id_var
@@ -135,7 +136,7 @@ def create_app(
                     "search": settings.rate_limit_search_per_minute,
                     "admin": settings.rate_limit_search_per_minute,
                 }.get(bucket, settings.rate_limit_per_minute)
-                allowed, retry = app.state.limiter.hit(ip, bucket, limit)
+                allowed, retry = app.state.limiter.hit(rate_key(ip), bucket, limit)
                 if not allowed:
                     app.state.metrics.rate_limited.labels(bucket).inc()
                     response: Response = _error(

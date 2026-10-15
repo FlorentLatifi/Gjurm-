@@ -112,3 +112,17 @@ def test_too_many_computations_at_once_overload() -> None:
     hold.set()
     t.join()
     assert cache.get_or_set("b", lambda: "w") == "w"  # free again
+
+
+def test_ipv6_clients_are_limited_per_64() -> None:
+    from gjurme.api.security import rate_key
+
+    assert (
+        rate_key("2a02:2f0e:1:2:aaaa::1")
+        == rate_key("2a02:2f0e:1:2:bbbb::9")
+        == ("2a02:2f0e:1:2::/64")
+    )
+    assert rate_key("2a02:2f0e:1:3::1") != rate_key("2a02:2f0e:1:2::1")
+    assert rate_key("203.0.113.7") == "203.0.113.7"
+    assert rate_key("::ffff:203.0.113.7") == "203.0.113.7"
+    assert rate_key("testclient") == "testclient"
