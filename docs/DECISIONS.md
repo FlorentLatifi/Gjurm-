@@ -64,6 +64,8 @@ Short records of the decisions that shape the system: context, the decision, and
 **Decision.** Token buckets per client IP and a TTL cache live in the API process (one uvicorn worker). No Redis.
 **Consequences.** State resets on restart, which is acceptable for both. With several workers or replicas, the limits and the cache would be per process, and moving them to Redis or to the edge (Caddy or a CDN) would be the change.
 
+**Update (audit, October 2026).** The cache key was the raw query string, so a single client under the rate limit could send `?x=<random>` and turn every request into database work; at 4.5 req/s on a year-long range the pool ran out and unrelated endpoints returned 500 after waiting 30 s for a connection. The key is now the endpoint's declared parameters (numbers normalized), concurrent misses on one key share one computation, at most `API_MAX_CONCURRENT_COMPUTATIONS` misses run at once (503 + `Retry-After` beyond that), and a connection is awaited for `DB_POOL_TIMEOUT_SECONDS` (3 s).
+
 ## ADR-014: Plan every analytics query with its real parameters
 **Context.** Measured: after 5 executions psycopg prepares statements, and PostgreSQL then chose generic plans that were ~2× slower for queries with optional filters ([TESTING.md](TESTING.md#performance)).
 **Decision.** `SET plan_cache_mode = force_custom_plan` on every application connection.
