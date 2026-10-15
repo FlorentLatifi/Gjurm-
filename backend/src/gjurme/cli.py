@@ -76,11 +76,44 @@ def db_upgrade(
     from gjurme.db.session import session_scope
     from gjurme.sources.registry import load_registry, sync_sources
 
-    command.upgrade(alembic_config(settings.database_url), "head")
+    config = alembic_config(settings.database_url)
+    current = _db_revision(settings.database_url)
+    if current is None or _known_revision(config, current):
+        command.upgrade(config, "head")
+        migrated = "head"
+    else:
+        # A rollback: the database was migrated by a newer release. Migrations are expand-only
+        # (docs/DATA_MODEL.md#migrations), so this release runs on that schema as it is; failing
+        # here would stop deploy.sh from rolling back at all.
+        migrated = f"skipped: database is at {current}, newer than this release"
+        typer.echo(f"warning: {migrated}", err=True)
     with session_scope() as s:
         topics = sync_topics(s)
         result = sync_sources(s, load_registry()) if not skip_sources else {}
-    _echo_json({"migrated": "head", "topics": topics, "sources": result})
+    _echo_json({"migrated": migrated, "topics": topics, "sources": result})
+
+
+def _db_revision(database_url: str) -> str | None:
+    from alembic.runtime.migration import MigrationContext
+    from sqlalchemy import create_engine
+
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as conn:
+            return MigrationContext.configure(
+                conn, opts={"version_table_schema": "ops"}
+            ).get_current_revision()
+    finally:
+        engine.dispose()
+
+
+def _known_revision(config: Config, revision: str) -> bool:
+    from alembic.script import ScriptDirectory
+
+    try:
+        return ScriptDirectory.from_config(config).get_revision(revision) is not None
+    except Exception:  # alembic raises for a revision its scripts do not contain
+        return False
 
 
 @db_app.command("check")

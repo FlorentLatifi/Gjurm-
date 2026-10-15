@@ -29,7 +29,11 @@ apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 # host; that is accepted for a single-purpose server (docs/SECURITY.md#accepted-risks).
 id -u "$DEPLOY_USER" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$DEPLOY_USER"
 usermod -aG docker "$DEPLOY_USER"
-install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 750 "$APP_DIR" "$APP_DIR/backups" "$APP_DIR/backup" "$APP_DIR/rclone"
+install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 750 "$APP_DIR" "$APP_DIR/rclone"
+# The backup container runs as UID 70 (postgres in the alpine image): it must read its scripts
+# and write the dumps. With the dumps directory owned by the deploy user, backups never ran.
+install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 755 "$APP_DIR/backup"
+install -d -o 70 -g 70 -m 700 "$APP_DIR/backups"
 install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 700 "/home/$DEPLOY_USER/.ssh"
 
 # Firewall: SSH + HTTP(S) only. Postgres and the API are never published.

@@ -329,3 +329,18 @@ def test_engine_session_defaults(engine) -> None:  # type: ignore[no-untyped-def
     finally:
         eng.dispose()
     assert tuple(got) == ("force_custom_plan", "UTC", "1234ms")
+
+
+def test_dead_man_check_is_pinged_after_each_run(db, settings, make_fetcher, monkeypatch) -> None:
+    pings: list[str] = []
+    monkeypatch.setattr("gjurme.pipeline.runner.httpx.get", lambda url, **_: pings.append(url))
+    cfg = settings.model_copy(update={"healthcheck_ping_url": "https://hc.example/abc/"})
+    fetcher = _sources(db, make_fetcher)
+    run_pipeline(cfg, db, trigger="test", provider=FakeProvider(), fetcher=fetcher)
+
+    def broken(*_a: object, **_k: object) -> None:
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr("gjurme.pipeline.runner.process_pending", broken)
+    assert run_pipeline(cfg, db, trigger="test", stages=["process"]).status == "failed"
+    assert pings == ["https://hc.example/abc", "https://hc.example/abc/fail"]

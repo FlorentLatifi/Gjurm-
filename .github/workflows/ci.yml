@@ -288,7 +288,7 @@ jobs:
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40 # a rollback can wait out the scheduler's 10 min stop grace twice
     environment:
       name: production
       url: https://${{ vars.DOMAIN }}
@@ -309,13 +309,15 @@ jobs:
         env:
           TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
         run: |
-          scp deploy/docker-compose.prod.yml deploy/scripts/deploy.sh "$TARGET:/opt/gjurme/"
-          scp -r deploy/backup "$TARGET:/opt/gjurme/"
+          scp -o ServerAliveInterval=30 deploy/docker-compose.prod.yml deploy/scripts/deploy.sh "$TARGET:/opt/gjurme/"
+          scp -o ServerAliveInterval=30 -r deploy/backup "$TARGET:/opt/gjurme/"
       - name: Deploy (health-verified, auto-rollback)
         env:
           TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
-        run: ssh "$TARGET" "cd /opt/gjurme && ./deploy.sh ${{ github.sha }}"
+        # Keepalives: `up -d` can be silent for minutes (the scheduler's 10 min stop grace period).
+        run: ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "$TARGET" "cd /opt/gjurme && ./deploy.sh ${{ github.sha }}"
       - name: Post-deploy smoke test
         run: |
           curl -fsS "https://${{ vars.DOMAIN }}/health/ready"
-          curl -fsS "https://${{ vars.DOMAIN }}/api/v1/status" | tee /dev/stderr | grep -q '"version"'
+          curl -fsS "https://${{ vars.DOMAIN }}/api/v1/status" | tee /dev/stderr \
+            | grep -q '"version":"${{ github.sha }}"' # the new release is the one answering

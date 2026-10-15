@@ -174,13 +174,22 @@ Hap në shfletues `https://gjurme.duckdns.org`. Faqja e parë mund të duket bos
 ```bash
 curl -fsS https://gjurme.duckdns.org/health/ready
 curl -fsS https://gjurme.duckdns.org/api/v1/status
-alias dc='IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml'
+alias dc='IMAGE_TAG=$(cat .deploy-state/running) docker compose -f docker-compose.prod.yml'
 dc ps                  # të gjitha "running" / "healthy"
 ```
 
 Skedari i Docker Compose kërkon `IMAGE_TAG`, prandaj përdore gjithmonë aliasin `dc` (ose shiko [OPERATIONS.md](OPERATIONS.md)). Pa të, komandat `docker compose` japin gabimin `IMAGE_TAG must be set`.
 
 Nëse certifikata HTTPS vonon, shiko `dc logs web`. Zakonisht DuckDNS vonohet pak dhe Caddy provon përsëri vetë.
+
+**Kopjet rezervë.** Kontejneri i kopjeve rezervë punon si përdoruesi 70, prandaj dosja `backups` duhet t'i përkasë atij. Skripti i ri i instalimit e bën vetë. Nëse serveri është instaluar para tetorit 2026, `deploy.sh` shfaq një paralajmërim; rregulloje një herë:
+
+```bash
+sudo chown 70:70 /opt/gjurme/backups && sudo chmod 700 /opt/gjurme/backups && sudo chmod 755 /opt/gjurme/backup
+dc run --rm backup sh /scripts/backup.sh   # duhet të përfundojë me "backup ok"
+```
+
+**Kontrolle "dead-man" (falas, të rekomanduara).** Te healthchecks.io krijo dy kontrolle: *pipeline* (çdo 15 min, tolerancë 1 orë) dhe *backup* (çdo ditë, tolerancë 2 orë). Vendosi URL-të e tyre te `.env` si `HEALTHCHECK_PING_URL` dhe `BACKUP_HEALTHCHECK_URL`, pastaj `./deploy.sh "$(cat .deploy-state/current)"`. Nëse run-et ose kopjet rezervë ndalen (edhe kur bie i gjithë serveri), shërbimi të njofton me e-mail.
 
 Kontrollo edhe ndarjen e lajmeve: kopjo lidhjen e një historie (`https://gjurme.duckdns.org/stories/…`) në WhatsApp ose Telegram. Pamja paraprake duhet të tregojë titullin e historisë dhe "N outlets covered this story", jo faqen kryesore. Nëse tregon faqen kryesore, kontrollo që `DOMAIN` te `.env` është i saktë (lidhjet në pamje paraprake ndërtohen prej tij).
 
@@ -245,7 +254,7 @@ Në server, te `/opt/gjurme`:
 ```bash
 nano .env                                   # vendos 4 rreshtat e mënyrës "Me Claude" nga hapi B8
 ./deploy.sh "$(cat .deploy-state/current)"  # rinis kontejnerët me .env-in e ri (me kontroll shëndeti)
-IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml \
+IMAGE_TAG=$(cat .deploy-state/running) docker compose -f docker-compose.prod.yml \
   exec scheduler gjurme enrich-requeue --provider fake
 ```
 
@@ -277,7 +286,7 @@ Në server, te `/opt/gjurme`:
 ```bash
 nano .env        # shto: COMPOSE_PROFILES=local-llm   (LLM_PROVIDER mbetet fake për momentin)
 ./deploy.sh "$(cat .deploy-state/current)"
-alias dc='IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml'
+alias dc='IMAGE_TAG=$(cat .deploy-state/running) docker compose -f docker-compose.prod.yml'
 dc exec ollama ollama pull gemma3:4b         # shkarkimi zgjat disa minuta
 ```
 

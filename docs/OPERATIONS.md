@@ -3,9 +3,9 @@
 Commands assume you are on the server as the `deploy` user in `/opt/gjurme`, with:
 
 ```bash
-# The compose file requires IMAGE_TAG; deploy.sh records the running tag in .deploy-state/current.
-alias dc='IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml'
-alias gj='IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml exec scheduler gjurme'   # CLI inside the running image
+# The compose file requires IMAGE_TAG; deploy.sh records the tag that is up in .deploy-state/running.
+alias dc='IMAGE_TAG=$(cat .deploy-state/running) docker compose -f docker-compose.prod.yml'
+alias gj='IMAGE_TAG=$(cat .deploy-state/running) docker compose -f docker-compose.prod.yml exec scheduler gjurme'   # CLI inside the running image
 export TOKEN=$(grep ^ADMIN_API_TOKEN= .env | cut -d= -f2-)
 admin() { curl -fsS -H "Authorization: Bearer $TOKEN" "https://$DOMAIN/api/v1/admin/$1" "${@:2}"; }
 ```
@@ -14,7 +14,8 @@ admin() { curl -fsS -H "Authorization: Bearer $TOKEN" "https://$DOMAIN/api/v1/ad
 
 | Signal | Where | Detects |
 |---|---|---|
-| **Uptime monitor** (GitHub Actions, every 30 min) | Failed workflow run → GitHub e-mail to the owner | Site or API down, DB unreachable, **pipeline stale** (`/api/v1/status` = `stale`: no successful run for 120 min), TLS certificate < 14 days. This is the only alarm that still works when the whole server is down. |
+| **Uptime monitor** (GitHub Actions, every 30 min) | Failed workflow run → GitHub e-mail to the owner | Site or API down, DB unreachable, **pipeline stale** (`/api/v1/status` = `stale`: no successful run for 120 min), TLS certificate < 14 days. Works when the whole server is down, but GitHub disables scheduled workflows after 60 days without repository activity, so also set up the dead-man checks below. |
+| **Dead-man checks** (optional: `HEALTHCHECK_PING_URL`, `BACKUP_HEALTHCHECK_URL`) | The external service's e-mail/app | Every pipeline run and every backup pings (`/fail` on failure); the service alerts when pings stop: server down, scheduler stuck, backups not running ([DEPLOYMENT.md](DEPLOYMENT.md#8-verify)). |
 | **Alert webhook** (from the scheduler) | Slack / Discord / ntfy / generic JSON | Run failed, all sources down, source auto-disabled, LLM budget exhausted, LLM fatal error, circuit breaker open, data-quality failures, abnormal article volume. Deduplicated per key for 6 h; every alert (including suppressed ones) is in `ops.alert_events`. |
 | `GET /api/v1/status` (public) | Browser / curl / the dashboard's Status page | `ok` / `degraded` / `stale`, last run, scheduler heartbeat, backlog, per-source health |
 | `GET /health/ready` | Caddy, deploy.sh, monitor | DB reachable and migration revision |
@@ -114,7 +115,7 @@ Edit `bias`, `factuality`, `ownership`, `owner` and `ratings_note` in `sources.y
 ### Deploy and rollback
 - Normal path: merge to the default branch; CI deploys (tests → images → Trivy → deploy with health check and automatic rollback).
 - Manual: `./deploy.sh <full-sha>`; rollback: `./deploy.sh --rollback` (previous) or `./deploy.sh <sha>`.
-- `.deploy-state/current` and `.deploy-state/previous` hold the tags.
+- `.deploy-state/current` and `.deploy-state/previous` hold the last two healthy tags; `.deploy-state/running` the tag whose containers are up (also after a failed first deploy).
 - **Migrations are expand/contract.** A release may add columns, tables, indexes and triggers that the previous release tolerates. Drops and renames wait for a later release. Therefore an application rollback never needs `alembic downgrade`. If a migration itself fails, `deploy.sh` aborts before replacing any container.
 
 ### Backups
