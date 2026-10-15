@@ -130,6 +130,9 @@ class Settings(BaseSettings):
     alert_webhook_format: Literal["slack", "discord", "ntfy", "generic"] = "generic"
     alert_dedup_hours: int = Field(default=6, ge=0)
     alert_stale_pipeline_minutes: int = Field(default=120, ge=5)
+    # Dead-man check (e.g. healthchecks.io): GET after every run, "/fail" appended when it
+    # failed. The external service alerts when the pings stop, e.g. the whole server is down.
+    healthcheck_ping_url: str | None = None
 
     @field_validator("cors_origins", mode="before")
     @classmethod

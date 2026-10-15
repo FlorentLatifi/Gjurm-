@@ -12,6 +12,13 @@ notify_restore_failed() { # best-effort, same payload shape as backup.sh (slack/
     --post-data "{\"key\":\"restore_verification_failed\",\"severity\":\"critical\",\"title\":\"Restore verification failed\",\"message\":\"$msg\",\"text\":\"[GJURMË] $msg\",\"content\":\"[GJURMË] $msg\"}" \
     "$ALERT_WEBHOOK_URL" || true
 }
+# A backup directory the container cannot write is the classic way backups silently never run:
+# say so at start-up (i.e. at deploy time), not at the first 02:00 run.
+probe="${BACKUP_DIR:-/backups}/.write-test"
+if ! { mkdir -p "${BACKUP_DIR:-/backups}" && : > "$probe" && rm -f "$probe"; } 2>/dev/null; then
+  echo "backup directory ${BACKUP_DIR:-/backups} is not writable by UID $(id -u)" >&2
+  sh "$DIR/backup.sh" || true # fails at once, and alerts with the reason
+fi
 while true; do
   now="$(date -u +%s)"
   target="$(date -u -d "@$now" +%Y-%m-%d)"
@@ -23,5 +30,7 @@ while true; do
     if [ "$(date -u +%u)" = "7" ]; then
       sh "$DIR/verify-restore.sh" || { echo "restore verification FAILED"; notify_restore_failed; }
     fi
+  else
+    echo "backup FAILED (backup.sh sent the alert)" >&2
   fi
 done

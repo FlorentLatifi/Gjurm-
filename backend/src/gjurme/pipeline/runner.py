@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+import httpx
 from sqlalchemy import update
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -141,6 +142,7 @@ def run_pipeline(
                     )
                 )
             log.info("pipeline run finished", extra={"status": status, "duration_ms": duration_ms})
+            _ping_healthcheck(settings, status)
             run_id_var.reset(token)
         return RunResult(run_id, status, stats, duration_ms)
 
@@ -244,6 +246,17 @@ def _overall_status(stats: dict[str, Any], stage_errors: dict[str, str]) -> str:
     if ingest.get("sources_failed") or enrich.get("circuit_open") or enrich.get("fatal_error"):
         return "partial"
     return "succeeded"
+
+
+def _ping_healthcheck(settings: Settings, status: str) -> None:
+    """Best effort: an unreachable dead-man service must never fail the run."""
+    if not settings.healthcheck_ping_url:
+        return
+    url = settings.healthcheck_ping_url.rstrip("/") + ("/fail" if status == "failed" else "")
+    try:
+        httpx.get(url, timeout=10)
+    except httpx.HTTPError:
+        log.warning("healthcheck ping failed", extra={"url_host": httpx.URL(url).host})
 
 
 def _alert(
