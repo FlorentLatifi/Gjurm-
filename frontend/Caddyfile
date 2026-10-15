@@ -1,5 +1,7 @@
 # GJURMË edge: automatic HTTPS (Let's Encrypt), static SPA, reverse proxy to the API.
 # SITE_ADDRESS: your domain (e.g. gjurme.example.com) in production, ":80" for local HTTP.
+# SITE_ROOT / API_UPSTREAM default to the container layout; override them to run this file
+# against a local build (e.g. SITE_ROOT=dist API_UPSTREAM=127.0.0.1:8000 caddy run).
 {
 	email {$ACME_EMAIL:admin@localhost}
 	admin off
@@ -27,8 +29,19 @@
 		respond 404
 	}
 
+	# Shared story links: link-preview crawlers (and only them) get the story's own title and
+	# description (backend api/routers/share.py); readers and search engines get the app.
+	@story_preview {
+		path_regexp story ^/stories/([0-9]+)$
+		header_regexp User-Agent (?i)(facebookexternalhit|twitterbot|slackbot|linkedinbot|whatsapp|telegrambot|discordbot|skypeuripreview|redditbot|viber|pinterestbot|embedly|iframely|mastodon|bluesky)
+	}
+	handle @story_preview {
+		rewrite * /api/share/stories/{re.story.1}
+		reverse_proxy {$API_UPSTREAM:api:8000}
+	}
+
 	handle /api/* {
-		reverse_proxy api:8000 {
+		reverse_proxy {$API_UPSTREAM:api:8000} {
 			health_uri /health
 			health_interval 10s
 			# During API restarts/deploys, hold requests for up to 10 s until an upstream is
@@ -38,17 +51,34 @@
 		}
 	}
 	handle /health* {
-		reverse_proxy api:8000
+		reverse_proxy {$API_UPSTREAM:api:8000}
 	}
 
 	handle {
-		root * /srv
-		@hashed path /assets/*
-		header @hashed Cache-Control "public, max-age=31536000, immutable"
-		@html path / /index.html
-		header @html Cache-Control "no-cache"
-		try_files {path} /index.html
-		file_server
+		root * {$SITE_ROOT:/srv}
+		# Hashed build output: cached for a year. No SPA fallback here — a chunk that no longer
+		# exists (an open tab after a deploy) must be a real 404 the app can recover from, not
+		# index.html served as JavaScript and cached as immutable.
+		@asset_file {
+			path /assets/*
+			file
+		}
+		handle @asset_file {
+			header Cache-Control "public, max-age=31536000, immutable"
+			file_server
+		}
+		handle /assets/* {
+			header Cache-Control "no-store"
+			respond 404
+		}
+		# Everything else — the HTML of every route, theme.js, manifest, icons — revalidates on
+		# each load (ETag), so a deploy is picked up at once. try_files must stay inside this
+		# handle: at the outer level it runs before `handle` and would rewrite /assets/* too.
+		handle {
+			header Cache-Control "no-cache"
+			try_files {path} /index.html
+			file_server
+		}
 	}
 
 	# Access log without full visitor IPs (privacy promise on the About page): IPv4 addresses are

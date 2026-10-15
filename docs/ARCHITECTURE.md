@@ -42,7 +42,7 @@ Network isolation (production compose): `db` sits only on an `internal` network 
 
 ## Pipeline
 
-One run = `ingest → process → enrich → quality → alerts`. Every stage reads its work from PostgreSQL and writes its result back, so any stage can be re-run alone (`gjurme ingest|process|enrich|quality`), and a crash leaves work for the next run instead of losing it.
+One run = `ingest → process → enrich → cluster → quality → alerts`. Every stage reads its work from PostgreSQL and writes its result back, so any stage can be re-run alone (`gjurme ingest|process|enrich|cluster|quality`), and a crash leaves work for the next run instead of losing it. CLUSTER groups the articles that report one event into a story (`story_id IS NULL` is its queue; [ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings)).
 
 ```mermaid
 sequenceDiagram
@@ -70,7 +70,8 @@ sequenceDiagram
         S->>M: title + excerpt → JSON (budget reserved first)
         M-->>S: structured output
         S->>C: validate, ground entities, enrichments + bridges
-        S->>O: 12 data-quality checks → data_quality_results
+        S->>C: cluster new articles into stories (TF-IDF, name guards, 48 h span)
+        S->>O: 13 data-quality checks → data_quality_results
         S->>O: alert evaluation → alert_events (+ webhook)
         S->>O: pipeline_runs(status, per-stage stats)
     end
@@ -87,6 +88,7 @@ Failure behaviour, stage by stage:
 | enrich | auth error, model not found | Fatal: the stage stops for this run without consuming the article's attempts; alert fires. |
 | enrich | daily budget reached | No further calls are dispatched; the remaining articles stay `pending` for later runs (newest first); alert fires (deduplicated per day key for 6 h). |
 | enrich | 5 consecutive failures | Circuit breaker opens; the stage stops; alert fires. |
+| cluster | crash mid-run | Batches commit separately; unclustered articles stay `story_id IS NULL` and are picked up by the next run (`story_backlog_2h` check). |
 | any | process crash | The lock dies with the connection; the next run marks the orphaned row `abandoned`. |
 
 ## AI enrichment flow
@@ -122,23 +124,32 @@ backend/src/gjurme/
   taxonomy.py          19 topics, event types, entity types (controlled vocabulary)
   db/                  SQLAlchemy models, engine/session factory, reference data sync
   migrations/          Alembic (shipped in the package: gjurme:migrations)
-  sources/             sources.yaml registry, sync, feed validator (autodiscovery)
+  sources/             sources.yaml registry (incl. editorial ratings), sync, feed validator
   ingestion/           fetcher (robots, conditional GET, SSRF guard), feed parser,
                        normalizers, processor (validation + dedup L1–L4)
   enrichment/          prompt, schema, providers (Anthropic, Fake), budget, grounding,
                        pricing, service (queue, cache, persistence)
   analytics/queries.py every analytical query (parameterized SQL)
-  quality/checks.py    12 data-quality checks
+  analytics/stories.py story feed, story detail, blindspots, source profiles
+  stories/             similarity (tokens, TF-IDF, name guards), clustering stage, review report
+  quality/checks.py    13 data-quality checks
   alerts/engine.py     alert rules, dedup, webhook delivery
   pipeline/            runner, advisory locking, scheduler loop, retention
   api/                 FastAPI app, routers (public, ops/admin), schemas, security, metrics
   cli.py               `gjurme` command (Typer)
   demo.py              fictional demo data (refuses to run in staging/production)
-frontend/src/
-  api/                 typed client + React Query hooks
-  pages/               Overview, Trends, Topics, Entities, Sources, Articles, About, Status
-  components/          layout, filters, charts (Recharts), lists, states
-  lib/                 URL-synced filters, formatting, safe links
+frontend/src/          layers, imports enforced by ESLint (docs/architecture/frontend_system.md)
+  app/                 bootstrap, routes, shell (header, nav, footer), error recovery, theme
+  features/            one folder per domain: query hooks, stateful blocks, pages
+    stories/           feed (home), story page, blindspot, story card, coverage lens
+    sources/ reading/  source list and profiles · my news bias
+    analytics/         dashboard, trends, topics, entities
+    articles/ system/  article search and detail · status banners, about, status
+    filters/           the date-range / outlet filter row
+  ui/                  pure components: card, states, coverage bar, rank list, charts
+  stores/              browser-only state (reading record)
+  shared/              API client and types, formatting, ratings model, URL-state hooks
+  design/              tokens and global styles
 deploy/                production compose, deploy/rollback script, backups, server bootstrap
 ```
 
@@ -150,6 +161,10 @@ Base path `/api/v1`. OpenAPI UI at `/api/docs` (disable with `EXPOSE_DOCS=false`
 
 | Method | Path | Returns |
 |---|---|---|
+| GET | `/stories` | Stories that started in the range, with coverage by perspective, factuality, ownership and region, tone, first reporter, outlets and blindspots. `topic`, `country` (an outlet from there covered it), `q`, `min_sources`, `sort=top\|latest`, `page`, `page_size` (≤ 50) |
+| GET | `/stories/blindspots` | Stories one side (`kind=perspective`) or one country's outlets (`kind=region`) barely covered; the rule is in `method` |
+| GET | `/stories/{id}` | One story: every outlet's headline (linked to the original) with the outlet's ratings, first report, entities, topics, related stories |
+| GET | `/sources/{slug}` | One outlet: ratings and their basis, ownership, stories covered, first reports, exclusives, overlapping outlets, topic and name focus, recent stories |
 | GET | `/analytics/overview` | Headline numbers: articles, unique stories, today vs yesterday, sources, enrichment share, sentiment mix, top topic, top entity |
 | GET | `/analytics/volume` | Daily counts with 7-day moving average; `group_by=source\|topic` |
 | GET | `/analytics/sentiment` | Daily sentiment mix and average; or per source/topic (`group_by`) |
@@ -162,9 +177,11 @@ Base path `/api/v1`. OpenAPI UI at `/api/docs` (disable with `EXPOSE_DOCS=false`
 | GET | `/topics/{slug}` | Daily series, top entities and per-source counts for one topic |
 | GET | `/entities` | Most-mentioned entities; `type`, `q` (search, ≥ 2 chars), `limit`, `offset` |
 | GET | `/entities/{id}` | Mentions over time, co-mentions, topics, sources |
-| GET | `/sources` | Per source: volume, original (non-duplicate) articles, per-day rate, tone mix, top topics, verification and fetch health |
+| GET | `/sources` | Per source: ratings, volume, original (non-duplicate) articles, stories covered, first reports, per-day rate, tone mix, top topics, verification and fetch health |
 | GET | `/articles` | Search/filter: `q`, `topic`, `entity`, `sentiment`, `sort`, `page`, `page_size` (≤ 100). Never returns the publisher excerpt. |
 | GET | `/articles/{id}` | Article metadata, AI analysis, topics, entities, related coverage, link to the original |
+
+Outside `/api/v1` and the OpenAPI schema: `GET /api/share/stories/{id}` returns a small HTML page with a story's title, who covered it and a redirect to `/stories/{id}`. Caddy sends link-preview crawlers (by User-Agent) there for shared story links; readers and search engines get the app ([ADR-025](DECISIONS.md#adr-025-story-link-previews-for-crawlers-only)).
 
 ### Operational
 
@@ -192,7 +209,7 @@ Base path `/api/v1`. OpenAPI UI at `/api/docs` (disable with `EXPOSE_DOCS=false`
 
 ## Request lifecycle (API)
 
-1. Caddy: TLS, HSTS, strict CSP for the SPA, static files with immutable caching for hashed assets, reverse proxy with `X-Forwarded-For`.
+1. Caddy: TLS, HSTS, strict CSP for the SPA, link-preview crawlers on `/stories/{id}` routed to the share page, static files with immutable caching for hashed assets (a missing chunk is a `404` with `no-store`, never the app shell) and `no-cache` revalidation for the HTML of every route and the other unhashed files, reverse proxy with `X-Forwarded-For`.
 2. Middleware: request id → rate limit (per client IP; token buckets `default` / `search` / `admin`) → security headers → timing metrics.
 3. Router: validated query params → cache lookup (key = path + normalized query) → one `analytics/queries.py` function → typed response.
 4. Exceptions become the error envelope; 5xx never leak internals and are logged with the request id.

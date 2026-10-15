@@ -5,9 +5,12 @@
 * Refuses to run in staging/production (``Settings.is_deployed``).
 
 The generator writes *raw* feed items with back-dated ``first_seen_at`` and then lets the real
-PROCESS and ENRICH stages (with the fake heuristic provider) do the rest, so demo data exercises
-exactly the same code paths as production data. Built-in trends — an election surge in the last
-week and a spike for one person in the last day — give the trend detectors something to find.
+PROCESS, ENRICH (with the fake heuristic provider) and CLUSTER stages do the rest, so demo data
+exercises exactly the same code paths as production data. Built-in trends — an election surge in
+the last week and a spike for one person in the last day — give the trend detectors something to
+find. Every day also has *events* that several outlets cover with differently worded headlines,
+some mostly by one side of the (fictional) ratings, so stories, coverage bars and blindspots
+have something to show.
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ from sqlalchemy.orm import Session
 from gjurme.config import Settings
 from gjurme.db.models import FeedItem, Source
 from gjurme.ingestion.normalize import item_key, sha256_hex
+from gjurme.sources.ratings import bias_group
 
 DEMO_SOURCES = (
     ("demo-lajmi", "Lajmi Demo", "XK"),
@@ -31,13 +35,25 @@ DEMO_SOURCES = (
     ("demo-ekspres", "Ekspres Demo", "XK"),
     ("demo-tirana", "Tirana Demo", "AL"),
     ("demo-rajoni", "Rajoni Demo", "REG"),
+    ("demo-zeri", "Zëri Demo", "XK"),
+    ("demo-shkupi", "Shkupi Demo", "MK"),
 )
+# Fictional ratings of the fictional outlets: (bias, factuality, ownership). One stays unrated.
+DEMO_RATINGS: dict[str, tuple[str, str, str]] = {
+    "demo-lajmi": ("lean_left", "high", "private"),
+    "demo-kronika": ("center", "very_high", "public"),
+    "demo-ekspres": ("right", "mixed", "media_group"),
+    "demo-tirana": ("lean_right", "high", "private"),
+    "demo-rajoni": ("center", "high", "public_international"),
+    "demo-zeri": ("left", "mixed", "private"),
+    "demo-shkupi": ("unrated", "unrated", "unknown"),
+}
 
 PEOPLE = (
     "Arben Krasniqi",
     "Drita Berisha",
     "Luan Gashi",
-    "Vlora Hoxha",
+    "Valbona Hoxha",
     "Besnik Morina",
     "Teuta Shala",
     "Agron Rexhepi",
@@ -206,6 +222,223 @@ TEMPLATES: dict[str, tuple[tuple[str, str], ...]] = {
     ),
 }
 
+# Events that several outlets cover on the same day, each outlet with its own wording. Slots:
+# {p} person, {c} place, {n} number, {m} magnitude. Fixed per event, so the wordings agree on
+# the facts like real coverage of one event does.
+EVENTS: dict[str, tuple[tuple[str, str], ...]] = {
+    "fiscal_package": (
+        (
+            "Qeveria miraton paketën fiskale prej {n} milionë eurosh",
+            "Ministri {p} tha se paketa fiskale synon familjet me të ardhura të ulëta.",
+        ),
+        (
+            "{p}: Paketa fiskale prej {n} milionë eurosh nis muajin e ardhshëm",
+            "Qeveria miratoi sot paketën fiskale në mbledhjen e kabinetit.",
+        ),
+        (
+            "Miratohet paketa fiskale, {n} milionë euro për familjet",
+            "Sipas ministrit {p}, paketa fiskale ndihmon familjet në nevojë.",
+        ),
+        (
+            "Paketa fiskale e Qeverisë: {n} milionë euro, {p} jep detajet",
+            "Paketa fiskale u miratua pa votat e opozitës.",
+        ),
+    ),
+    "local_results": (
+        (
+            "KQZ shpall rezultatet në {c}, {p} prin me {n} për qind",
+            "Numërimi i votave në {c} vazhdoi gjatë gjithë natës.",
+        ),
+        (
+            "{p} fiton zgjedhjet për kryetar të {c}",
+            "Sipas KQZ-së, {p} mori {n} për qind të votave në {c}.",
+        ),
+        (
+            "Rezultatet në {c}: {p} shpallet fitues me {n} për qind",
+            "Komisioni Qendror i Zgjedhjeve publikoi rezultatet për {c}.",
+        ),
+        (
+            "Festë në {c} pas fitores së {p} në zgjedhje",
+            "Mbështetësit e {p} dolën në sheshin e {c} pas shpalljes së rezultateve.",
+        ),
+    ),
+    "brussels_dialogue": (
+        (
+            "Takim në Bruksel: {p} dhe negociatori serb diskutojnë për energjinë",
+            "Raundi i ri i dialogut Kosovë–Serbi u mbajt sot në Bruksel.",
+        ),
+        (
+            "Dialogu në Bruksel përfundon pa marrëveshje për energjinë, thotë {p}",
+            "{p} deklaroi pas takimit në Bruksel se pala serbe refuzoi propozimin.",
+        ),
+        (
+            "{p} pas takimit në Bruksel: Serbia bllokon marrëveshjen për energjinë",
+            "Takimi i dialogut në Bruksel zgjati katër orë.",
+        ),
+    ),
+    "fuel_prices": (
+        (
+            "Rritet çmimi i naftës në {c}, litri {n} centë më shtrenjtë",
+            "Pronarët e pikave të karburantit në {c} thonë se rritja vjen nga bursat.",
+        ),
+        (
+            "Shtrenjtohet nafta në {c}: {n} centë më shumë për litër",
+            "Qytetarët e {c} ankohen për çmimin e naftës.",
+        ),
+        (
+            "Nafta më e shtrenjtë në {c}, rritje prej {n} centësh për litër",
+            "Shoqata e konsumatorëve kërkon kontroll të çmimit të naftës në {c}.",
+        ),
+    ),
+    "director_arrest": (
+        (
+            "Arrestohet ish-drejtori {p} në {c} për korrupsion",
+            "Prokuroria dyshon se {p} ka keqpërdorur {n} mijë euro.",
+        ),
+        (
+            "{p} në pranga, akuzohet për korrupsion me {n} mijë euro",
+            "Policia e arrestoi ish-drejtorin {p} në {c}.",
+        ),
+        (
+            "Prokuroria urdhëron arrestimin e {p} në {c}",
+            "Ish-drejtori {p} dyshohet për korrupsion në vlerë {n} mijë euro.",
+        ),
+        (
+            "Rasti {p}: ish-drejtori arrestohet në {c} për korrupsion",
+            "Hetimi për korrupsion ndaj {p} nisi vitin e kaluar.",
+        ),
+    ),
+    "earthquake": (
+        (
+            "Tërmet {m} ballë në {c}, banorët dalin në rrugë",
+            "Sizmologët regjistruan tërmetin në {c} pak pas mesnatës.",
+        ),
+        (
+            "Lëkundje tërmeti {m} ballë në {c}, nuk ka të lënduar",
+            "Tërmeti u ndje fort në {c} dhe në fshatrat përreth.",
+        ),
+        (
+            "{c} zgjohet nga tërmeti, dëme të lehta në ndërtesa",
+            "Kryetari {p} tha se ekipet po vlerësojnë dëmet nga tërmeti {m} ballë.",
+        ),
+    ),
+    "national_team": (
+        (
+            "Kosova mposht Rumaninë {n}-0, gol i {p}",
+            "Kombëtarja e Kosovës fitoi ndaj Rumanisë në stadiumin e {c}.",
+        ),
+        (
+            "Fitore për Dardanët: {n}-0 ndaj Rumanisë në {c}",
+            "Sulmuesi {p} shënoi golin e parë kundër Rumanisë.",
+        ),
+        (
+            "{p} shënon, Kosova fiton ndaj Rumanisë",
+            "Ndeshja në {c} përfundoi {n}-0 për Kosovën ndaj Rumanisë.",
+        ),
+    ),
+    "hospital_drugs": (
+        (
+            "Spitali i {c} mbetet pa ilaçe për kancer",
+            "Pacientët në {c} detyrohen t'i blejnë ilaçet vetë, tha drejtori {p}.",
+        ),
+        (
+            "Mungesë e ilaçeve për kancer në spitalin e {c}",
+            "Drejtori {p} kërkon ndërhyrje urgjente për ilaçet nga ministria.",
+        ),
+        (
+            "Pacientët me kancer në {c} pa ilaçe, {p} fajëson ministrinë",
+            "Spitali i {c} ka {n} pacientë në pritje të terapisë me ilaçe.",
+        ),
+    ),
+    "power_cuts": (
+        (
+            "KEK njofton reduktime të rrymës në {c} për {n} orë",
+            "Zëdhënësi {p} tha se defekti në termocentral po riparohet.",
+        ),
+        (
+            "Reduktime të rrymës në {c}, {n} orë pa energji",
+            "Defekt në termocentral, njofton KEK përmes zëdhënësit {p}.",
+        ),
+        (
+            "Pa rrymë në {c}: KEK shpjegon defektin në termocentral",
+            "Sipas {p}, rryma rikthehet në {c} pas {n} orësh.",
+        ),
+    ),
+    "border_queues": (
+        (
+            "Mërgimtarët presin {n} orë në kufirin te {c}",
+            "Policia kufitare thotë se fluksi i mërgimtarëve është rekord.",
+        ),
+        (
+            "Kolona të gjata të mërgimtarëve në pikën kufitare te {c}",
+            "Mërgimtarët ankohen për pritje deri në {n} orë në kufi.",
+        ),
+        (
+            "Pritje deri {n} orë në kufirin te {c}, mërgimtarët kërkojnë sportele",
+            "Zyrtari {p} premtoi hapjen e korsive shtesë në kufi.",
+        ),
+    ),
+    "eu_funds": (
+        (
+            "BE ndan {n} milionë euro për ujësjellësin e {c}",
+            "Ambasadori {p} nënshkroi marrëveshjen për ujësjellësin në {c}.",
+        ),
+        (
+            "{n} milionë euro nga Bashkimi Evropian për ujësjellësin e {c}",
+            "Fondet e BE-së shkojnë për ujësjellësin, tha ambasadori {p}.",
+        ),
+        (
+            "Ambasadori {p}: BE investon {n} milionë euro në ujësjellësin e {c}",
+            "Marrëveshja për ujësjellësin u nënshkrua sot në {c}.",
+        ),
+    ),
+    "teachers_strike": (
+        (
+            "Grevë e mësuesve në {c}, shkollat mbyllen",
+            "Sindikata e mësuesve kërkon rritje pagash prej {n} për qind, tha {p}.",
+        ),
+        (
+            "Mësuesit e {c} në grevë për paga",
+            "{p}: Greva e mësuesve vazhdon derisa pagat të rriten {n} për qind.",
+        ),
+        (
+            "Shkollat e {c} pa mësim, mësuesit hyjnë në grevë",
+            "Sindikalisti {p} paralajmëron grevë të gjatë të mësuesve.",
+        ),
+    ),
+    "motorway": (
+        (
+            "Hapet autostrada drejt {c}, {p} pret shiritin",
+            "Segmenti i ri i autostradës është {n} kilometra i gjatë.",
+        ),
+        (
+            "Autostrada e re drejt {c} hapet për qarkullim",
+            "Ministri {p} përuroi segmentin e autostradës prej {n} kilometrash.",
+        ),
+        (
+            "{p} përuron autostradën drejt {c}",
+            "Udhëtimi drejt {c} shkurtohet me autostradën e re prej {n} kilometrash.",
+        ),
+    ),
+    "film_award": (
+        (
+            "Filmi nga {c} fiton çmimin kryesor në festival",
+            "Regjisorja {p} ia dedikoi çmimin e festivalit qytetit të {c}.",
+        ),
+        (
+            "{p} fiton çmimin kryesor me filmin e xhiruar në {c}",
+            "Juria e festivalit vlerësoi filmin e {p}.",
+        ),
+        (
+            "Çmim i madh në festival për regjisoren {p} nga {c}",
+            "Filmi i {p} mori çmimin kryesor të festivalit.",
+        ),
+    ),
+}
+# Which side an event's coverage leans to: most events are covered across the spectrum, some
+# mostly by one side (these become blindspots).
+SLANTS = (("none", 0.6), ("left", 0.2), ("right", 0.2))
+
 BASE_WEIGHTS = {
     "politics": 18,
     "elections": 4,
@@ -247,8 +480,68 @@ def _weights(days_ago: int) -> dict[str, float]:
     return w
 
 
+def _event_items(
+    rng: random.Random,
+    day_start: datetime,
+    now: datetime,
+    counter: int,
+    recent: list[set[str]],
+) -> tuple[list[DemoItem], int]:
+    """Multi-outlet coverage of the day's events (see EVENTS). ``recent`` holds the events of
+    the previous two days and is updated with today's."""
+    items: list[DemoItem] = []
+    weekend = day_start.weekday() >= 5
+    # An event recurs at most every third day, so two occurrences never share a story window.
+    fresh = sorted(n for n in EVENTS if all(n not in day for day in recent))
+    todays = rng.sample(fresh, min(len(fresh), 3 if weekend else 4))
+    recent.append(set(todays))
+    del recent[:-2]
+    for name in todays:
+        slant = rng.choices([s for s, _ in SLANTS], [w for _, w in SLANTS])[0]
+        weights = []
+        for slug, _n, _c in DEMO_SOURCES:
+            group = bias_group(DEMO_RATINGS[slug][0])
+            if slant == "none":
+                weights.append(1.0)
+            else:
+                weights.append(3.0 if group == slant else 0.6 if group == "center" else 0.15)
+        k = rng.choice((2, 3, 3, 4, 4, 5, 6))
+        outlets: list[str] = []
+        while len(outlets) < k:
+            pick = rng.choices([s for s, _, _ in DEMO_SOURCES], weights)[0]
+            if pick not in outlets:
+                outlets.append(pick)
+        slots = {
+            "p": rng.choice(PEOPLE[:-1]),
+            "c": rng.choice(PLACES),
+            "n": rng.randint(2, 40),
+            "m": f"{rng.randint(30, 52) / 10:.1f}",
+        }
+        variants = list(EVENTS[name])
+        rng.shuffle(variants)
+        start = day_start + timedelta(minutes=rng.randint(0, 14 * 60))
+        for i, slug in enumerate(outlets):
+            title_t, summary_t = variants[i % len(variants)]
+            published = start + timedelta(minutes=0 if i == 0 else rng.randint(10, 8 * 60))
+            if published > now:
+                published = now - timedelta(minutes=rng.randint(1, 30))
+            counter += 1
+            items.append(
+                DemoItem(
+                    slug,
+                    title_t.format(**slots),
+                    summary_t.format(**slots),
+                    f"https://{slug}.invalid/ngjarje/{published:%Y/%m/%d}/{counter}",
+                    published,
+                )
+            )
+    return items, counter
+
+
 def generate(days: int = 30, seed: int = 42, now: datetime | None = None) -> list[DemoItem]:
     rng = random.Random(seed)  # noqa: S311 - deterministic synthetic data, not security
+    event_rng = random.Random(seed * 7919 + 1)  # noqa: S311 - separate stream for events
+    recent_events: list[set[str]] = []
     now = now or datetime.now(UTC)
     items: list[DemoItem] = []
     counter = 0
@@ -297,6 +590,8 @@ def generate(days: int = 30, seed: int = 42, now: datetime | None = None) -> lis
                             published + timedelta(minutes=rng.randint(5, 90)),
                         )
                     )
+        events, counter = _event_items(event_rng, day_start, now, counter, recent_events)
+        items.extend(events)
     return items
 
 
@@ -318,6 +613,10 @@ def seed(session: Session, settings: Settings, days: int = 30, seed_value: int =
                 disabled_reason="synthetic demo source (never fetched)",
                 verification_status="unverified",
             )
+            bias, factuality, ownership = DEMO_RATINGS[slug]
+            src.bias, src.factuality, src.ownership = bias, factuality, ownership
+            if bias != "unrated":
+                src.ratings_note = "Fictional rating of a fictional demo outlet."
             session.add(src)
             session.flush()
         sources[slug] = src

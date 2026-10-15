@@ -6,10 +6,14 @@ Legend: ✅ done and verified (evidence linked) · 👤 needs the owner (account
 
 | | Item | Evidence |
 |---|---|---|
-| ✅ | Pipeline: ingest → process → enrich → quality → alerts | 219 backend tests incl. 93 against PostgreSQL ([TESTING.md](TESTING.md)) |
+| ✅ | Pipeline: ingest → process → enrich → cluster → quality → alerts | 300 backend tests incl. 109 against PostgreSQL ([TESTING.md](TESTING.md)) |
 | ✅ | Real sources work | [Source validation run](https://github.com/FlorentLatifi/Gjurm-/actions/runs/36046867715): 5 feeds verified, 91 live articles, 0 rejects |
 | ✅ | Claude integration (request shape, parsing, errors, cost) | Wire-level tests with the real SDK. **Output quality on real articles not yet evaluated** (needs a key, see 3.1). |
-| ✅ | Dashboard works and is accessible | 40 Playwright tests incl. axe-core on every page, desktop and mobile |
+| ✅ | Site works and is accessible | 72 Playwright tests (36 scenarios × desktop and phone) incl. axe-core on every page; 53 component tests |
+| ✅ | Stories group the same event across outlets | Live feeds: 123 articles → 13 multi-outlet stories, all correct ([ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings)) |
+| ✅ | Fast and stable on a slow phone | 1.6 Mbit/s, 150 ms, CPU 4× slower: first story 2.0–2.4 s, LCP ≤ 2.0 s, layout shift 0.002 ([TESTING.md](TESTING.md#frontend-cold-loads-on-a-slow-phone)); bundle budgets enforced in CI |
+| ✅ | Survives a deploy with tabs open | A missing code chunk is a 404, the app reloads once and otherwise explains (end-to-end test against Caddy) |
+| ✅ | Shared story links preview the story | Crawlers get the story's headline and who covered it; readers get the app (integration and end-to-end tests) |
 | ✅ | CI green on GitHub | Backend, frontend, security and E2E jobs ([CI runs](https://github.com/FlorentLatifi/Gjurm-/actions/workflows/ci.yml)) |
 | ✅ | Production stack, HTTPS, headers, rollback | Local rehearsal ([DEPLOYMENT.md](DEPLOYMENT.md#rehearsal-what-was-verified-locally)) |
 | ✅ | Backups restore | Backup → restore verification (counts match) → disaster-recovery restore, rehearsed |
@@ -43,6 +47,7 @@ The rows below apply to both paths. Skip the VPS/domain rows on the free path, a
 | 👤 | Alert webhook (Slack/Discord/ntfy) | `.env` (`ALERT_WEBHOOK_URL`, `ALERT_WEBHOOK_FORMAT`) | Test with `gjurme alert-test`. |
 | 👤 | Off-site backup bucket (recommended) | rclone config + `RCLONE_REMOTE` | [DEPLOYMENT.md §9](DEPLOYMENT.md#9-off-site-backups-optional-recommended--owner) |
 | 👤 | **Private contact for correction/removal requests** on the About page | Repository variable `CONTACT_URL` (e.g. `mailto:press@your-domain`), used at image build | The default is the repository's GitHub issues, which are public. A person asking for their name to be removed should not have to post it publicly. Also set the server's `CONTACT_URL` (User-Agent and OpenAPI contact). |
+| 👤 | **Outlet ratings** (perspective and factuality) for the real outlets | `backend/src/gjurme/sources/sources.yaml`, each with its `ratings_note` ([SOURCES.md](SOURCES.md#ratings)) | Until then the feed opens on the region lens and perspective blindspots stay empty; ownership is already filled in. An editorial judgement — document the basis. |
 | 👤 | Decide the default branch strategy | GitHub | Images and deploys follow the **default branch** (currently the development branch). Create `main` and make it the default if you prefer; nothing else changes. |
 | 👤 | Optional legal review of the content-usage design | — | The design is conservative (metadata only, link-back, takedown), but no legal claims are made ([ADR-003](DECISIONS.md#adr-003-store-metadata-and-derived-data-only)). |
 
@@ -53,8 +58,9 @@ The rows below apply to both paths. Skip the VPS/domain rows on the free path, a
 3. ⬜ Verify: `/health/ready`, `/api/v1/status` = `ok` after the first run, HSTS and CSP headers, `/metrics` = 404, admin endpoint without a token = 401, and the firewall (`ufw status`, or on Oracle `sudo iptables -L INPUT -n --line-numbers` showing 80/443 before the REJECT). In free mode, confirm the rule-based banner is shown.
 4. ⬜ Run a backup and a restore test by hand once ([OPERATIONS.md](OPERATIONS.md#backups)).
 5. ⬜ Set `PUBLIC_URL` and run the *Uptime monitor* workflow manually once.
-6. ⬜ Set `DEPLOY_ENABLED=true` and confirm that the next push deploys through CI.
-7. ⬜ Set the repository variables `PUBLIC_URL` and `CONTACT_URL` **before** the first CI image build. CI passes them into the web build (`VITE_PUBLIC_URL`, `VITE_CONTACT_URL`), which makes canonical links, Open Graph and the sitemap point at the real domain and shows the private contact.
+6. ⬜ Paste a story link into WhatsApp or Telegram (or Facebook's Sharing Debugger): the preview shows the story's headline and "N outlets covered this story".
+7. ⬜ Set `DEPLOY_ENABLED=true` and confirm that the next push deploys through CI.
+8. ⬜ Set the repository variables `PUBLIC_URL` and `CONTACT_URL` **before** the first CI image build. CI passes them into the web build (`VITE_PUBLIC_URL`, `VITE_CONTACT_URL`), which makes canonical links, Open Graph and the sitemap point at the real domain and shows the private contact.
 
 ## 4. First week ⬜
 
@@ -66,7 +72,7 @@ The rows below apply to both paths. Skip the VPS/domain rows on the free path, a
 ## 5. Known limitations at launch
 
 - Coverage still leans to Kosovo: 6 of 10 enabled sources are Kosovo-based, 3 Albanian, 1 North Macedonian. Top Channel and A2 CNN, two major Albanian broadcasters, have no usable feed.
-- "Unique stories" only merges near-verbatim copies; paraphrased coverage of the same event counts separately (ADR-008).
+- Stories group paraphrased coverage of one event with TF-IDF and name guards, not embeddings: some paraphrases stay separate stories, and "X meets Y" / "X meets Z" on the same day can merge ([ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings)). `gjurme stories-review` checks it on live data.
 - Tone and entities are machine-generated from headline and excerpt only, and can be wrong; the methodology page says so.
 - One server: the recovery point is the last nightly backup.
 

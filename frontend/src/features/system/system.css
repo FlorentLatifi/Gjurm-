@@ -1,0 +1,46 @@
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  text-decoration: none;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+  white-space: nowrap;
+}
+.status-pill:hover {
+  color: var(--ink);
+  background: var(--hover-wash);
+}
+
+/* The site notice: a fixed height (one line, two on phones) so its arrival never moves the page. */
+.notice {
+  --notice-lines: 1;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--notice-lines);
+  line-clamp: var(--notice-lines);
+  overflow: hidden;
+  height: calc(var(--notice-lines) * var(--text-sm) * 1.5 + 2 * var(--space-2));
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border-left: 3px solid var(--ink);
+  background: var(--paper-2);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.notice strong {
+  color: var(--ink);
+}
+.notice--reserved {
+  background: transparent;
+  border-left-color: transparent;
+}
+@media (max-width: 720px) {
+  .notice {
+    --notice-lines: 2;
+  }
+}

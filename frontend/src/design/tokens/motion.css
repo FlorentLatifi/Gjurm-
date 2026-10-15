@@ -1,0 +1,15 @@
+/*
+ * Motion explains a change in data or state; it never decorates. Nothing animates on page load,
+ * one thing moves at a time, exits are faster than entrances, and only opacity, transform and
+ * the coverage bar's flex-grow are animated. prefers-reduced-motion stops all of it (base.css).
+ */
+:root {
+  --dur-instant: 80ms;
+  --dur-quick: 140ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.2, 1);
+  /* a skeleton only starts to shimmer when the wait is long enough to need reassurance */
+  --shimmer-delay: 400ms;
+}

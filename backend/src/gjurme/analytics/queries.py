@@ -702,9 +702,24 @@ def sources_compare(session: Session, rng: Range) -> list[dict[str, Any]]:
                  row_number() OVER (PARTITION BY a.source_id ORDER BY count(*) DESC, t.slug) AS rk
           FROM core.articles a JOIN core.sources s ON s.id = a.source_id
           JOIN core.topics t ON t.id = a.primary_topic_id
-          WHERE {WHERE} GROUP BY a.source_id, t.slug)
+          WHERE {WHERE} GROUP BY a.source_id, t.slug),
+        -- Stories that started in the range: who covered them, and who was first.
+        story AS (
+          SELECT a.story_id, count(DISTINCT a.source_id) AS outlets,
+                 (array_agg(a.source_id ORDER BY a.published_at, a.id))[1] AS first_source
+          FROM core.articles a JOIN core.stories st ON st.id = a.story_id
+          WHERE st.published_date BETWEEN :start AND :end AND NOT a.is_hidden GROUP BY 1),
+        story_cov AS (
+          SELECT a.source_id, count(DISTINCT a.story_id) AS stories
+          FROM core.articles a JOIN story USING (story_id) WHERE NOT a.is_hidden GROUP BY 1),
+        firsts AS (
+          SELECT first_source AS source_id, count(*) AS first_reports
+          FROM story WHERE outlets >= 2 GROUP BY 1)
         SELECT s.slug, s.name, s.homepage_url, s.language, s.country, s.is_active,
                s.verification_status, s.last_success_at, s.consecutive_failures,
+               s.bias, s.factuality, s.ownership, s.owner,
+               coalesce(story_cov.stories, 0) AS stories,
+               coalesce(firsts.first_reports, 0) AS first_reports,
                coalesce(per.n, 0) AS articles, coalesce(per.original, 0) AS original,
                per.avg_sentiment, coalesce(per.negative, 0) AS negative,
                coalesce(per.neutral, 0) AS neutral, coalesce(per.positive, 0) AS positive,
@@ -714,6 +729,8 @@ def sources_compare(session: Session, rng: Range) -> list[dict[str, Any]]:
                          FROM topic_rank tr WHERE tr.source_id = s.id AND tr.rk <= 5),
                         '[]'::json) AS top_topics
         FROM core.sources s LEFT JOIN per ON per.source_id = s.id
+        LEFT JOIN story_cov ON story_cov.source_id = s.id
+        LEFT JOIN firsts ON firsts.source_id = s.id
         WHERE (:all_sources OR s.slug = ANY(:sources))
           AND (per.n IS NOT NULL OR s.is_active)
         ORDER BY articles DESC, s.name, s.slug
@@ -776,7 +793,7 @@ def search_articles(
         f"""
         SELECT a.id, a.title, a.url, a.published_at, a.published_at_estimated, a.language,
                a.summary_en, a.sentiment_label, a.sentiment_score, a.event_type,
-               a.enrichment_status, a.duplicate_of_id,
+               a.enrichment_status, a.duplicate_of_id, a.story_id,
                s.slug AS source_slug, s.name AS source_name,
                t.slug AS topic_slug, t.name_en AS topic_name
         FROM core.articles a JOIN core.sources s ON s.id = a.source_id
@@ -796,7 +813,7 @@ def article_detail(session: Session, article_id: int) -> dict[str, Any] | None:
         SELECT a.id, a.title, a.url, a.published_at, a.published_at_estimated, a.language,
                a.summary_en, a.sentiment_label, a.sentiment_score, a.event_type, a.countries,
                a.enrichment_status, a.enrichment_confidence, a.feed_categories, a.author,
-               a.duplicate_of_id, a.enriched_at,
+               a.duplicate_of_id, a.story_id, a.enriched_at,
                s.slug AS source_slug, s.name AS source_name, s.homepage_url AS source_url,
                t.slug AS topic_slug, t.name_en AS topic_name,
                en.provider AS analysis_provider, en.model AS analysis_model
@@ -835,11 +852,12 @@ def article_detail(session: Session, article_id: int) -> dict[str, Any] | None:
     art["related"] = _rows(
         session,
         """
-        SELECT a.id, a.title, a.url, a.published_at, s.name AS source_name
+        SELECT a.id, a.title, a.url, a.published_at, s.slug AS source_slug, s.name AS source_name
         FROM core.articles a JOIN core.sources s ON s.id = a.source_id
         WHERE NOT a.is_hidden AND a.id <> :id AND (
-              a.duplicate_of_id = coalesce(:root, :id) OR a.id = coalesce(:root, :id))
+              a.duplicate_of_id = coalesce(:root, :id) OR a.id = coalesce(:root, :id)
+              OR a.story_id = CAST(:story AS bigint))
         ORDER BY a.published_at, a.id LIMIT 10""",
-        {"id": article_id, "root": art["duplicate_of_id"]},
+        {"id": article_id, "root": art["duplicate_of_id"], "story": art["story_id"]},
     )
     return art

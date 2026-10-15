@@ -1,0 +1,394 @@
+/* Shared building blocks: layout, controls, chips and badges, states, banners. */
+
+/* ---------------------------------------------------------------- layout */
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.page-head p {
+  color: var(--ink-2);
+  margin-top: var(--space-2);
+  max-width: var(--measure);
+}
+.grid {
+  display: grid;
+  gap: var(--space-4);
+}
+.grid--kpi {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.grid--2 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+}
+.grid--3 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+.stack {
+  display: grid;
+  gap: var(--space-4);
+}
+.stack--loose {
+  gap: var(--space-5);
+}
+.feed-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--space-5);
+  align-items: start;
+}
+.feed-aside {
+  display: grid;
+  gap: var(--space-4);
+  position: sticky;
+  top: 76px;
+}
+@media (max-width: 960px) {
+  .feed-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .feed-aside {
+    position: static;
+  }
+}
+
+/* ---------------------------------------------------------------- controls */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+  align-items: flex-end;
+  margin-bottom: var(--space-4);
+}
+.lens-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+/* A segmented control reads like a set of tabs on a printed page: the pressed one is inked. */
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+  border: 1px solid var(--control);
+  border-radius: var(--radius);
+  padding: 2px;
+  background: var(--surface);
+}
+.segmented button {
+  font: inherit;
+  font-size: var(--text-sm);
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.segmented button:hover {
+  background: var(--hover-wash);
+  color: var(--ink);
+}
+.segmented button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: var(--weight-strong);
+}
+
+.btn {
+  font: inherit;
+  font-size: var(--text-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--control);
+  background: transparent;
+  color: var(--ink);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn:hover {
+  background: var(--hover-wash);
+}
+.btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn--ghost {
+  border-color: transparent;
+  color: var(--ink-2);
+}
+.btn--ghost:hover {
+  color: var(--ink);
+}
+.btn--sm {
+  padding: 2px var(--space-2);
+  font-size: var(--text-xs);
+}
+.btn svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+.field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+.field input,
+.field select {
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--control);
+  border-radius: var(--radius);
+  padding: 6px var(--space-3);
+  min-width: 0;
+}
+.field input::placeholder {
+  color: var(--ink-muted);
+}
+.field--grow {
+  flex: 1 1 240px;
+}
+
+.pagination {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+/* ---------------------------------------------------------------- chips, badges, dots */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  background: transparent;
+  text-decoration: none;
+  white-space: nowrap;
+}
+a.chip:hover {
+  background: var(--hover-wash);
+  color: var(--ink);
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  white-space: nowrap;
+}
+/* the blindspot mark: a half-inked circle — half the spectrum looking away */
+.badge--blindspot::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+  flex: none;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+}
+.kicker {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.meta {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+.rank-meta {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.ink {
+  color: var(--ink);
+}
+
+/* ---------------------------------------------------------------- states */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2), var(--grid), var(--surface-2));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s var(--ease-in-out) var(--shimmer-delay) infinite;
+  border-radius: var(--radius);
+}
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.state {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-3);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+.state--error {
+  color: var(--bad);
+}
+.state__title {
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  color: var(--ink);
+}
+
+/* a note from the editors: inked rule on the left, never a coloured box */
+.banner {
+  border-left: 3px solid var(--ink);
+  background: var(--paper-2);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-4);
+  color: var(--ink-2);
+}
+.banner strong {
+  color: var(--ink);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.facts dt {
+  color: var(--ink-muted);
+}
+.facts dd {
+  margin: 0;
+}
+.rating {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+@media (forced-colors: active) {
+  .dot {
+    forced-color-adjust: none;
+    border: 1px solid CanvasText;
+  }
+  .segmented button[aria-pressed="true"] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+}
+
+/* ---------------------------------------------------------------- small layout helpers */
+.stack--tight {
+  gap: 6px;
+}
+.plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bullets {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: grid;
+  gap: 6px;
+}
+.state--page {
+  padding: var(--space-7) 0;
+}
+th.col-tone {
+  min-width: 120px;
+}
+
+/* spacing exceptions, on the 4px grid (prefer a layout class; these are for one-off text runs) */
+.mt-0 {
+  margin-top: 0;
+}
+.mt-2 {
+  margin-top: var(--space-2);
+}
+.mt-3 {
+  margin-top: var(--space-3);
+}
+.mb-0 {
+  margin-bottom: 0;
+}
+
+/* a filter group that folds behind a button on narrow screens; inline everywhere else */
+.filters__toggle {
+  display: none;
+}
+.filters__panel {
+  display: contents;
+}
+@media (max-width: 720px) {
+  .filters__toggle {
+    display: inline-flex;
+  }
+  .filters__panel {
+    display: none;
+    flex-basis: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+  .filters__panel.is-open {
+    display: flex;
+  }
+  .filters__panel .field {
+    flex: none;
+  }
+}

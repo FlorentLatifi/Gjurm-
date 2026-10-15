@@ -20,6 +20,8 @@ erDiagram
     FEED_FETCHES ||--o{ FEED_ITEMS : "first seen in"
     FEED_ITEMS }o--o| ARTICLES : "becomes / duplicates"
     ARTICLES |o--o{ ARTICLES : "duplicate_of (near-duplicate root)"
+    STORIES ||--o{ ARTICLES : "groups (CLUSTER stage)"
+    TOPICS |o--o{ STORIES : "majority topic"
     ARTICLES ||--o{ ENRICHMENTS : "LLM attempts (one is_current)"
     ARTICLES ||--o{ ARTICLE_TOPICS : ""
     TOPICS ||--o{ ARTICLE_TOPICS : ""
@@ -40,6 +42,18 @@ erDiagram
         text etag "conditional GET"
         text last_modified
         timestamptz last_success_at
+        varchar bias "left|lean_left|center|lean_right|right|unrated"
+        varchar factuality "very_high..very_low|unrated"
+        varchar ownership "private|media_group|public|state|public_international|nonprofit|unknown"
+        text ratings_note "basis of the ratings"
+    }
+    STORIES {
+        bigint id PK
+        bigint representative_article_id FK "headline closest to the centroid"
+        timestamptz first_published_at
+        timestamptz last_published_at
+        date published_date "local date of the first article"
+        smallint primary_topic_id FK "majority of members"
     }
     FEED_FETCHES {
         bigint id PK
@@ -145,6 +159,7 @@ erDiagram
 | `core.entities` | one real-world entity | `UNIQUE (type, normalized_key)` | `normalized_key` is lower-cased, accent-folded and whitespace-collapsed, so "Kurti" and "KURTI" merge but a person and a place with the same name do not. |
 | `core.article_entities` | article × entity | `PK (article_id, entity_id)` | Bridge. |
 | `core.article_topics` | article × topic | `PK (article_id, topic_id)` | Bridge. `is_primary` marks the primary topic. |
+| `core.stories` | one event as covered by one or more outlets | — | Built by the CLUSTER stage; `core.articles.story_id` points at it. Only the time span, representative headline and majority topic are stored: outlet counts and coverage are computed from the *visible* members at query time, so a takedown or a changed rating applies at once ([ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings)). |
 
 **Enumerations are `text` with CHECK constraints, not PostgreSQL ENUM types.** Adding a value to a CHECK constraint is one transactional migration, while `ALTER TYPE … ADD VALUE` cannot run inside a transaction on older servers and is awkward to roll back ([ADR-009](DECISIONS.md#adr-009-text--check-constraints-instead-of-enum-types)).
 
@@ -163,6 +178,10 @@ erDiagram
 | L5 | Same enrichment input (`prompt_version`, `schema_version`, model, title, excerpt) | `core.enrichments` cache lookup; zero cost |
 
 L4 keeps both rows on purpose: each outlet's coverage is a fact about that outlet. "Unique stories" collapses them (`count(DISTINCT coalesce(duplicate_of_id, id))`). The threshold was calibrated on real headlines ([ADR-008](DECISIONS.md#adr-008-l4-near-duplicate-rule-calibrated-on-real-headlines)).
+
+**Stories are not a dedup layer.** Grouping paraphrases of one event across outlets (`core.stories`) is a later stage with a looser, different method (TF-IDF over headline, excerpt and entities, with name guards and a 48 h span) and never removes or links articles as duplicates ([ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings)).
+
+**Source ratings (migration 0003).** `core.sources` carries the editorial `bias`, `factuality`, `ownership`, `owner` and `ratings_note` declared in `sources.yaml`; CHECK constraints hold the vocabularies ([ADR-021](DECISIONS.md#adr-021-outlet-ratings-are-editorial-declared-with-their-basis-unrated-by-default)). Migration 0003 is expand-only: every new column is nullable or has a default, so the previous release keeps working against it.
 
 ## Key DDL
 

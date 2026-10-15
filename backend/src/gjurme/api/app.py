@@ -26,6 +26,7 @@ from gjurme import __version__
 from gjurme.api.metrics import ApiMetrics, PipelineCollector
 from gjurme.api.routers.ops import admin_router, health_router
 from gjurme.api.routers.public import router as public_router
+from gjurme.api.routers.share import share_router
 from gjurme.api.security import (
     API_CSP,
     DOCS_CSP,
@@ -223,4 +224,5 @@ def create_app(
     app.include_router(health_router)
     app.include_router(public_router)
     app.include_router(admin_router)
+    app.include_router(share_router)
     return app

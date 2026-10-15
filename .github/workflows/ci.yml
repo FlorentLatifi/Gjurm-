@@ -77,9 +77,14 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
+      - run: npm run check:tokens
+      # API types are generated from the committed OpenAPI schema (the backend test keeps that
+      # schema in step with the API); typecheck then checks them against the app's own types
+      - run: npm run check:api
       - run: npm run typecheck
       - run: npm test -- --coverage
       - run: npm run build
+      - run: npm run check:budget
 
   security:
     name: Security (secrets, dependencies)

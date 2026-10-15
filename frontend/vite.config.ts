@@ -1,7 +1,20 @@
+import { fileURLToPath, URL } from "node:url";
+
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 
-const ROUTES = ["/", "/trends", "/topics", "/entities", "/sources", "/articles", "/about", "/status"];
+const ROUTES = [
+  "/",
+  "/blindspot",
+  "/dashboard",
+  "/trends",
+  "/topics",
+  "/entities",
+  "/sources",
+  "/articles",
+  "/about",
+  "/status",
+];
 
 /** Emits sitemap.xml + robots.txt for the public URL the build targets (VITE_PUBLIC_URL). */
 function seoFiles(publicUrl: string | undefined): Plugin {
@@ -42,6 +55,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
   return {
     plugins: [react(), seoFiles(env.VITE_PUBLIC_URL)],
+    resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
     server: {
       port: 5173,
       proxy: { "/api": "http://127.0.0.1:8000", "/health": "http://127.0.0.1:8000" },
@@ -49,12 +63,14 @@ export default defineConfig(({ mode }) => {
     preview: { port: 4173, proxy: { "/api": "http://127.0.0.1:8000" } },
     build: {
       sourcemap: true,
+      manifest: true,
       target: "es2022",
       rollupOptions: {
         output: {
           manualChunks: (id) => {
             if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-")) return "recharts";
-            if (id.includes("node_modules/react")) return "react";
+            // exact package names: react-redux and use-sync-external-store belong to Recharts
+            if (/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) return "react";
             return undefined;
           },
         },
@@ -65,7 +81,12 @@ export default defineConfig(({ mode }) => {
       globals: true,
       setupFiles: ["./src/test/setup.ts"],
       include: ["src/**/*.test.{ts,tsx}"],
-      coverage: { provider: "v8", reporter: ["text", "lcov"], include: ["src/**"] },
+      coverage: {
+        provider: "v8",
+        reporter: ["text", "lcov"],
+        include: ["src/**"],
+        exclude: ["src/shared/api/schema.gen.ts", "src/shared/api/contract.check.ts"],
+      },
     },
   };
 });
