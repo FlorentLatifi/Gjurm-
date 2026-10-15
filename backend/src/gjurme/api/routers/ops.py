@@ -11,12 +11,14 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Res
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, select, text, update
+from sqlalchemy.orm import Session
 
 from gjurme import __version__
 from gjurme.analytics import queries as q
 from gjurme.api.deps import DB, AppSettings, local_today
 from gjurme.api.schemas import Health, PublicStatus
 from gjurme.api.security import client_ip, require_admin
+from gjurme.config import Settings
 from gjurme.db.models import AlertEvent, Article, PipelineRun, Source
 from gjurme.enrichment.budget import spent_today
 from gjurme.enrichment.service import requeue
@@ -60,7 +62,19 @@ def ready(request: Request, response: Response) -> Any:
     response_model=PublicStatus,
     summary="Public pipeline freshness and source health",
 )
-def public_status(db: DB, settings: AppSettings) -> Any:
+def public_status(request: Request, response: Response, db: DB, settings: AppSettings) -> Any:
+    # Every visitor's page asks for it (the status pill), so it is cached briefly, here and in
+    # the browser; a pipeline run every 15 minutes makes 30 s of staleness irrelevant.
+    response.headers["Cache-Control"] = f"public, max-age={STATUS_TTL_SECONDS}"
+    return request.app.state.cache.get_or_set(
+        "status", lambda: _public_status(db, settings), ttl=STATUS_TTL_SECONDS
+    )
+
+
+STATUS_TTL_SECONDS = 30
+
+
+def _public_status(db: Session, settings: Settings) -> dict[str, Any]:
     last = db.execute(
         text("""
         SELECT started_at, status FROM ops.pipeline_runs
@@ -71,13 +85,23 @@ def public_status(db: DB, settings: AppSettings) -> Any:
         SELECT max(finished_at) FROM ops.pipeline_runs
         WHERE status IN ('succeeded', 'partial')""")
     ).scalar()
-    counts = db.execute(
+    # Both counts use an index instead of scanning every article: an article ingested in the
+    # last day was published within MAX_ITEM_AGE_DAYS of it (older items are rejected), and the
+    # backlog is the enrichment queue's partial index.
+    new_24h = db.execute(
         text("""
-        SELECT count(*) FILTER (WHERE ingested_at > now() - interval '24 hours') AS new_24h,
-               count(*) FILTER (WHERE enrichment_status IN ('pending', 'failed')
-                                AND NOT is_hidden) AS backlog
-        FROM core.articles""")
-    ).one()
+        SELECT count(*) FROM core.articles
+        WHERE ingested_at > now() - interval '24 hours'
+          AND published_at > now() - make_interval(days => :max_age + 2)"""),
+        {"max_age": settings.max_item_age_days},
+    ).scalar_one()
+    backlog = db.execute(
+        text("""
+        SELECT count(*) FROM core.articles
+        WHERE enrichment_status IN ('pending', 'failed') AND NOT is_hidden
+          AND (enrichment_status = 'pending' OR enrichment_attempts < :max_attempts)"""),
+        {"max_attempts": settings.enrich_max_attempts},
+    ).scalar_one()
     sources = [
         dict(r._mapping)
         for r in db.execute(
@@ -93,10 +117,14 @@ def public_status(db: DB, settings: AppSettings) -> Any:
     )
     heartbeat = (get_setting(db, HEARTBEAT_KEY) or {}).get("at")
     minutes = ((datetime.now(UTC) - last_success).total_seconds() / 60) if last_success else None
-    if minutes is None or minutes > settings.alert_stale_pipeline_minutes:
+    collecting = demo or any(s["is_active"] for s in sources)
+    if minutes is None or minutes > settings.alert_stale_pipeline_minutes or not collecting:
         state = "stale"
-    elif (last and last.status != "succeeded") or any(
-        s["is_active"] and s["consecutive_failures"] > 0 for s in sources
+    elif (
+        (last and last.status != "succeeded")
+        or any(s["is_active"] and s["consecutive_failures"] > 0 for s in sources)
+        # auto-disabled after failing in a row: no longer failing, no longer collected either
+        or any(not s["is_active"] and s["verification_status"] == "failing" for s in sources)
     ):
         state = "degraded"
     else:
@@ -108,8 +136,8 @@ def public_status(db: DB, settings: AppSettings) -> Any:
         "last_success_at": last_success,
         "minutes_since_success": round(minutes, 1) if minutes is not None else None,
         "scheduler_heartbeat_at": heartbeat,
-        "articles_last_24h": counts.new_24h,
-        "enrichment_backlog": counts.backlog,
+        "articles_last_24h": new_24h,
+        "enrichment_backlog": backlog,
         "sources": sources,
         "analysis": q.analysis_mode(db, local_today(settings)),
         "demo_data": demo,
@@ -307,9 +335,11 @@ def admin_hide(
 
 @admin_router.post("/articles/{article_id}/unhide")
 def admin_unhide(request: Request, db: DB, article_id: Annotated[int, Path(ge=1)]) -> Any:
-    db.execute(
+    result = db.execute(
         update(Article).where(Article.id == article_id).values(is_hidden=False, hidden_reason=None)
     )
+    if not result.rowcount:  # type: ignore[attr-defined]
+        raise HTTPException(404, detail={"code": "not_found", "message": "unknown article"})
     db.commit()
     _invalidate(request)
     return {"id": article_id, "hidden": False}
