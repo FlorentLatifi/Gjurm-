@@ -84,6 +84,6 @@ After editing, `gjurme sources sync` (or the next deploy) applies the ratings; t
 - Conditional GET with `ETag` / `Last-Modified`, so an unchanged feed costs the publisher a 304.
 - At most one fetch per 15 minutes per source (the scheduler interval), a 15 s timeout and a 5 MB response cap.
 - Redirects are followed manually (max 5), and every hop's host must resolve to a public address (SSRF guard). Only `http`/`https`.
-- Failures are isolated per source. After 20 consecutive failures the source is auto-disabled (`is_active = false`, `verification_status = failing`) and an alert asks the operator to check it.
+- Failures are isolated per source. After 20 consecutive failures the source is auto-disabled (`is_active = false`, `verification_status = failing`) and an alert asks the operator to check it. It is fetched again every 6 hours and re-enabled automatically when the feed works again. A run in which most sources fail at once is an outage on the server's side and is not counted against any source; `source_freshness_6h` warns while a source is auto-disabled and fails when no source is collected.
 
 The weekly schedule of the *Source validation* workflow re-checks every source, so a feed that moves or starts blocking shows up in the report even before the pipeline notices.
