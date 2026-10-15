@@ -84,6 +84,10 @@ class Settings(BaseSettings):
     enrich_concurrency: int = Field(default=4, ge=1, le=16)
     enrich_max_attempts: int = Field(default=3, ge=1, le=10)
     enrich_circuit_breaker_threshold: int = Field(default=5, ge=1)
+    # No new calls after this many seconds of one ENRICH stage (0 = no limit): a slow local model
+    # must not hold up the next feed fetches, and feeds that list only their latest 10 items
+    # would overflow meanwhile. The rest of the queue waits for the next run.
+    enrich_max_seconds: int = Field(default=600, ge=0)
     enrichment_enabled: bool = True
     allow_fake_llm_in_production: bool = False
 
