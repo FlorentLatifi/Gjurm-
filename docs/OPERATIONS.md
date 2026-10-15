@@ -57,6 +57,7 @@ Run after every pipeline run (and on demand: `gj quality`). Results are in `ops.
 | `enrichment_backlog_6h` | pending > 6 h old | > 200 / > 1000 | Budget too small, enrichment paused, or LLM failing |
 | `enrichment_failure_rate_24h` | 24 h | > 10% / > 30% (critical) | LLM incident, bad key, schema problem |
 | `enrichment_consistency` | all | any (critical) | `succeeded` article without a current enrichment, or the reverse (a bug) |
+| `story_backlog_2h` | unclustered > 2 h old | > 50 / > 500 | CLUSTER stage failing or skipped (`gjurme cluster` runs it alone) |
 | `malformed_entities` | all | any | Empty or markup-like entity names (prompt or repair regression) |
 | `ungrounded_entity_rate_24h` | 24 h | > 15% | The model is inventing entities: review the prompt or model |
 | `source_freshness_6h` | active sources | any stale / all stale (critical) | No successful fetch in 6 h |
@@ -102,6 +103,12 @@ The article disappears from every public endpoint immediately; cached responses 
 
 ### Reprocess after a prompt or model change
 Bump `PROMPT_VERSION`, deploy, then `gj enrich-requeue --older-than-version <old>`. The scheduler works through the queue within the daily budget. See [AI_ENRICHMENT.md](AI_ENRICHMENT.md#versioning-and-reprocessing).
+
+### Check or retune story clustering
+`gj stories-review --hours 48` lists the multi-outlet stories, the weakest member of each story (possible wrong merges) and the closest near misses (possible missed merges). The *Source validation* workflow publishes the same report for the live feeds. To change the threshold: set `STORY_SIMILARITY_THRESHOLD` in `.env` (default 0.45; lower merges more), restart, then `gj cluster --rebuild-days 3` (story ids in that period change, so shared story links break). See [ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings).
+
+### Rate an outlet
+Edit `bias`, `factuality`, `ownership`, `owner` and `ratings_note` in `sources.yaml` ([SOURCES.md](SOURCES.md#ratings)), commit and deploy; the `migrate` step syncs them. Ratings apply to every story at once (coverage is computed at query time).
 
 ### Deploy and rollback
 - Normal path: merge to the default branch; CI deploys (tests → images → Trivy → deploy with health check and automatic rollback).

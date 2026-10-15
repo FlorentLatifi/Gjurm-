@@ -87,6 +87,11 @@ class Settings(BaseSettings):
     enrichment_enabled: bool = True
     allow_fake_llm_in_production: bool = False
 
+    # --- stories (clustering of articles that report the same event) -----------------------
+    # Cosine similarity of an article to a story's TF-IDF centroid needed to join it. Hand
+    # calibrated (ADR-020): lower merges more paraphrases but also more different events.
+    story_similarity_threshold: float = Field(default=0.45, gt=0, lt=1)
+
     # --- scheduler -------------------------------------------------------------------------
     scheduler_interval_minutes: int = Field(default=15, ge=1)
     retention_raw_payload_days: int = Field(default=30, ge=1)

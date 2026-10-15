@@ -163,6 +163,24 @@ def check_enrichment_consistency(s: Session) -> CheckResult:
     )
 
 
+def check_story_backlog(s: Session) -> CheckResult:
+    """Articles the CLUSTER stage should have grouped into a story by now."""
+    backlog = s.execute(
+        text("""
+        SELECT count(*) FROM core.articles
+        WHERE story_id IS NULL AND NOT is_hidden AND ingested_at < now() - interval '2 hours'
+    """)
+    ).scalar_one()
+    return CheckResult(
+        "story_backlog_2h",
+        "warning",
+        _grade(backlog, 50, 500),
+        float(backlog),
+        50.0,
+        {"articles_without_story": backlog},
+    )
+
+
 def check_malformed_entities(s: Session) -> CheckResult:
     bad = s.execute(
         text("""
@@ -322,6 +340,7 @@ CHECKS: tuple[Callable[[Session], CheckResult], ...] = (
     check_enrichment_backlog,
     check_enrichment_failure_rate,
     check_enrichment_consistency,
+    check_story_backlog,
     check_malformed_entities,
     check_ungrounded_entities,
     check_source_freshness,

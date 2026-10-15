@@ -41,7 +41,7 @@ def health() -> Any:
 @health_router.get(
     "/health/ready",
     response_model=Health,
-    responses={503: {"model": Health}},
+    responses={503: {"model": Health, "description": "Database unreachable"}},
     summary="Readiness (database reachable)",
 )
 def ready(request: Request, response: Response) -> Any:

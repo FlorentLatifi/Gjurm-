@@ -182,6 +182,8 @@ Skedari i Docker Compose kërkon `IMAGE_TAG`, prandaj përdore gjithmonë aliasi
 
 Nëse certifikata HTTPS vonon, shiko `dc logs web`. Zakonisht DuckDNS vonohet pak dhe Caddy provon përsëri vetë.
 
+Kontrollo edhe ndarjen e lajmeve: kopjo lidhjen e një historie (`https://gjurme.duckdns.org/stories/…`) në WhatsApp ose Telegram. Pamja paraprake duhet të tregojë titullin e historisë dhe "N outlets covered this story", jo faqen kryesore. Nëse tregon faqen kryesore, kontrollo që `DOMAIN` te `.env` është i saktë (lidhjet në pamje paraprake ndërtohen prej tij).
+
 ### B11. Pas publikimit 👤
 
 1. GitHub → **Settings → Secrets and variables → Actions → Variables**:
@@ -191,6 +193,48 @@ Nëse certifikata HTTPS vonon, shiko `dc logs web`. Zakonisht DuckDNS vonohet pa
 3. Oracle mund ta **ndalë** një VM falas që punon shumë pak për 7 ditë. Nëse të vjen email-i i monitorit, niseni përsëri nga konsola (të dhënat ruhen). Për ta shmangur: **Billing → Upgrade to Pay-As-You-Go** dhe **Budgets → alert $1**. Burimet falas mbeten falas.
 
 Publikimi automatik nga GitHub në çdo push (CI → server) është opsional. Hapat janë te [DEPLOYMENT.md §3 dhe §7](DEPLOYMENT.md#3-deploy-key-for-ci--owner).
+
+---
+
+## GJURMË si Ground News: historitë, Blindspot dhe vlerësimi i mediave
+
+Faqja kryesore tani funksionon si [Ground News](https://ground.news/):
+
+- **Historitë (Stories).** Artikujt e mediave të ndryshme për të njëjtën ngjarje bashkohen në një "histori". Për secilën shihet sa media e mbuluan, kush e raportoi i pari, si e titulloi secila media (krah për krah, me lidhje te origjinali) dhe një shirit që e ndan mbulimin sipas **anësisë** (majtas · qendër · djathtas · pa vlerësim), **rajonit** (Kosovë, Shqipëri, Maqedoni e Veriut), **pronësisë** dhe **faktualitetit**.
+- **Blindspot.** Histori që i mbuloi kryesisht njëra anë, ose histori për një vend që mediat e atij vendi nuk i raportuan (p.sh. lajm për Shqipërinë që e dhanë vetëm mediat e Kosovës).
+- **Profili i medias.** Vlerësimet dhe baza e tyre, pronësia, sa histori mbulon, sa herë raporton e para, "ekskluzivet".
+- **My news bias.** Ekuilibri i mediave që lexon vetë përdoruesi. Ruhet vetëm në shfletuesin e tij, pa llogari e pa cookie.
+- Paneli i vjetër i statistikave është te `/dashboard`.
+
+### Vlerësimi i mediave 👤
+
+Mediat reale janë **pa vlerësim** ("unrated") për anësinë dhe faktualitetin, sepse këto janë gjykime redaksionale dhe softueri nuk i shpik. Derisa t'i vlerësosh, faqja i ndan historitë sipas rajonit (që punon menjëherë) dhe shiriti i anësisë tregon "Unrated".
+
+Për t'i vlerësuar, te `backend/src/gjurme/sources/sources.yaml`, për çdo media:
+
+```yaml
+    bias: center            # left | lean_left | center | lean_right | right | unrated
+    factuality: high        # very_high | high | mixed | low | very_low | unrated
+    ownership: private      # private | media_group | public | state | public_international | nonprofit | unknown
+    owner: Emri i pronarit  # opsional, informacion publik
+    ratings_note: "Vlerësim redaksional, nëntor 2026: … (mbi çka bazohet)"
+```
+
+Rregullat:
+
+1. **Mos hamendëso.** Vendos `bias` ose `factuality` vetëm pas një shqyrtimi të dokumentuar (kush e bëri, kur, mbi çfarë prove: mostër artikujsh, politika e korrigjimeve, pronësia). Pa `ratings_note`, sistemi e refuzon vlerësimin; shënimi shfaqet publikisht te profili i medias.
+2. Shkalla majtas–djathtas është ajo e Ground News. Nëse për mediat shqip ka më shumë kuptim një bosht tjetër (p.sh. *pro-qeverisë / kritike ndaj qeverisë*), mund të ndryshohen vetëm etiketat te `frontend/src/shared/model/ratings.ts` dhe të shpjegohet te faqja e metodologjisë.
+3. Pas ndryshimit: commit + deploy (hapi `migrate` i sinkronizon). Vlerësimet vlejnë menjëherë për të gjitha historitë.
+
+### Kontrolli i grupimit të historive
+
+Grupimi bëhet automatikisht çdo 15 minuta. Për të parë si po punon me lajmet reale:
+
+```bash
+gj stories-review --hours 48        # historitë me disa media, anëtarët më të dobët, "gati-bashkimet"
+```
+
+Workflow-i *Source validation* në GitHub e publikon të njëjtin raport për feed-et reale. Nëse historitë bashkojnë ngjarje të ndryshme, rrite `STORY_SIMILARITY_THRESHOLD` te `.env` (p.sh. 0.5); nëse i ndajnë shumë, ule (p.sh. 0.4). Pastaj `gj cluster --rebuild-days 3`.
 
 ---
 

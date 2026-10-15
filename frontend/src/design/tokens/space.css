@@ -1,0 +1,20 @@
+/* Space and shape. A 4px grid; small radii (editorial, not app-like); no shadows on content. */
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --radius-sm: 2px;
+  --radius: 4px;
+  --hairline: 1px solid var(--rule);
+
+  /* only for things that float above the page: tooltips, the sticky header once scrolled */
+  --shadow-float: 0 6px 24px rgba(11, 11, 11, 0.14);
+
+  --gutter: 16px;
+  --maxw: 1240px;
+}

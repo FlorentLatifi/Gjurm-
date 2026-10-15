@@ -8,7 +8,9 @@ and every test starts from empty tables (TRUNCATE), so tests are independent and
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Iterator
+from datetime import date, timedelta
 from pathlib import Path
 
 import httpx
@@ -28,8 +30,31 @@ TEST_DATABASE_URL = os.environ.get(
 )
 
 
-def fixture_bytes(name: str) -> bytes:
-    return (FIXTURES / "feeds" / name).read_bytes()
+# The feed fixtures carry fixed dates from late September 2026. Tests that run them through
+# PROCESS would start rejecting them as too old (MAX_ITEM_AGE_DAYS) a few weeks later.
+_FIXTURE_EPOCH = date(2026, 9, 25)
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+_RFC822_DATE = re.compile(r"(?<=, )(\d{2}) (" + "|".join(_MONTHS) + r") (\d{4})")
+_ISO_DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})(?=T)")
+
+
+def fixture_bytes(name: str, *, fresh: bool = False) -> bytes:
+    """Read a feed fixture. ``fresh`` moves its dates forward by whole weeks (weekday names stay
+    right) so that the newest item is 1–8 days old today, whatever day the tests run."""
+    data = (FIXTURES / "feeds" / name).read_bytes()
+    if not fresh:
+        return data
+    shift = timedelta(days=7 * max(0, (date.today() - _FIXTURE_EPOCH).days // 7))
+
+    def rfc(m: re.Match[str]) -> str:
+        d = date(int(m[3]), _MONTHS.index(m[2]) + 1, int(m[1])) + shift
+        return f"{d.day:02d} {_MONTHS[d.month - 1]} {d.year}"
+
+    def iso(m: re.Match[str]) -> str:
+        return (date(int(m[1]), int(m[2]), int(m[3])) + shift).isoformat()
+
+    text = _ISO_DATE.sub(iso, _RFC822_DATE.sub(rfc, data.decode("utf-8")))
+    return text.encode("utf-8")
 
 
 @pytest.fixture
@@ -75,7 +100,7 @@ def engine() -> Iterator[Engine]:
 
 
 TABLES = (
-    "core.article_entities, core.article_topics, core.enrichments, core.entities, "
+    "core.article_entities, core.article_topics, core.enrichments, core.entities, core.stories, "
     "raw.feed_items, raw.feed_fetches, core.articles, core.sources, core.topics, "
     "ops.data_quality_results, ops.alert_events, ops.pipeline_runs, ops.settings"
 )

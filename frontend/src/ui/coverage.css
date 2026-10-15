@@ -1,0 +1,51 @@
+/* Coverage bars: 2px surface gaps between segments, hatched unrated, numbers always printed. */
+.coverage {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.coverage__bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  width: 100%;
+}
+.coverage--sm .coverage__bar {
+  height: 6px;
+}
+.coverage__seg {
+  flex-basis: 0;
+  min-width: 3px;
+  border-radius: var(--radius-sm);
+  /* within one lens, a refreshed story re-proportions instead of jumping */
+  transition: flex-grow var(--dur-base) var(--ease-out);
+}
+.seg--hatched {
+  background-image: repeating-linear-gradient(45deg, var(--unrated-ink) 0 1.5px, transparent 1.5px 5px) !important;
+  background-color: var(--unrated) !important;
+}
+.coverage__labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+.coverage__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.coverage__label strong {
+  font-weight: var(--weight-strong);
+  color: var(--ink);
+}
+.coverage__label .dot {
+  border-radius: 1px;
+}
+@media (forced-colors: active) {
+  .coverage__seg {
+    forced-color-adjust: none;
+    border: 1px solid CanvasText;
+  }
+}
