@@ -71,7 +71,7 @@ sequenceDiagram
         M-->>S: structured output
         S->>C: validate, ground entities, enrichments + bridges
         S->>C: cluster new articles into stories (TF-IDF, name guards, 48 h span)
-        S->>O: 13 data-quality checks → data_quality_results
+        S->>O: 14 data-quality checks → data_quality_results
         S->>O: alert evaluation → alert_events (+ webhook)
         S->>O: pipeline_runs(status, per-stage stats)
     end
@@ -133,7 +133,7 @@ backend/src/gjurme/
   analytics/queries.py every analytical query (parameterized SQL)
   analytics/stories.py story feed, story detail, blindspots, source profiles
   stories/             similarity (tokens, TF-IDF, name guards), clustering stage, review report
-  quality/checks.py    13 data-quality checks
+  quality/checks.py    14 data-quality checks
   alerts/engine.py     alert rules, dedup, webhook delivery
   pipeline/            runner, advisory locking, scheduler loop, retention
   api/                 FastAPI app, routers (public, ops/admin), schemas, security, metrics

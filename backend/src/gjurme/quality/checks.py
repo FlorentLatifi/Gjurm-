@@ -109,12 +109,16 @@ def check_estimated_dates(s: Session) -> CheckResult:
 
 
 def check_enrichment_backlog(s: Session) -> CheckResult:
+    """Articles still due an analysis after 6 h (failures that used up their attempts are not
+    waiting for anything)."""
     backlog = s.execute(
         text("""
         SELECT count(*) FROM core.articles
-        WHERE enrichment_status IN ('pending', 'failed') AND NOT is_hidden
-          AND ingested_at < now() - interval '6 hours'
-    """)
+        WHERE (enrichment_status = 'pending'
+               OR (enrichment_status = 'failed' AND enrichment_attempts < :max_attempts))
+          AND NOT is_hidden AND ingested_at < now() - interval '6 hours'
+    """),
+        {"max_attempts": get_settings().enrich_max_attempts},
     ).scalar_one()
     return CheckResult(
         "enrichment_backlog_6h",
@@ -261,6 +265,34 @@ def check_source_freshness(s: Session) -> CheckResult:
     )
 
 
+def check_feed_overflow(s: Session) -> CheckResult:
+    """Fetches in which every item was new: the feed published more between two polls than it
+    lists, so items were probably missed (feeds that show only their latest 10 items)."""
+    rows = [
+        dict(r._mapping)
+        for r in s.execute(
+            text("""
+            SELECT src.slug, count(*) AS fetches, max(f.items_seen) AS items_listed
+            FROM raw.feed_fetches f JOIN core.sources src ON src.id = f.source_id
+            WHERE f.started_at >= now() - interval '24 hours' AND f.status = 'ok'
+              AND f.items_seen >= 5 AND f.items_new = f.items_seen
+              AND EXISTS (SELECT 1 FROM raw.feed_fetches e  -- not the source's first fetch
+                          WHERE e.source_id = f.source_id AND e.status = 'ok'
+                            AND e.started_at < f.started_at)
+            GROUP BY src.slug ORDER BY src.slug
+        """)
+        )
+    ]
+    return CheckResult(
+        "feed_overflow_24h",
+        "warning",
+        "warn" if rows else "pass",
+        float(len(rows)),
+        0.0,
+        {"sources": rows},
+    )
+
+
 def check_volume_anomaly(s: Session) -> CheckResult:
     rows = (
         s.execute(
@@ -361,6 +393,7 @@ CHECKS: tuple[Callable[[Session], CheckResult], ...] = (
     check_malformed_entities,
     check_ungrounded_entities,
     check_source_freshness,
+    check_feed_overflow,
     check_volume_anomaly,
     check_foreign_domains,
     check_low_confidence,
