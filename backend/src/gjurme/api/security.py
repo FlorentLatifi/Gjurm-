@@ -120,10 +120,13 @@ class TTLCache:
         self.hits = 0
         self.misses = 0
 
-    def get_or_set(self, key: str, factory: Callable[[], Any]) -> Any:
+    def get_or_set(self, key: str, factory: Callable[[], Any], ttl: float | None = None) -> Any:
+        """Cached value for ``key``, computed by ``factory`` on a miss (kept ``ttl`` seconds,
+        default: the cache's TTL)."""
+        ttl = self.ttl if ttl is None else ttl
         now = time.monotonic()
         with self._lock:
-            entry = self._data.get(key) if self.ttl > 0 else None
+            entry = self._data.get(key) if ttl > 0 else None
             if entry and entry[0] > now:
                 self._data.move_to_end(key)
                 self.hits += 1
@@ -152,8 +155,8 @@ class TTLCache:
         finally:
             with self._lock:
                 self._flights.pop(key, None)
-                if flight.error is None and self.ttl > 0:
-                    self._data[key] = (time.monotonic() + self.ttl, flight.value)
+                if flight.error is None and ttl > 0:
+                    self._data[key] = (time.monotonic() + ttl, flight.value)
                     self._data.move_to_end(key)
                     while len(self._data) > self.max_items:
                         self._data.popitem(last=False)
