@@ -22,16 +22,33 @@ test.describe("GJURMË stories", () => {
   });
 
   test("going back to the feed restores where the reader was", async ({ page }) => {
+    // Every scroll event (time, path, scrollY, page height): printed if the restore falls short.
+    await page.addInitScript(`
+      window.scrollLog = []; window.scrollLog.path = [];
+      addEventListener("scroll", () => {
+        scrollLog.push([Math.round(performance.now()), Math.round(scrollY), document.documentElement.scrollHeight]);
+        scrollLog.path.push(location.pathname);
+      }, { capture: true, passive: true });
+    `);
     await page.goto("/");
     const card = page.locator(".story-card").nth(6);
     await card.scrollIntoViewIfNeeded();
+    const link = card.locator(".story-card__title a");
+    await link.click({ trial: true }); // any scrolling the click itself needs happens here
     const before = await page.evaluate<number>("window.scrollY");
     expect(before).toBeGreaterThan(300);
-    await card.locator(".story-card__title a").click();
+    const feedLog = await page.evaluate("JSON.stringify([window.scrollLog, window.scrollLog.path])");
+    await link.click();
     await expect(page).toHaveURL(/\/stories\/\d+$/);
+    const storyLog = await page.evaluate("JSON.stringify([window.scrollLog, window.scrollLog.path, document.documentElement.scrollHeight])");
     await page.goBack();
     await expect(page.locator(".story-card").nth(6)).toBeVisible();
-    await expect.poll(() => page.evaluate<number>("window.scrollY")).toBeGreaterThan(before - 120);
+    try {
+      await expect.poll(() => page.evaluate<number>("window.scrollY")).toBeGreaterThan(before - 120);
+    } catch (error) {
+      const backLog = await page.evaluate("JSON.stringify([window.scrollLog, window.scrollLog.path, document.documentElement.scrollHeight, innerHeight])");
+      throw new Error(`${String(error)}\nbefore=${before}\nfeed: ${String(feedLog)}\nstory: ${String(storyLog)}\nback: ${String(backLog)}`);
+    }
   });
 
   test("coverage lens switches the bars and is remembered", async ({ page }) => {
