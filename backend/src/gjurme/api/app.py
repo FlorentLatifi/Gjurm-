@@ -31,6 +31,7 @@ from gjurme.api.security import (
     API_CSP,
     DOCS_CSP,
     SECURITY_HEADERS,
+    Overloaded,
     RateLimiter,
     TTLCache,
     bucket_for,
@@ -86,7 +87,9 @@ def create_app(
     )
     app.state.settings = settings
     app.state.session_factory = session_factory
-    app.state.cache = TTLCache(settings.api_cache_ttl_seconds)
+    app.state.cache = TTLCache(
+        settings.api_cache_ttl_seconds, max_computations=settings.api_max_concurrent_computations
+    )
     app.state.limiter = RateLimiter()
     registry = CollectorRegistry()
     registry.register(PipelineCollector(session_factory, settings.llm_daily_budget_usd))
@@ -101,6 +104,19 @@ def create_app(
         expose_headers=["X-Request-ID", "Retry-After"],
         max_age=600,
     )
+
+    async def _call(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """Unexpected errors become a 500 here, inside ``observe``, so they get the request id
+        in the log, the security and cache headers, and a count in the request metrics."""
+        try:
+            return await call_next(request)
+        except Exception:
+            log.exception("unhandled error", extra={"path": request.url.path})
+            return _error(
+                500, "internal_error", "Unexpected error. The request id identifies it in the logs."
+            )
 
     @app.middleware("http")
     async def observe(
@@ -129,9 +145,9 @@ def create_app(
                         headers={"Retry-After": str(max(1, round(retry)))},
                     )
                 else:
-                    response = await call_next(request)
+                    response = await _call(request, call_next)
             else:
-                response = await call_next(request)
+                response = await _call(request, call_next)
         finally:
             request_id_var.reset(token)
         elapsed = time.perf_counter() - started
@@ -207,8 +223,18 @@ def create_app(
         ]
         return _error(422, "validation_error", "Invalid request parameters", details)
 
+    @app.exception_handler(Overloaded)
+    async def overloaded(_request: Request, _exc: Overloaded) -> JSONResponse:
+        app.state.metrics.rate_limited.labels("overloaded").inc()
+        return _error(
+            503,
+            "overloaded",
+            "Busy computing other responses — retry shortly.",
+            headers={"Retry-After": "5"},
+        )
+
     @app.exception_handler(Exception)
-    async def unhandled(request: Request, exc: Exception) -> JSONResponse:
+    async def unhandled(request: Request, exc: Exception) -> JSONResponse:  # last resort
         log.exception("unhandled error", extra={"path": request.url.path})
         return _error(
             500, "internal_error", "Unexpected error. The request id identifies it in the logs."

@@ -495,10 +495,53 @@ def test_unhandled_errors_do_not_leak(
         raise RuntimeError("password=hunter2 in stack trace")
 
     monkeypatch.setattr(q, "topics", boom)
-    c = TestClient(create_app(api_settings, db), raise_server_exceptions=False)
-    resp = c.get("/api/v1/topics")
+    app = create_app(api_settings, db)
+    c = TestClient(app, raise_server_exceptions=False)
+    resp = c.get("/api/v1/topics", headers={"X-Request-ID": "trace-500-abc"})
     assert resp.status_code == 500 and "hunter2" not in resp.text
     assert resp.json()["error"]["code"] == "internal_error"
+    # handled inside the request middleware: traceable, with the usual headers, and counted
+    assert resp.headers["X-Request-ID"] == "trace-500-abc"
+    assert resp.headers["Cache-Control"] == "no-store"
+    assert resp.headers["X-Content-Type-Options"] == "nosniff"
+    counted = app.state.metrics.requests.labels("GET", "/api/v1/topics", 500)._value.get()
+    assert counted == 1
+
+
+def test_unknown_parameters_do_not_bypass_the_cache(
+    db,
+    api_settings: Settings,  # type: ignore[no-untyped-def]
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import gjurme.analytics.queries as q
+
+    calls: list[int] = []
+    real = q.topics
+    monkeypatch.setattr(q, "topics", lambda *a, **k: calls.append(1) or real(*a, **k))
+    c = TestClient(create_app(api_settings.model_copy(update={"api_cache_ttl_seconds": 600}), db))
+    for params in ({"days": 7}, {"days": "007", "x": "a"}, {"x": "b", "days": 7, "cb": "c"}):
+        assert c.get("/api/v1/topics", params=params).status_code == 200
+    assert len(calls) == 1
+    c.get("/api/v1/topics", params={"days": 8})
+    assert len(calls) == 2  # a real parameter still selects a different response
+
+
+def test_overload_answers_503_with_retry_after(
+    db,
+    api_settings: Settings,  # type: ignore[no-untyped-def]
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gjurme.api.security import Overloaded
+
+    app = create_app(api_settings, db)
+
+    def busy(*_a: Any, **_k: Any) -> Any:
+        raise Overloaded
+
+    monkeypatch.setattr(app.state.cache, "get_or_set", busy)
+    resp = TestClient(app).get("/api/v1/topics")
+    assert resp.status_code == 503 and resp.headers["Retry-After"] == "5"
+    assert resp.json()["error"]["code"] == "overloaded" and "X-Request-ID" in resp.headers
 
 
 def test_cache_invalidated_by_admin_mutation(

@@ -15,6 +15,7 @@ def build_engine(
     *,
     pool_size: int = 5,
     max_overflow: int = 5,
+    pool_timeout: float = 30.0,
     statement_timeout_ms: int = 15_000,
     application_name: str = "gjurme",
 ) -> Engine:
@@ -22,6 +23,7 @@ def build_engine(
         database_url,
         pool_size=pool_size,
         max_overflow=max_overflow,
+        pool_timeout=pool_timeout,
         pool_pre_ping=True,  # survive DB restarts without surfacing stale-connection errors
         pool_recycle=1800,
         connect_args={"application_name": application_name, "connect_timeout": 10},
@@ -50,6 +52,7 @@ def get_engine() -> Engine:
         s.database_url,
         pool_size=s.db_pool_size,
         max_overflow=s.db_max_overflow,
+        pool_timeout=s.db_pool_timeout_seconds,
         statement_timeout_ms=s.db_statement_timeout_ms,
     )
 

@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     db_pool_size: int = Field(default=5, ge=1, le=50)
     db_max_overflow: int = Field(default=5, ge=0, le=50)
     db_statement_timeout_ms: int = Field(default=15_000, ge=100)
+    # Wait this long for a free pooled connection, then fail: requests queued behind a slow
+    # burst should not all hang for SQLAlchemy's default 30 s.
+    db_pool_timeout_seconds: float = Field(default=3.0, gt=0)
 
     # --- ingestion -------------------------------------------------------------------------
     http_timeout_seconds: float = Field(default=15.0, gt=0)
@@ -115,6 +118,10 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = Field(default=300, ge=1)
     rate_limit_search_per_minute: int = Field(default=90, ge=1)
     api_cache_ttl_seconds: int = Field(default=120, ge=0)
+    # Responses computed at once (cache misses) per API process; the rest wait briefly, then
+    # get 503. Keep it below the DB pool (DB_POOL_SIZE + DB_MAX_OVERFLOW) so cheap requests
+    # always find a connection.
+    api_max_concurrent_computations: int = Field(default=6, ge=1)
     trust_proxy_headers: bool = False
     expose_docs: bool = True
 
