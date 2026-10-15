@@ -153,7 +153,7 @@ If a secret may have leaked, rotate first and investigate second. The token comp
 `df -h; docker system df`. Usual suspects: backups (retention is by count, so check the dump size trend), Docker images (deploy.sh prunes images older than 7 days), container logs (capped at 5 × 10 MB per container). Database growth: `dc exec db psql -U gjurme -c "SELECT pg_size_pretty(pg_database_size('gjurme'))"`. Retention runs daily and purges raw payloads and excerpts; `gj retention` shows what it would purge.
 
 ### Scale up
-In order: a bigger VPS (vertical scaling covers this product for a long time), a higher `ENRICH_CONCURRENCY` / budget, more uvicorn workers. At 365k articles the slowest analytics endpoint takes ~0.25 s uncached ([TESTING.md](TESTING.md#performance)), and responses are cached for 2 minutes.
+In order: a bigger VPS (vertical scaling covers this product for a long time), a higher `ENRICH_CONCURRENCY` / budget, more uvicorn workers. At 365k articles the 30-day pages take at most ~0.25 s uncached; year-long source pages take 2–4 s ([TESTING.md](TESTING.md#performance)). Responses are cached for 2 minutes, and at most `API_MAX_CONCURRENT_COMPUTATIONS` uncached responses are computed at once.
 
 ## Releases and versioning
 
