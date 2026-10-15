@@ -29,7 +29,7 @@ GJURMË is a public, read-only analytics site with one operator. There are no us
 | Container escape / lateral movement | Both images run as a non-root user (UID 10001); Caddy holds only `CAP_NET_BIND_SERVICE` (verified: `CapEff 0x400`, `NoNewPrivs 1`). Read-only root filesystem, `cap_drop: ALL`, `no-new-privileges`, tmpfs `/tmp`, memory limits. The database is on an internal network with no route out; the API has no internet egress; only Caddy publishes ports. | Dockerfiles, `deploy/docker-compose.prod.yml` |
 | Server compromise via SSH | Key-only SSH, root login without password disabled, fail2ban, host firewall with only 22/80/443 (ufw; on Oracle Cloud, Oracle's iptables `rules.v4` plus the VCN Security List), unattended security upgrades | `deploy/scripts/bootstrap-server.sh` |
 | Unsafe production configuration | The app refuses to start in staging/production with a short admin token, a `*` CORS origin, the fake LLM provider or the default database password; demo seeding refuses to run there | `config.py`, `demo.py` |
-| Supply chain of the deploy | Images are built only by CI, tagged by commit SHA, scanned before push; the server never builds. The bootstrap script is fetched pinned to a commit and read before running. | CI, `DEPLOYMENT.md` |
+| Supply chain of the deploy | Images are built only by CI, tagged by commit SHA, scanned before push; the server never builds. The bootstrap script is fetched pinned to a commit and read before running. Every GitHub Action is pinned to a full commit SHA (Dependabot updates the pin and its version comment) and the gitleaks image to a digest: a moved tag cannot change what CI runs. That is what the March 2026 `aquasecurity/trivy-action` compromise exploited (CVE-2026-33634: 75 of 76 tags force-pushed to a CI-secret stealer); the pinned v0.36.0 commit was released after it. The image job logs in to the registry only after the scan. | CI, `DEPLOYMENT.md` |
 
 ## Privacy
 
@@ -44,7 +44,6 @@ GJURMË is a public, read-only analytics site with one operator. There are no us
 | Risk | Why accepted | Mitigation / trigger to revisit |
 |---|---|---|
 | The `deploy` user is in the `docker` group, which is root-equivalent on the host | Single-purpose server; CI needs to run compose. The alternatives (rootless Docker, a forced-command wrapper) add complexity disproportionate to the asset. | Key-only SSH, a dedicated key stored as an environment secret, optional required reviewers on the `production` environment. Revisit if the server hosts anything else. |
-| GitHub Actions are pinned to major-version tags, not commit SHAs | Readability and Dependabot updates; all actions are first-party or widely used (actions/*, docker/*, astral-sh, aquasecurity). | Pin to SHAs if the repository becomes a higher-value target. |
 | One shared admin token, no per-user accounts | One operator. | Rotate on any suspicion ([OPERATIONS.md](OPERATIONS.md#rotate-secrets)); add OIDC/SSO if a team operates it. |
 | No WAF or DDoS protection beyond rate limiting | Low-value target; cached, read-only responses. | Put a CDN in front (DNS change only). |
 | OpenAPI docs are public (`EXPOSE_DOCS=true`) | The API is public by design; the docs help reuse. | `EXPOSE_DOCS=false` hides them. |
