@@ -26,6 +26,7 @@ from typing import Any
 
 from sqlalchemy import delete, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from gjurme.config import Settings
@@ -486,15 +487,27 @@ def run_enrichment(
 
     def record(outcome: CallOutcome, cached_from: Enrichment | None = None) -> None:
         nonlocal consecutive_failures
-        with session_factory() as s, s.begin():
-            persist_outcome(
-                s,
-                outcome,
-                run_id=run_id,
-                provider_name=provider.name,
-                max_attempts=settings.enrich_max_attempts,
-                cached_from=cached_from,
-            )
+        for retry in (False, True):
+            try:
+                with session_factory() as s, s.begin():
+                    persist_outcome(
+                        s,
+                        outcome,
+                        run_id=run_id,
+                        provider_name=provider.name,
+                        max_attempts=settings.enrich_max_attempts,
+                        cached_from=cached_from,
+                    )
+                break
+            except IntegrityError:
+                # Another run stored a result for this article meanwhile (two runs at once):
+                # record this one again on top of it, so the paid call still counts.
+                if retry:
+                    raise
+                log.warning(
+                    "article analysed by two runs at once",
+                    extra={"article_id": outcome.item.article_id},
+                )
         stats.attempted += 1
         stats.cost_usd += outcome.cost
         stats.input_tokens += outcome.usage.input_tokens
