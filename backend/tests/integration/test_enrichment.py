@@ -329,3 +329,42 @@ def test_local_model_end_to_end_is_free_and_counted_as_ai(db, settings) -> None:
         assert s.get(Article, ids[0]).enrichment_status == "succeeded"
         mode = analysis_mode(s, date(2026, 9, 25))
         assert mode["mode"] == "ai" and mode["model"] == "local-test:4b"
+
+
+def test_two_runs_at_once_record_every_call(db, settings) -> None:
+    """A unique index allows one current analysis per article; the second run's insert used to
+    raise, fail the stage and drop paid calls from the day's spend."""
+    import threading
+    import time
+
+    ids = _articles(db, 12)
+
+    class Slow(ScriptedProvider):
+        def complete(self, system: str, user: str, schema: dict[str, Any]) -> LLMResult:
+            time.sleep(0.03)  # both runs are mid-call on the same articles
+            return super().complete(system, user, schema)
+
+    providers = [Slow([GOOD]), Slow([GOOD])]
+    errors: list[BaseException] = []
+
+    def run(provider: Slow) -> None:
+        try:
+            run_enrichment(db, settings.model_copy(update={"enrich_concurrency": 4}), provider)
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=run, args=(p,)) for p in providers]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []
+    with db() as s:
+        recorded = s.scalar(select(func.count()).select_from(Enrichment))
+        current = s.execute(
+            select(Enrichment.article_id, func.count())
+            .where(Enrichment.is_current.is_(True))
+            .group_by(Enrichment.article_id)
+        ).all()
+    assert recorded == sum(p.calls for p in providers)  # every paid call is in the spend
+    assert sorted(a for a, _ in current) == ids and all(n == 1 for _, n in current)

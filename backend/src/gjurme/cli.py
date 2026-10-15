@@ -17,6 +17,8 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated
 
@@ -215,6 +217,21 @@ def _session_factory() -> sessionmaker[Session]:
     return get_sessionmaker()
 
 
+@contextmanager
+def _pipeline_lock(factory: sessionmaker[Session]) -> Iterator[None]:
+    """Hold the scheduler's pipeline lock, so a stage run by hand never overlaps a scheduled run
+    (two ENRICH stages analyse the same articles; two CLUSTER stages split the same stories)."""
+    from gjurme.pipeline.locking import PIPELINE_LOCK_KEY, advisory_lock
+
+    with advisory_lock(factory.kw["bind"], PIPELINE_LOCK_KEY) as acquired:
+        if not acquired:
+            typer.echo(
+                "A pipeline run is in progress (it holds the lock). Try again shortly.", err=True
+            )
+            raise typer.Exit(1)
+        yield
+
+
 @app.command()
 def run(
     stages: Annotated[str, typer.Option(help="Comma-separated stages")] = (
@@ -256,7 +273,8 @@ def process() -> None:
     settings = _settings()
     from gjurme.ingestion.processor import process_pending
 
-    with _session_factory()() as s:
+    factory = _session_factory()
+    with _pipeline_lock(factory), factory() as s:
         _echo_json(process_pending(s, settings).as_dict())
 
 
@@ -271,9 +289,9 @@ def enrich(
         settings = settings.model_copy(update={"enrich_max_per_run": limit})
     from gjurme.enrichment.service import build_provider, run_enrichment
 
-    stats = run_enrichment(
-        _session_factory(), settings, build_provider(settings), article_ids=article_id
-    )
+    factory = _session_factory()
+    with _pipeline_lock(factory):
+        stats = run_enrichment(factory, settings, build_provider(settings), article_ids=article_id)
     _echo_json(stats.as_dict())
 
 
@@ -291,7 +309,8 @@ def cluster(
 
     from gjurme.stories.clustering import cluster_pending, rebuild
 
-    with _session_factory()() as s:
+    factory = _session_factory()
+    with _pipeline_lock(factory), factory() as s:
         if rebuild_days is not None:
             since = datetime.now(ZoneInfo(settings.timezone)).date() - timedelta(days=rebuild_days)
             _echo_json(rebuild(s, settings, since))

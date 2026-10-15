@@ -260,3 +260,20 @@ def test_cli_refuses_unsafe_production_config(
     result = cli_env.invoke(app, ["run"])
     assert result.exit_code != 0
     assert "ADMIN_API_TOKEN" in str(result.exception)
+
+
+@pytest.mark.parametrize(
+    "command", [["enrich"], ["cluster"], ["cluster", "--rebuild-days", "1"], ["process"]]
+)
+def test_stage_commands_do_not_overlap_a_pipeline_run(
+    cli_env: CliRunner, command: list[str]
+) -> None:
+    """Run by hand next to the scheduler, two ENRICH stages analysed the same articles."""
+    from gjurme.pipeline.locking import PIPELINE_LOCK_KEY, advisory_lock
+
+    with advisory_lock(get_engine(), PIPELINE_LOCK_KEY) as acquired:
+        assert acquired
+        result = cli_env.invoke(app, command)
+    assert result.exit_code == 1
+    assert "pipeline run is in progress" in result.output
+    assert cli_env.invoke(app, command).exit_code == 0  # free again
