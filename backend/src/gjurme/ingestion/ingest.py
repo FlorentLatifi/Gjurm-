@@ -169,7 +169,7 @@ def store_fetch_result(
         stats.items_seen = len(prepared)
         if prepared:
             existing: dict[str, str] = dict(
-                session.execute(  # type: ignore[arg-type]
+                session.execute(
                     select(FeedItem.item_key, FeedItem.content_hash).where(
                         tuple_(FeedItem.source_id, FeedItem.item_key).in_(
                             [(source.id, k) for k in prepared]
