@@ -238,14 +238,26 @@ def check_source_freshness(s: Session) -> CheckResult:
         )
     ]
     active = s.execute(text("SELECT count(*) FROM core.sources WHERE is_active")).scalar_one()
-    status = "fail" if active and len(stale) == active else ("warn" if stale else "pass")
+    # Disabled after failing in a row: no longer "stale", but no longer collected either.
+    auto_disabled = list(
+        s.scalars(
+            text("""
+            SELECT slug FROM core.sources
+            WHERE NOT is_active AND disabled_reason LIKE 'auto-disabled%' ORDER BY slug
+        """)
+        )
+    )
+    if not active or len(stale) == active:
+        status = "fail"  # nothing is being collected
+    else:
+        status = "warn" if stale or auto_disabled else "pass"
     return CheckResult(
         "source_freshness_6h",
         "critical",
         status,
         float(len(stale)),
         0.0,
-        {"stale_sources": stale, "active_sources": active},
+        {"stale_sources": stale, "active_sources": active, "auto_disabled": auto_disabled},
     )
 
 

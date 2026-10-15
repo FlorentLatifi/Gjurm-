@@ -81,7 +81,8 @@ Failure behaviour, stage by stage:
 
 | Stage | Failure | Result |
 |---|---|---|
-| ingest | one feed times out / 5xx / is malformed | That source's fetch is recorded with the error; the others continue. After 20 consecutive failures (~5 h) the source is auto-disabled and an alert fires. Malformed XML that feedparser can recover is used and flagged. |
+| ingest | most feeds fail in the same run | Treated as an outage on this side (DNS, egress): the fetches are logged but do not count towards auto-disabling the outlets. `source_freshness_6h` fails once nothing has been collected for 6 h. |
+| ingest | one feed times out / 5xx / is malformed | That source's fetch is recorded with the error; the others continue. After 20 consecutive failures (~5 h) the source is auto-disabled and an alert fires; it is fetched again every 6 h and re-enabled when a fetch succeeds. Malformed XML that feedparser can recover is used and flagged; control characters PostgreSQL cannot store (NUL) are dropped. |
 | process | one entry lacks a title/URL, has an unsafe URL, is too old | Rejected with a reason in `raw.feed_items.rejection_reason`; counted by the rejection-rate check. |
 | enrich | timeout, 429, 5xx | SDK retries, then the attempt is stored as `failed`; the article is retried in later runs (max 3 attempts). |
 | enrich | invalid JSON / schema violation | One repair pass, then stored as `invalid` with the raw response. |
