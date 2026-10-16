@@ -168,6 +168,22 @@ export function noneRated(coverages: Coverage[]): boolean {
   return coverages.every((c) => c.bias.left + c.bias.center + c.bias.right === 0);
 }
 
+export const LENSES: Lens[] = ["perspective", "region", "ownership", "factuality"];
+
+/**
+ * The lenses with something to show for these stories. Perspective and factuality are editorial
+ * ratings an outlet may not have yet; a bar in which every outlet is "unrated" says nothing, so
+ * those lenses appear once any outlet in view is rated. Region and ownership always apply.
+ */
+export function availableLenses(coverages: Coverage[]): Lens[] {
+  const any = (count: (c: Coverage) => number) => coverages.some((c) => count(c) > 0);
+  return LENSES.filter((lens) => {
+    if (lens === "perspective") return any((c) => c.bias.left + c.bias.center + c.bias.right);
+    if (lens === "factuality") return any((c) => c.factuality.high + c.factuality.mixed + c.factuality.low);
+    return true;
+  });
+}
+
 export function blindspotLabel(b: { kind: string; missing: string }): string {
   if (b.kind === "perspective") {
     return `Blindspot: few ${b.missing === "left" ? "left-leaning" : "right-leaning"} outlets covered this`;
