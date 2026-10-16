@@ -148,6 +148,41 @@ TOPICS: tuple[TopicDef, ...] = (
 TOPIC_SLUGS: tuple[str, ...] = tuple(t.slug for t in TOPICS)
 TOPIC_BY_SLUG: dict[str, TopicDef] = {t.slug: t for t in TOPICS}
 
+# The descriptions in Albanian, for readers of the site. Kept apart from TopicDef: the English
+# description is part of the analysis prompt, and these never are (no prompt change).
+DESCRIPTION_SQ: dict[str, str] = {
+    "politics": "Politika e brendshme, qeveria, parlamenti, partitë, përplasjet politike.",
+    "elections": "Fushatat zgjedhore, votimi, rezultatet, institucionet zgjedhore.",
+    "kosovo_serbia": "Dialogu, tensionet, veriu i Kosovës, institucionet serbe në Kosovë.",
+    "international": (
+        "Politika e jashtme, diplomacia, marrëdhëniet me shtetet e tjera, lajmet e botës."
+    ),
+    "eu_integration": "Anëtarësimi në BE, liberalizimi i vizave, NATO, kushtet nga Brukseli.",
+    "economy": "Ekonomia, çmimet, buxheti, taksat, kompanitë, tregu i punës, tregtia.",
+    "crime_justice": "Krimi, policia, arrestimet, gjykatat, prokuroria, rastet e korrupsionit.",
+    "security_defense": "Forcat e armatosura, KFOR-i, incidentet e sigurisë, terrorizmi, mbrojtja.",
+    "health": "Sistemi shëndetësor, spitalet, sëmundjet, shëndeti publik.",
+    "education": "Shkollat, universitetet, studentët, mësimdhënësit, politikat e arsimit.",
+    "society": (
+        "Çështjet sociale, feja, të drejtat e njeriut, gjinia, mirëqenia, jeta e përditshme."
+    ),
+    "diaspora": "Diaspora shqiptare, emigrimi, remitancat, lëvizjet migratore.",
+    "culture_entertainment": "Artet, muzika, filmi, të njohurit, trashëgimia, stili i jetesës.",
+    "sports": "Futbolli dhe të gjitha sportet e tjera, sportistët, garat.",
+    "technology_science": "Teknologjia, interneti, telekomunikacioni, shkenca dhe kërkimi.",
+    "environment_energy": "Ndotja, klima, moti ekstrem, energjia elektrike, furnizimi me energji.",
+    "infrastructure_transport": "Rrugët, ndërtimi, punët publike, trafiku, transporti.",
+    "accidents_disasters": "Aksidentet në trafik, zjarret, përmbytjet, tërmetet, emergjencat.",
+    "other": "Çdo gjë që nuk i përket asnjë teme tjetër.",
+}
+
+
+def name_sq(slug: str | None, fallback: str | None = None) -> str | None:
+    """A topic's Albanian name by slug; ``fallback`` for a slug the taxonomy no longer has."""
+    topic = TOPIC_BY_SLUG.get(slug or "")
+    return topic.name_sq if topic else fallback
+
+
 EVENT_TYPES: tuple[str, ...] = (
     "statement",  # declarations, interviews, reactions
     "policy_decision",  # government / institutional decisions, laws

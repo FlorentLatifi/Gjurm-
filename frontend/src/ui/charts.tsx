@@ -22,7 +22,8 @@ import {
 } from "recharts";
 
 import type { SentimentPoint, VolumePoint } from "@/shared/api/types";
-import { formatChange, formatDay, formatInt, formatPercent, formatScore } from "@/shared/lib/format";
+import { t } from "@/shared/i18n";
+import { formatChange, formatDay, formatDecimal, formatInt, formatPercent, formatScore } from "@/shared/lib/format";
 import "./charts.css";
 
 const AXIS_TICK = { fill: "var(--ink-muted)", fontSize: 11 };
@@ -52,7 +53,7 @@ export interface LegendItem {
 
 export function Legend({ items }: { items: LegendItem[] }) {
   return (
-    <ul className="legend" aria-label="Legend">
+    <ul className="legend" aria-label={t("Legend")}>
       {items.map((it) => (
         <li key={it.label} className="legend__item">
           <span
@@ -108,9 +109,9 @@ function makeTooltip<T>(title: (d: T) => string, rows: (d: T) => TipRow[]) {
 const VolumeTip = makeTooltip<VolumePoint>(
   (d) => formatDay(d.day, true),
   (d) => [
-    { label: "Articles", value: formatInt(d.articles), color: "var(--bar-muted)" },
-    { label: "7-day average", value: d.ma7 === null ? "—" : d.ma7.toFixed(1), color: "var(--series-1)" },
-    { label: "Distinct stories", value: formatInt(d.stories), color: "transparent" },
+    { label: t("Articles"), value: formatInt(d.articles), color: "var(--bar-muted)" },
+    { label: t("7-day average"), value: d.ma7 === null ? "—" : formatDecimal(d.ma7), color: "var(--series-1)" },
+    { label: t("Distinct stories"), value: formatInt(d.stories), color: "transparent" },
   ],
 );
 
@@ -122,15 +123,19 @@ export function VolumeChart({ data, height = 260 }: { data: VolumePoint[]; heigh
     <figure className="chart-figure">
       <Legend
         items={[
-          { label: "Articles per day", color: "var(--bar-muted)" },
-          { label: "7-day average", color: "var(--series-1)", kind: "line" },
+          { label: t("Articles per day"), color: "var(--bar-muted)" },
+          { label: t("7-day average"), color: "var(--series-1)", kind: "line" },
         ]}
       />
       <div
         role="img"
-        aria-label={`Articles per day over ${data.length} days: ${formatInt(total)} in total${
-          last?.ma7 != null ? `, 7-day average now ${last.ma7.toFixed(1)} per day` : ""
-        }.`}
+        aria-label={
+          last?.ma7 != null
+            ? t("Articles per day over {days} days: {total} in total, 7-day average now {avg} per day.", {
+                days: data.length, total: formatInt(total), avg: formatDecimal(last.ma7),
+              })
+            : t("Articles per day over {days} days: {total} in total.", { days: data.length, total: formatInt(total) })
+        }
       >
         <ResponsiveContainer width="100%" height={height}>
           <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
@@ -158,11 +163,11 @@ const SentimentTip = makeTooltip<SentimentPoint>(
   (d) => {
     const n = d.negative + d.neutral + d.positive;
     return [
-      { label: "Positive", value: `${formatInt(d.positive)} (${formatPercent(n ? d.positive / n : null)})`,
+      { label: t("Positive"), value: `${formatInt(d.positive)} (${formatPercent(n ? d.positive / n : null)})`,
         color: "var(--sent-positive)" },
-      { label: "Neutral", value: `${formatInt(d.neutral)} (${formatPercent(n ? d.neutral / n : null)})`,
+      { label: t("Neutral"), value: `${formatInt(d.neutral)} (${formatPercent(n ? d.neutral / n : null)})`,
         color: "var(--sent-neutral)" },
-      { label: "Negative", value: `${formatInt(d.negative)} (${formatPercent(n ? d.negative / n : null)})`,
+      { label: t("Negative"), value: `${formatInt(d.negative)} (${formatPercent(n ? d.negative / n : null)})`,
         color: "var(--sent-negative)" },
     ];
   },
@@ -179,18 +184,18 @@ export function SentimentMixChart({ data, height = 240 }: { data: SentimentPoint
     <figure className="chart-figure">
       <Legend
         items={[
-          { label: "Positive", color: "var(--sent-positive)" },
-          { label: "Neutral", color: "var(--sent-neutral)" },
-          { label: "Negative", color: "var(--sent-negative)" },
+          { label: t("Positive"), color: "var(--sent-positive)" },
+          { label: t("Neutral"), color: "var(--sent-neutral)" },
+          { label: t("Negative"), color: "var(--sent-negative)" },
         ]}
       />
       <div
         role="img"
-        aria-label={`Share of articles by tone per day. Over the period: ${formatPercent(
-          total ? sums.p / total : null,
-        )} positive, ${formatPercent(total ? sums.u / total : null)} neutral, ${formatPercent(
-          total ? sums.n / total : null,
-        )} negative.`}
+        aria-label={t("Share of articles by tone per day. Over the period: {p} positive, {u} neutral, {n} negative.", {
+          p: formatPercent(total ? sums.p / total : null),
+          u: formatPercent(total ? sums.u / total : null),
+          n: formatPercent(total ? sums.n / total : null),
+        })}
       >
         <ResponsiveContainer width="100%" height={height}>
           <BarChart data={data} stackOffset="expand" margin={{ top: 8, right: 8, bottom: 0, left: -12 }}
@@ -219,8 +224,8 @@ export function SentimentMixChart({ data, height = 240 }: { data: SentimentPoint
 const ToneTip = makeTooltip<SentimentPoint>(
   (d) => formatDay(d.day, true),
   (d) => [
-    { label: "Daily mean", value: formatScore(d.average), color: "var(--series-muted)" },
-    { label: "7-day mean", value: formatScore(d.ma7), color: "var(--series-1)" },
+    { label: t("Daily mean"), value: formatScore(d.average), color: "var(--series-muted)" },
+    { label: t("7-day mean"), value: formatScore(d.ma7), color: "var(--series-1)" },
   ],
 );
 
@@ -233,11 +238,11 @@ export function ToneChart({ data, height = 220 }: { data: SentimentPoint[]; heig
     <figure className="chart-figure">
       <Legend
         items={[
-          { label: "Daily mean tone", color: "var(--series-muted)", kind: "line" },
-          { label: "7-day mean", color: "var(--series-1)", kind: "line" },
+          { label: t("Daily mean tone"), color: "var(--series-muted)", kind: "line" },
+          { label: t("7-day mean"), color: "var(--series-1)", kind: "line" },
         ]}
       />
-      <div role="img" aria-label={`Mean tone from −1 (negative) to +1 (positive). Latest 7-day mean ${formatScore(last?.ma7)}.`}>
+      <div role="img" aria-label={t("Mean tone from −1 (negative) to +1 (positive). Latest 7-day mean {score}.", { score: formatScore(last?.ma7) })}>
         <ResponsiveContainer width="100%" height={height}>
           <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
             <CartesianGrid {...GRID} />
@@ -270,9 +275,9 @@ export interface DivergingDatum {
 
 const DivergingTip = makeTooltip<DivergingDatum>(
   (d) => d.label,
-  (d) => [{ label: "Change", value: formatChange(d.value),
+  (d) => [{ label: t("Change"), value: formatChange(d.value),
             color: d.value >= 0 ? "var(--div-pos)" : "var(--div-neg)" },
-          { label: "Articles", value: d.detail, color: "transparent" }],
+          { label: t("Articles"), value: d.detail, color: "transparent" }],
 );
 
 export function DivergingBars({ data, label }: { data: DivergingDatum[]; label: string }) {
@@ -330,7 +335,7 @@ export function DailyLine({ data, dataKey, label, height = 200 }: {
   );
   const total = data.reduce((s, d) => s + Number(d[dataKey] ?? 0), 0);
   return (
-    <div role="img" aria-label={`${label} per day: ${formatInt(total)} in total over ${data.length} days.`}>
+    <div role="img" aria-label={t("{label} per day: {total} in total over {days} days.", { label, total: formatInt(total), days: data.length })}>
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
           <CartesianGrid {...GRID} />
@@ -361,7 +366,9 @@ export function SentimentBar({ negative, neutral, positive }: {
     { key: "neutral", n: neutral, color: "var(--sent-neutral)" },
     { key: "positive", n: positive, color: "var(--sent-positive)" },
   ];
-  const summary = `${formatPercent(negative / total)} negative, ${formatPercent(neutral / total)} neutral, ${formatPercent(positive / total)} positive`;
+  const summary = t("{n} negative, {u} neutral, {p} positive", {
+    n: formatPercent(negative / total), u: formatPercent(neutral / total), p: formatPercent(positive / total),
+  });
   return (
     <span className="tone-bar" role="img" aria-label={summary} title={summary}>
       {parts.map((p) =>

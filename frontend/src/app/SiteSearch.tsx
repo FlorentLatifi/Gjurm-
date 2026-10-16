@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { t } from "@/shared/i18n";
 
 /**
  * The masthead's story search: a button that opens a search box under the header. Searching
@@ -43,7 +44,7 @@ export function SiteSearch() {
           <circle cx="7" cy="7" r="4.5" />
           <path d="m10.5 10.5 3.5 3.5" />
         </svg>
-        <span className="site-header__label">Search</span>
+        <span className="site-header__label">{t("Search")}</span>
       </button>
       <div id={panelId} className="site-search" hidden={!open}>
         <form
@@ -57,13 +58,13 @@ export function SiteSearch() {
           }}
         >
           <div className="field field--grow">
-            <label htmlFor={inputId} className="visually-hidden">Search stories</label>
+            <label htmlFor={inputId} className="visually-hidden">{t("Search stories")}</label>
             <input
               ref={input}
               id={inputId}
               type="search"
               name="q"
-              placeholder="Search stories, e.g. Prizren"
+              placeholder={t("Search stories, e.g. Prizren")}
               minLength={2}
               maxLength={120}
               required
@@ -72,7 +73,7 @@ export function SiteSearch() {
               }}
             />
           </div>
-          <button type="submit" className="btn">Search</button>
+          <button type="submit" className="btn">{t("Search")}</button>
         </form>
       </div>
     </>

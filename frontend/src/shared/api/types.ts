@@ -34,7 +34,7 @@ export interface Overview {
   enriched: number;
   enriched_share: number | null;
   sentiment: { negative: number; neutral: number; positive: number; average: number | null };
-  top_topic: { slug: string; name_en: string; articles: number; share: number | null } | null;
+  top_topic: { slug: string; name_en: string; name_sq: string; articles: number; share: number | null } | null;
   top_entity: EntityStat | null;
   last_ingested_at: string | null;
 }
@@ -47,6 +47,7 @@ export interface VolumePoint {
 }
 export interface VolumeSeries {
   method: string;
+  method_sq: string;
   series: VolumePoint[];
 }
 
@@ -60,6 +61,7 @@ export interface SentimentPoint {
 }
 export interface SentimentSeries {
   method: string;
+  method_sq: string;
   series: SentimentPoint[];
 }
 export interface SentimentGroup {
@@ -76,10 +78,12 @@ export interface SentimentGroups {
 }
 export interface SentimentShift {
   method: string;
+  method_sq: string;
   window_days: number;
   items: {
     slug: string;
     name_en: string;
+    name_sq: string;
     current: number | null;
     previous: number | null;
     n_current: number;
@@ -103,12 +107,13 @@ export interface TopicStat {
 
 export interface TopicMomentum {
   method: string;
+  method_sq: string;
   window_days: number;
-  items: { slug: string; name_en: string; current: number; previous: number; growth: number | null }[];
+  items: { slug: string; name_en: string; name_sq: string; current: number; previous: number; growth: number | null }[];
 }
 
 export interface TopicDetail {
-  topic: { id: number; slug: string; name_en: string; name_sq: string; description: string };
+  topic: { id: number; slug: string; name_en: string; name_sq: string; description: string; description_sq: string };
   series: { day: string; articles: number; avg_sentiment: number | null }[];
   top_entities: (EntityRef & { mentions: number })[];
   sources: { slug: string; name: string; articles: number; avg_sentiment: number | null }[];
@@ -123,6 +128,7 @@ export interface EntitySpike extends EntityRef {
 }
 export interface EntitySpikes {
   method: string;
+  method_sq: string;
   as_of: string;
   items: EntitySpike[];
 }
@@ -133,7 +139,7 @@ export interface EntityDetail {
   avg_sentiment: number | null;
   series: { day: string; mentions: number; avg_sentiment: number | null }[];
   co_mentions: (EntityRef & { together: number })[];
-  topics: { slug: string; name_en: string; articles: number }[];
+  topics: { slug: string; name_en: string; name_sq: string; articles: number }[];
   sources: { slug: string; name: string; articles: number; avg_sentiment: number | null }[];
 }
 
@@ -185,7 +191,7 @@ export interface SourceStat {
   neutral: number;
   positive: number;
   last_article_at: string | null;
-  top_topics: { slug: string; articles: number }[];
+  top_topics: { slug: string; articles: number; name_en: string; name_sq: string }[];
 }
 
 export interface ArticleSummary {
@@ -206,6 +212,7 @@ export interface ArticleSummary {
   source_name: string;
   topic_slug: string | null;
   topic_name: string | null;
+  topic_name_sq: string | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -240,6 +247,7 @@ export interface StorySummary {
   source_count: number;
   topic_slug: string | null;
   topic_name: string | null;
+  topic_name_sq: string | null;
   first_source_slug: string;
   first_source_name: string;
   coverage: Coverage;
@@ -268,12 +276,13 @@ export interface StoryArticle {
 export interface StoryDetail extends StorySummary {
   articles: StoryArticle[];
   entities: (EntityRef & { articles: number })[];
-  topics: { slug: string; name_en: string; articles: number }[];
+  topics: { slug: string; name_en: string; name_sq: string; articles: number }[];
   related: StorySummary[];
 }
 
 export interface Blindspots {
   method: string;
+  method_sq: string;
   items: StorySummary[];
 }
 
@@ -298,7 +307,7 @@ export interface SourceProfile {
   first_reports: number;
   exclusives: number;
   coverage_share: number | null;
-  top_topics: { slug: string; name_en: string; articles: number }[];
+  top_topics: { slug: string; name_en: string; name_sq: string; articles: number }[];
   top_entities: (EntityRef & { mentions: number })[];
   overlap: { slug: string; name: string; bias: BiasRating; shared: number }[];
   recent_stories: StorySummary[];
@@ -314,7 +323,7 @@ export interface ArticleDetail extends ArticleSummary {
   analysis_method: "ai" | "rules" | null;
   analysis_model: string | null;
   source_url: string;
-  topics: { slug: string; name_en: string; is_primary: boolean }[];
+  topics: { slug: string; name_en: string; name_sq: string; is_primary: boolean }[];
   entities: EntityRef[];
   related: {
     id: number;

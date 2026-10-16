@@ -3,12 +3,13 @@ import { formatDateTime } from "@/shared/lib/format";
 import type { Lens } from "@/shared/model/ratings";
 
 import { groupOf, markColor, segmentsByKey } from "./lensGroup";
+import { t, tn } from "@/shared/i18n";
 
 function span(ms: number): string {
   const h = ms / 3_600_000;
-  if (h < 1) return `${Math.max(1, Math.round(ms / 60_000))} min`;
-  if (h < 48) return `${Math.round(h)} h`;
-  return `${Math.round(h / 24)} days`;
+  if (h < 1) return t("{n} min", { n: Math.max(1, Math.round(ms / 60_000)) });
+  if (h < 48) return t("{n} h", { n: Math.round(h) });
+  return tn(Math.round(h / 24), "{n} day", "{n} days");
 }
 
 /**
@@ -27,9 +28,13 @@ export function StoryTrace({ story, lens }: { story: StoryDetail; lens: Lens }) 
   const present = [...new Set(story.articles.map((a) => groupOf(a, lens)))]
     .map((k) => segs.get(k))
     .filter((s) => s !== undefined);
-  const label =
-    `${story.articles.length} reports from ${story.source_count} outlets over ${span(width)}, ` +
-    `first by ${first.source_name} at ${formatDateTime(first.published_at)}.`;
+  const label = t("{reports} from {outlets} over {span}, first by {first} at {time}.", {
+    reports: tn(story.articles.length, "{n} report", "{n} reports"),
+    outlets: tn(story.source_count, "{n} outlet", "{n} outlets"),
+    span: span(width),
+    first: first.source_name,
+    time: formatDateTime(first.published_at),
+  });
 
   return (
     <div className="trace">

@@ -30,21 +30,19 @@ from gjurme.config import Settings
 share_router = APIRouter(prefix="/api/share", include_in_schema=False)
 
 CACHE = "public, max-age=300"
-SITE_DESCRIPTION = (
-    "Albanian-language news grouped into stories, with which outlets covered each one."
-)
+# Previews speak the site's language: Albanian, like the headlines they show.
+SITE_TITLE = "GJURMË — shih çdo anë të lajmit"
+SITE_DESCRIPTION = "Lajmet në shqip të grupuara sipas ngjarjeve, me mediat që raportuan secilën."
 
 
 def _description(story: dict[str, Any]) -> str:
-    summary = story.get("summary_en") or ""
-    # keyword-rule analysis stores a placeholder ("[headline, no AI summary] …"), not a summary
-    lead = summary if summary and not summary.startswith("[headline") else ""
+    # The AI summary is in English, so it stays out of an Albanian preview.
     names = [s["name"] for s in story["sources"]]
-    shown = ", ".join(names[:4]) + (f" and {len(names) - 4} more" if len(names) > 4 else "")
+    shown = ", ".join(names[:4]) + (f" dhe {len(names) - 4} të tjera" if len(names) > 4 else "")
     count = story["source_count"]
-    outlets = f"{count} outlet{'s' if count != 1 else ''}"
-    coverage = f"{outlets} covered this story: {shown}." if count > 1 else f"Reported by {shown}."
-    return f"{lead} {coverage}".strip()
+    if count > 1:
+        return f"{count} media e raportuan këtë lajm: {shown}."
+    return f"Raportuar nga {shown}."
 
 
 def _page(
@@ -84,11 +82,11 @@ def story_preview(
     story = cached(request, lambda: st.story_detail(db, story_id))
     if story is None:
         return _page(
-            title="GJURMË — see every side of the story",
+            title=SITE_TITLE,
             description=SITE_DESCRIPTION,
             url=f"{base}/",
             image=image,
-            lang="en",
+            lang="sq",
             status=404,
         )
     return _page(
