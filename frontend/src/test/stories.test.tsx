@@ -40,6 +40,7 @@ const story: StorySummary = {
   url: "https://koha.example/1",
   language: "sq",
   summary_en: "Parliament passed the 2027 budget.",
+  summary_sq: "Kuvendi miratoi buxhetin e vitit 2027.",
   source_slug: "koha",
   source_name: "KOHA",
   first_published_at: "2026-10-10T08:00:00Z",
@@ -118,7 +119,7 @@ describe("StoryCard", () => {
   });
 
   it("hides the placeholder summary of keyword-rule analysis", () => {
-    wrap(<StoryCard story={{ ...story, summary_en: "[headline, no AI summary] x" }} lens="region" />);
+    wrap(<StoryCard story={{ ...story, summary_en: "[headline, no AI summary] x", summary_sq: "[headline, no AI summary] x" }} lens="region" />);
     expect(screen.queryByText(/no AI summary/)).not.toBeInTheDocument();
   });
 });
@@ -152,7 +153,7 @@ describe("reading log (My news bias)", () => {
   it("is recorded when an article link is opened", async () => {
     wrap(<ArticleList items={[{
       id: 1, title: "Titulli", url: "https://koha.example/1", published_at: "2026-10-10T08:00:00Z",
-      published_at_estimated: false, language: "sq", summary_en: null, sentiment_label: null,
+      published_at_estimated: false, language: "sq", summary_en: null, summary_sq: null, sentiment_label: null,
       sentiment_score: null, event_type: null, enrichment_status: "succeeded", duplicate_of_id: null,
       story_id: 7, source_slug: "koha", source_name: "KOHA", topic_slug: null, topic_name: null, topic_name_sq: null,
     }]} filters={NO_FILTERS} />);

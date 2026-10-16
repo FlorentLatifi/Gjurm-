@@ -111,6 +111,7 @@ _HEADS_SQL = """
 
 _MEMBERS_SQL = """
     SELECT a.story_id, a.id, a.title, a.url, a.published_at, a.language, a.summary_en,
+           a.summary_sq,
            a.sentiment_label, a.countries, a.enrichment_status,
            s.slug AS source_slug, s.name AS source_name, s.country AS source_country,
            s.bias AS source_bias, s.factuality AS source_factuality,
@@ -193,6 +194,7 @@ def _summary(
         "url": rep["url"],
         "language": rep["language"],
         "summary_en": rep["summary_en"],
+        "summary_sq": rep["summary_sq"],
         "source_slug": rep["source_slug"],
         "source_name": rep["source_name"],
         "first_published_at": agg["first_at"],
@@ -360,6 +362,7 @@ def story_detail(session: Session, story_id: int) -> dict[str, Any] | None:
             "published_at": m["published_at"],
             "language": m["language"],
             "summary_en": m["summary_en"],
+            "summary_sq": m["summary_sq"],
             "sentiment_label": m["sentiment_label"],
             "source_slug": m["source_slug"],
             "source_name": m["source_name"],

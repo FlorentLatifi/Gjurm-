@@ -339,6 +339,7 @@ def apply_output(session: Session, article_id: int, output: EnrichmentOutput) ->
             detected_language=output.language,
             countries=output.countries,
             summary_en=output.summary_en,
+            summary_sq=output.summary_sq,
             enrichment_confidence=round(output.confidence, 3),
         )
         .returning(Article.published_date)

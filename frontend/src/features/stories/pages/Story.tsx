@@ -4,7 +4,7 @@ import { isNotFound } from "@/shared/api/client";
 import type { StoryArticle, StoryDetail } from "@/shared/api/types";
 import { useTitle } from "@/shared/hooks/useTitle";
 import { useApiQuery } from "@/shared/query/apiQuery";
-import { ENTITY_TYPE_LABEL, formatDateTime, formatRelative, hostOf, realSummary, safeHref } from "@/shared/lib/format";
+import { ENTITY_TYPE_LABEL, formatDateTime, formatRelative, hostOf, safeHref, summaryFor } from "@/shared/lib/format";
 import {
   BIAS_GROUP_COLOR,
   BIAS_LABEL,
@@ -92,7 +92,7 @@ export function StoryPage() {
   if (query.isPending) return <LoadingBlock height={320} />;
   if (query.isError || !s) return <ErrorState error={query.error} />;
   const first = s.articles.find((a) => a.is_first) ?? s.articles[0]!;
-  const summary = realSummary(s.summary_en);
+  const summary = summaryFor(s);
 
   return (
     <article>
@@ -110,8 +110,8 @@ export function StoryPage() {
         </p>
         {summary && (
           <p className="story-head__summary">
-            <span lang="en">{summary}</span>{" "}
-            <span className="meta">{getLang() === "en" ? t("(AI summary)") : t("(AI summary, in English)")}</span>
+            <span lang={summary.lang}>{summary.text}</span>{" "}
+            <span className="meta">{summary.lang === getLang() ? t("(AI summary)") : t("(AI summary, in English)")}</span>
           </p>
         )}
         <ShareStory id={s.id} title={s.title} />

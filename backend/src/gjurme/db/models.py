@@ -263,6 +263,7 @@ class Article(Base):
     detected_language: Mapped[str | None] = mapped_column(String(8))
     countries: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
     summary_en: Mapped[str | None] = mapped_column(Text)
+    summary_sq: Mapped[str | None] = mapped_column(Text)  # prompt v1.2 and later
     enrichment_confidence: Mapped[float | None] = mapped_column(Numeric(4, 3))
     # --- moderation / takedown ---
     is_hidden: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))

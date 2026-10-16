@@ -36,13 +36,17 @@ SITE_DESCRIPTION = "Lajmet në shqip të grupuara sipas ngjarjeve, me mediat që
 
 
 def _description(story: dict[str, Any]) -> str:
-    # The AI summary is in English, so it stays out of an Albanian preview.
+    # The Albanian AI summary leads when there is one (prompt v1.2+); the English one never
+    # appears in an Albanian preview. Keyword rules store a placeholder, not a summary.
+    summary = story.get("summary_sq") or ""
+    lead = summary if summary and not summary.startswith("[headline") else ""
     names = [s["name"] for s in story["sources"]]
     shown = ", ".join(names[:4]) + (f" dhe {len(names) - 4} të tjera" if len(names) > 4 else "")
     count = story["source_count"]
-    if count > 1:
-        return f"{count} media e raportuan këtë lajm: {shown}."
-    return f"Raportuar nga {shown}."
+    coverage = (
+        f"{count} media e raportuan këtë lajm: {shown}." if count > 1 else f"Raportuar nga {shown}."
+    )
+    return f"{lead} {coverage}".strip()
 
 
 def _page(

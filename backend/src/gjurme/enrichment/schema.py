@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from gjurme.ingestion.normalize import clean_text, normalize_key
 from gjurme.taxonomy import ENTITY_TYPES, EVENT_TYPES, LANGUAGES, SENTIMENT_LABELS, TOPIC_SLUGS
 
-SCHEMA_VERSION = "2026-09-24.1"
+SCHEMA_VERSION = "2026-10-16.1"
 
 MAX_SECONDARY_TOPICS = 3
 MAX_ENTITIES = 12
@@ -55,6 +55,7 @@ class EnrichmentOutput(BaseModel):
     sentiment_score: float = Field(ge=-1.0, le=1.0)
     event_type: EventType
     summary_en: str = Field(min_length=10, max_length=MAX_SUMMARY_CHARS)
+    summary_sq: str = Field(min_length=10, max_length=MAX_SUMMARY_CHARS)
     entities: list[EntityOut] = Field(default_factory=list, max_length=MAX_ENTITIES)
     countries: list[str] = Field(default_factory=list, max_length=MAX_COUNTRIES)
     confidence: float = Field(ge=0.0, le=1.0)
@@ -71,6 +72,7 @@ OUTPUT_JSON_SCHEMA: dict[str, Any] = {
         "sentiment_score",
         "event_type",
         "summary_en",
+        "summary_sq",
         "entities",
         "countries",
         "confidence",
@@ -96,6 +98,10 @@ OUTPUT_JSON_SCHEMA: dict[str, Any] = {
         "summary_en": {
             "type": "string",
             "description": "One neutral English sentence, at most 35 words.",
+        },
+        "summary_sq": {
+            "type": "string",
+            "description": "The same sentence in standard Albanian, at most 35 words.",
         },
         "entities": {
             "type": "array",
@@ -172,13 +178,14 @@ def _repair(data: dict[str, Any], flags: dict[str, Any]) -> dict[str, Any]:
             flags["countries_repaired"] = True
         data["countries"] = cleaned[:MAX_COUNTRIES]
 
-    summary = data.get("summary_en")
-    if isinstance(summary, str):
-        summary = clean_text(summary)
-        if len(summary) > MAX_SUMMARY_CHARS:
-            summary = summary[: MAX_SUMMARY_CHARS - 1].rsplit(" ", 1)[0] + "…"
-            flags["summary_truncated"] = True
-        data["summary_en"] = summary
+    for summary_field in ("summary_en", "summary_sq"):
+        summary = data.get(summary_field)
+        if isinstance(summary, str):
+            summary = clean_text(summary)
+            if len(summary) > MAX_SUMMARY_CHARS:
+                summary = summary[: MAX_SUMMARY_CHARS - 1].rsplit(" ", 1)[0] + "…"
+                flags["summary_truncated"] = True
+            data[summary_field] = summary
 
     for field_name in ("sentiment_score", "confidence"):
         value = data.get(field_name)

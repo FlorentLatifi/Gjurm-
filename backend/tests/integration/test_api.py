@@ -74,6 +74,7 @@ def make_article(
             sentiment_score=score,
             event_type="other",
             summary_en=f"Summary of {title}",
+            summary_sq=f"Përmbledhje e {title}",
             entities=[{"name": n, "type": t} for n, t in (entities or [])],
             countries=["XK"],
             confidence=0.9,

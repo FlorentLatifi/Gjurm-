@@ -170,3 +170,17 @@ export function hasComparableHistory<T>(rows: T[], current: (r: T) => number, pr
 export function realSummary(summary: string | null | undefined): string | null {
   return summary && !summary.startsWith("[headline") ? summary : null;
 }
+
+/**
+ * The AI summary to show, in the reader's language when it exists: articles analysed with
+ * prompt v1.2 or later have an Albanian one; older ones only the English.
+ */
+export function summaryFor(item: {
+  summary_en: string | null;
+  summary_sq: string | null;
+}): { text: string; lang: "sq" | "en" } | null {
+  const albanian = getLang() === "sq" ? realSummary(item.summary_sq) : null;
+  if (albanian) return { text: albanian, lang: "sq" };
+  const english = realSummary(item.summary_en);
+  return english ? { text: english, lang: "en" } : null;
+}

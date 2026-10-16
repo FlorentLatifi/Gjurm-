@@ -21,7 +21,7 @@ from gjurme.enrichment.schema import MAX_ENTITIES, MAX_SECONDARY_TOPICS, SCHEMA_
 from gjurme.ingestion.normalize import sha256_hex
 from gjurme.taxonomy import EVENT_TYPES, TOPICS
 
-PROMPT_VERSION = "v1.1"
+PROMPT_VERSION = "v1.2"
 
 _TOPIC_LINES = "\n".join(f"- {t.slug}: {t.description}" for t in TOPICS)
 _EVENT_LINES = ", ".join(EVENT_TYPES)
@@ -103,6 +103,9 @@ Albanian) of at most 35 words describing what happened. Use only facts present i
 headline or excerpt; no speculation, no opinions, no "the article says". Do not add days, \
 numbers, titles or roles that are not in the text, and keep hedges such as "reportedly". \
 Translate names of institutions when a standard English form exists.
+summary_sq: the same sentence in standard Albanian, for the site's Albanian readers: the same \
+facts, nothing added or left out, at most 35 words. Write names of people, places and \
+institutions as Albanian media do ("Kuvendi i Kosovës", "Beogradi").
 
 ## Language and confidence
 language: the ISO 639-1 language of the text (sq, en, sr, mk) or "other".

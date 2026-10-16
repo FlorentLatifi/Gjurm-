@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 
 import { type Filters, withFilters } from "@/shared/hooks/useFilters";
 import type { ArticleSummary } from "@/shared/api/types";
-import { formatDateTime, hostOf, realSummary, safeHref } from "@/shared/lib/format";
+import { formatDateTime, hostOf, safeHref, summaryFor } from "@/shared/lib/format";
 import { recordRead } from "@/stores/reading";
 import { SentimentChip } from "@/ui/SentimentChip";
 import "./articles.css";
@@ -18,6 +18,7 @@ export function ArticleList({ items, filters }: { items: ArticleSummary[]; filte
     <ol className="articles">
       {items.map((a) => {
         const href = safeHref(a.url);
+        const summary = summaryFor(a);
         return (
           <li key={a.id} className="article">
             {href ? (
@@ -29,7 +30,7 @@ export function ArticleList({ items, filters }: { items: ArticleSummary[]; filte
             ) : (
               <span className="article__title" lang={a.language}>{a.title}</span>
             )}
-            {realSummary(a.summary_en) && <p className="article__summary" lang="en">{realSummary(a.summary_en)}</p>}
+            {summary && <p className="article__summary" lang={summary.lang}>{summary.text}</p>}
             <div className="article__meta">
               <span>
                 <strong>{a.source_name}</strong> ·{" "}
