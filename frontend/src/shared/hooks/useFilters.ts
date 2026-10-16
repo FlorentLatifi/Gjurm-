@@ -2,11 +2,8 @@ import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 
 /** Global filter state lives in the URL, so every view is a shareable, bookmarkable link. */
-export const RANGE_PRESETS = [
-  { days: 7, label: "7 days" },
-  { days: 30, label: "30 days" },
-  { days: 90, label: "90 days" },
-] as const;
+/** Time ranges offered above a page, in days. */
+export const RANGE_PRESETS = [7, 30, 90] as const;
 
 export interface Filters {
   days: number;

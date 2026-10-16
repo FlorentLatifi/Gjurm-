@@ -1,5 +1,6 @@
 {
-  "name": "GJURMË — every side of the Albanian-language news",
+  "name": "GJURMË — çdo anë e lajmeve në shqip",
+  "lang": "sq",
   "short_name": "GJURMË",
   "start_url": "/",
   "display": "standalone",

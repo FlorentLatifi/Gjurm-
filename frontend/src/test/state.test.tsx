@@ -50,21 +50,23 @@ describe("SearchField", () => {
 describe("preferences store", () => {
   beforeEach(() => {
     localStorage.clear();
-    usePreferences.setState({ theme: "system", lens: null });
+    usePreferences.setState({ theme: "system", lens: null, lang: "sq" });
   });
 
-  it("persists theme and lens under one key that theme.js can read", () => {
+  it("persists theme, lens and language under one key that theme.js can read", () => {
     act(() => usePreferences.getState().setTheme("dark"));
     act(() => usePreferences.getState().setLens("region"));
+    act(() => usePreferences.getState().setLang("en"));
     const stored = JSON.parse(localStorage.getItem(PREFERENCES_KEY)!);
-    expect(stored.state).toEqual({ theme: "dark", lens: "region" });
+    expect(stored.state).toEqual({ theme: "dark", lens: "region", lang: "en" });
   });
 
   it("falls back to defaults for corrupted or hand-edited values", async () => {
-    localStorage.setItem(PREFERENCES_KEY, JSON.stringify({ state: { theme: "neon", lens: "<x>" }, version: 1 }));
+    localStorage.setItem(PREFERENCES_KEY, JSON.stringify({ state: { theme: "neon", lens: "<x>", lang: "de" }, version: 1 }));
     await act(async () => usePreferences.persist.rehydrate());
     expect(usePreferences.getState().theme).toBe("system");
     expect(usePreferences.getState().lens).toBeNull();
+    expect(usePreferences.getState().lang).toBe("sq");
   });
 
   it("applies the theme to the document, and removes it for 'system'", () => {

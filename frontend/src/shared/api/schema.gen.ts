@@ -706,6 +706,8 @@ export interface components {
             entities: components["schemas"]["EntityRef"][];
             /** Related */
             related: components["schemas"]["RelatedArticle"][];
+            /** Topic Name Sq */
+            readonly topic_name_sq: string | null;
         };
         /** ArticleSummary */
         ArticleSummary: {
@@ -746,6 +748,8 @@ export interface components {
             topic_slug: string | null;
             /** Topic Name */
             topic_name: string | null;
+            /** Topic Name Sq */
+            readonly topic_name_sq: string | null;
         };
         /** ArticleTopicRef */
         ArticleTopicRef: {
@@ -755,6 +759,8 @@ export interface components {
             name_en: string;
             /** Is Primary */
             is_primary: boolean;
+            /** Name Sq */
+            readonly name_sq: string;
         };
         /** BiasCoverage */
         BiasCoverage: {
@@ -787,6 +793,11 @@ export interface components {
              * @description Plain-language description of how the numbers are computed
              */
             method: string;
+            /**
+             * Method Sq
+             * @description The same description in Albanian
+             */
+            method_sq: string;
             /** Items */
             items: components["schemas"]["StorySummary"][];
         };
@@ -980,6 +991,11 @@ export interface components {
              */
             method: string;
             /**
+             * Method Sq
+             * @description The same description in Albanian
+             */
+            method_sq: string;
+            /**
              * As Of
              * Format: date-time
              */
@@ -1052,6 +1068,11 @@ export interface components {
              * @description Plain-language description of how the numbers are computed
              */
             method: string;
+            /**
+             * Method Sq
+             * @description The same description in Albanian
+             */
+            method_sq: string;
             /** Group By */
             group_by: string;
             /** Series */
@@ -1237,6 +1258,11 @@ export interface components {
              * @description Plain-language description of how the numbers are computed
              */
             method: string;
+            /**
+             * Method Sq
+             * @description The same description in Albanian
+             */
+            method_sq: string;
             /** Series */
             series: components["schemas"]["SentimentPoint"][];
         };
@@ -1247,6 +1273,11 @@ export interface components {
              * @description Plain-language description of how the numbers are computed
              */
             method: string;
+            /**
+             * Method Sq
+             * @description The same description in Albanian
+             */
+            method_sq: string;
             /** Window Days */
             window_days: number;
             /** Items */
@@ -1268,6 +1299,8 @@ export interface components {
             n_previous: number;
             /** Delta */
             delta: number | null;
+            /** Name Sq */
+            readonly name_sq: string;
         };
         /** SharedCoverage */
         SharedCoverage: {
@@ -1554,6 +1587,8 @@ export interface components {
              * @description Stories within 3 days sharing 2+ names
              */
             related: components["schemas"]["StorySummary"][];
+            /** Topic Name Sq */
+            readonly topic_name_sq: string | null;
         };
         /** StorySource */
         StorySource: {
@@ -1622,6 +1657,8 @@ export interface components {
             sources: components["schemas"]["StorySource"][];
             /** Blindspots */
             blindspots: components["schemas"]["Blindspot"][];
+            /** Topic Name Sq */
+            readonly topic_name_sq: string | null;
         };
         /** TaxonomyTopic */
         TaxonomyTopic: {
@@ -1653,6 +1690,8 @@ export interface components {
             articles: number;
             /** Share */
             share: number | null;
+            /** Name Sq */
+            readonly name_sq: string;
         };
         /** TopicArticles */
         TopicArticles: {
@@ -1662,6 +1701,8 @@ export interface components {
             name_en: string;
             /** Articles */
             articles: number;
+            /** Name Sq */
+            readonly name_sq: string;
         };
         /** TopicCount */
         TopicCount: {
@@ -1669,6 +1710,10 @@ export interface components {
             slug: string;
             /** Articles */
             articles: number;
+            /** Name En */
+            readonly name_en: string;
+            /** Name Sq */
+            readonly name_sq: string;
         };
         /** TopicDetail */
         TopicDetail: {
@@ -1692,6 +1737,8 @@ export interface components {
             name_sq: string;
             /** Description */
             description: string;
+            /** Description Sq */
+            readonly description_sq: string;
         };
         /** TopicMomentum */
         TopicMomentum: {
@@ -1700,6 +1747,11 @@ export interface components {
              * @description Plain-language description of how the numbers are computed
              */
             method: string;
+            /**
+             * Method Sq
+             * @description The same description in Albanian
+             */
+            method_sq: string;
             /** Window Days */
             window_days: number;
             /** Items */
@@ -1717,6 +1769,8 @@ export interface components {
             previous: number;
             /** Growth */
             growth: number | null;
+            /** Name Sq */
+            readonly name_sq: string;
         };
         /** TopicSeriesPoint */
         TopicSeriesPoint: {
@@ -1738,6 +1792,8 @@ export interface components {
             name_en: string;
             /** Articles */
             articles: number;
+            /** Name Sq */
+            readonly name_sq: string;
         };
         /** TopicStat */
         TopicStat: {
@@ -1796,6 +1852,11 @@ export interface components {
              * @description Plain-language description of how the numbers are computed
              */
             method: string;
+            /**
+             * Method Sq
+             * @description The same description in Albanian
+             */
+            method_sq: string;
             /** Series */
             series: components["schemas"]["VolumePoint"][];
         };

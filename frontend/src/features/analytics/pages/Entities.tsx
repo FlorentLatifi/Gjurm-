@@ -23,16 +23,18 @@ import { DailyLine } from "@/ui/charts";
 import { useApiQuery } from "@/shared/query/apiQuery";
 import { entitiesQueries, entitiesState, entityQueries } from "../queries";
 import { isPositiveId } from "@/shared/lib/ids";
+import { labels, localName, t, tn } from "@/shared/i18n";
 
-const TYPES: { value: EntityType | ""; label: string }[] = [
-  { value: "", label: "All" },
-  { value: "person", label: "People" },
-  { value: "organization", label: "Organisations" },
-  { value: "location", label: "Places" },
+const TYPE_LABEL = labels({ all: "All", person: "People", organization: "Organisations", location: "Places" });
+const TYPES: { value: EntityType | ""; label: keyof typeof TYPE_LABEL }[] = [
+  { value: "", label: "all" },
+  { value: "person", label: "person" },
+  { value: "organization", label: "organization" },
+  { value: "location", label: "location" },
 ];
 
 export function EntitiesPage() {
-  useTitle("People & organisations", "Who and what is most discussed in Albanian-language news.");
+  useTitle(t("People & organisations"), t("Who and what is most discussed in Albanian-language news."));
   const { filters } = useFilters();
   const [params, setParams] = useSearchParams();
   const { type, q } = entitiesState(params);
@@ -54,33 +56,32 @@ export function EntitiesPage() {
     <>
       <div className="page-head">
         <div>
-          <h1>People, organisations &amp; places</h1>
-          <p>Named entities extracted by the AI and checked against the headline text (names the text
-            does not contain are discarded).</p>
+          <h1>{t("People, organisations & places")}</h1>
+          <p>{t("Names extracted by the AI and checked against the headline text (names the text does not contain are discarded).")}</p>
         </div>
       </div>
       <FilterBar />
       <div className="filters">
-        <div className="segmented" role="group" aria-label="Entity type">
-          {TYPES.map((t) => (
-            <button key={t.value} type="button" aria-pressed={type === t.value} onClick={() => set("type", t.value)}>
-              {t.label}
+        <div className="segmented" role="group" aria-label={t("Kind of name")}>
+          {TYPES.map((k) => (
+            <button key={k.value} type="button" aria-pressed={type === k.value} onClick={() => set("type", k.value)}>
+              {TYPE_LABEL[k.label]}
             </button>
           ))}
         </div>
-        <SearchField id={searchId} label="Search names" hideLabel value={q} onCommit={(v) => set("q", v)}
-          placeholder="Search a name, e.g. Kurti, Prishtina…" maxLength={80} delay={300} />
+        <SearchField id={searchId} label={t("Search names")} hideLabel value={q} onCommit={(v) => set("q", v)}
+          placeholder={t("Search a name, e.g. Kurti, Prishtina…")} maxLength={80} delay={300} />
       </div>
       <div className="grid grid--2">
-        <Card title="Most mentioned" question="Who and what is most discussed?" query={entities}
-          empty={!entities.data?.length} emptyText={q ? "No names match your search." : "No entities in this period."}>
+        <Card title={t("Most mentioned")} question={t("Who and what is most discussed?")} query={entities}
+          empty={!entities.data?.length} emptyText={q ? t("No names match your search.") : t("No names in this period.")}>
           {() => (
             <div className="table-wrap">
               <table>
-                <caption>Number of articles mentioning each entity, last {filters.days} days</caption>
-                <thead><tr><th scope="col">Name</th><th className="num" scope="col">Articles</th>
-                  <th className="num" scope="col">Change</th><th className="num" scope="col">Mean tone</th>
-                  <th className="num" scope="col">Outlets</th></tr></thead>
+                <caption>{tn(filters.days, "Number of articles mentioning each name, last {n} day", "Number of articles mentioning each name, last {n} days")}</caption>
+                <thead><tr><th scope="col">{t("Name")}</th><th className="num" scope="col">{t("Articles")}</th>
+                  <th className="num" scope="col">{t("Change")}</th><th className="num" scope="col">{t("Mean tone")}</th>
+                  <th className="num" scope="col">{t("Outlets")}</th></tr></thead>
                 <tbody>{entities.data!.map((e) => (
                   <tr key={e.id}>
                     <td><Link to={withFilters(`/entities/${e.id}`, filters)}>{e.name}</Link>
@@ -94,10 +95,10 @@ export function EntitiesPage() {
             </div>
           )}
         </Card>
-        <Card title="Mentioned together" question="Which names appear in the same articles most often?"
+        <Card title={t("Mentioned together")} question={t("Which names appear in the same articles most often?")}
           query={pairs} empty={!pairs.data?.length}>
           {() => (
-            <RankList unit="shared articles" items={pairs.data!.slice(0, 12).map((p) => ({
+            <RankList unit={(n) => tn(n, "{n} shared article", "{n} shared articles")} items={pairs.data!.slice(0, 12).map((p) => ({
               key: `${p.a_id}-${p.b_id}`, label: `${p.a_name} + ${p.b_name}`,
               href: withFilters(`/entities/${p.a_id}`, filters), value: p.together,
             }))} />
@@ -118,41 +119,41 @@ export function EntityPage() {
   const articles = useApiQuery(queries.articles, valid);
   const e = entity.data;
   const missing = !valid || isNotFound(entity.error);
-  useTitle(missing ? "Not found" : (e?.entity.name ?? "Entity"), undefined, { index: !missing });
-  if (missing) return <NotFoundState title="Not found">No person, organisation or place has this address.</NotFoundState>;
+  useTitle(missing ? t("Not found") : (e?.entity.name ?? t("Name")), undefined, { index: !missing });
+  if (missing) return <NotFoundState title={t("Not found")}>{t("No person, organisation or place has this address.")}</NotFoundState>;
   if (entity.isError) return <ErrorState error={entity.error} onRetry={() => entity.refetch()} />;
 
   return (
     <>
       <div className="page-head">
         <div>
-          <p className="rank-meta"><Link to={withFilters("/entities", filters)}>People &amp; organisations</Link> /</p>
+          <p className="rank-meta"><Link to={withFilters("/entities", filters)}>{t("People & organisations")}</Link> /</p>
           <h1>{e?.entity.name ?? "…"}</h1>
           {e && (
-            <p>{ENTITY_TYPE_LABEL[e.entity.type]} · {formatInt(e.mentions)} articles in the last {filters.days} days ·
-              mean tone {formatScore(e.avg_sentiment)}</p>
+            <p>{ENTITY_TYPE_LABEL[e.entity.type]} · {tn(e.mentions, "{n} article", "{n} articles")}{" "}
+              {tn(filters.days, "in the last {n} day", "in the last {n} days")} · {t("mean tone {score}", { score: formatScore(e.avg_sentiment) })}</p>
           )}
         </div>
       </div>
       <FilterBar />
       <div className="grid grid--2" style={{ marginBottom: 14 }}>
-        <Card title="Mentions per day" question="When was this name in the news?" query={entity}
+        <Card title={t("Mentions per day")} question={t("When was this name in the news?")} query={entity}
           empty={!e?.mentions}
           table={() => (
-            <table><caption>Articles mentioning this entity per day</caption>
-              <thead><tr><th scope="col">Day</th><th className="num" scope="col">Articles</th>
-                <th className="num" scope="col">Mean tone</th></tr></thead>
+            <table><caption>{t("Articles mentioning this name per day")}</caption>
+              <thead><tr><th scope="col">{t("Day")}</th><th className="num" scope="col">{t("Articles")}</th>
+                <th className="num" scope="col">{t("Mean tone")}</th></tr></thead>
               <tbody>{e?.series.map((d) => (
                 <tr key={d.day}><td>{formatDay(d.day, true)}</td><td className="num">{d.mentions}</td>
                   <td className="num">{formatScore(d.avg_sentiment)}</td></tr>))}</tbody>
             </table>
           )}>
-          {() => <DailyLine data={e!.series} dataKey="mentions" label="Articles" />}
+          {() => <DailyLine data={e!.series} dataKey="mentions" label={t("Articles")} />}
         </Card>
-        <Card title="Mentioned alongside" question="Who else appears in the same articles?" query={entity}
+        <Card title={t("Mentioned alongside")} question={t("Who else appears in the same articles?")} query={entity}
           empty={!e?.co_mentions.length}>
           {() => (
-            <RankList unit="shared articles" items={e!.co_mentions.map((c) => ({
+            <RankList unit={(n) => tn(n, "{n} shared article", "{n} shared articles")} items={e!.co_mentions.map((c) => ({
               key: c.id, label: c.name, href: withFilters(`/entities/${c.id}`, filters), value: c.together,
               sublabel: ENTITY_TYPE_LABEL[c.type],
             }))} />
@@ -161,19 +162,19 @@ export function EntityPage() {
       </div>
       <div className="grid grid--2">
         <div className="stack">
-          <Card title="In which topics" query={entity} empty={!e?.topics.length}>
+          <Card title={t("In which topics")} query={entity} empty={!e?.topics.length}>
             {() => (
-              <RankList unit="articles" items={e!.topics.map((t) => ({
-                key: t.slug, label: t.name_en, href: withFilters(`/topics/${t.slug}`, filters), value: t.articles,
+              <RankList unit={(n) => tn(n, "{n} article", "{n} articles")} items={e!.topics.map((tp) => ({
+                key: tp.slug, label: localName(tp.name_en, tp.name_sq), href: withFilters(`/topics/${tp.slug}`, filters), value: tp.articles,
               }))} />
             )}
           </Card>
-          <Card title="By outlet" question="Who covers this name, and in what tone?" query={entity}
+          <Card title={t("By outlet")} question={t("Who covers this name, and in what tone?")} query={entity}
             empty={!e?.sources.length}>
             {() => (
               <table>
-                <thead><tr><th scope="col">Outlet</th><th className="num" scope="col">Articles</th>
-                  <th className="num" scope="col">Mean tone</th></tr></thead>
+                <thead><tr><th scope="col">{t("Outlet")}</th><th className="num" scope="col">{t("Articles")}</th>
+                  <th className="num" scope="col">{t("Mean tone")}</th></tr></thead>
                 <tbody>{e!.sources.map((s) => (
                   <tr key={s.slug}><td>{s.name}</td><td className="num">{s.articles}</td>
                     <td className="num">{formatScore(s.avg_sentiment)}</td></tr>))}</tbody>
@@ -181,8 +182,8 @@ export function EntityPage() {
             )}
           </Card>
         </div>
-        <Card title="Articles" query={articles} empty={!articles.data?.items.length}
-          actions={<Link className="btn btn--ghost btn--sm" to={withFilters("/articles", filters, { entity: String(id) })}>All</Link>}>
+        <Card title={t("Articles")} query={articles} empty={!articles.data?.items.length}
+          actions={<Link className="btn btn--ghost btn--sm" to={withFilters("/articles", filters, { entity: String(id) })}>{t("All")}</Link>}>
           {() => <ArticleList items={articles.data!.items} filters={filters} />}
         </Card>
       </div>

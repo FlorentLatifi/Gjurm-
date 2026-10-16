@@ -211,6 +211,7 @@ def test_topic_momentum(client: TestClient, dataset: dict[str, Any]) -> None:
     assert elections == {
         "slug": "elections",
         "name_en": "Elections",
+        "name_sq": "Zgjedhje",
         "current": 8,
         "previous": 2,
         "growth": pytest.approx((8 - 2) / 5),
@@ -614,6 +615,30 @@ def test_volume_and_sentiment_series(client: TestClient, dataset: dict[str, Any]
     assert groups[0]["key"] == "crime_justice" and groups[0]["average"] == -0.6
     shift = client.get("/api/v1/analytics/sentiment/shift").json()
     assert "window_days" in shift and "method" in shift
+
+
+def test_albanian_names_and_methods_for_the_site(
+    client: TestClient, dataset: dict[str, Any]
+) -> None:
+    """The site's default language is Albanian: topic names, descriptions and method notes."""
+    overview = client.get("/api/v1/analytics/overview", params={"days": 7}).json()
+    assert overview["top_topic"]["name_sq"] == "Zgjedhje"
+    momentum = client.get("/api/v1/analytics/trends/topics").json()
+    assert "max(më parë, 5)" in momentum["method_sq"]
+    for path in ("volume", "sentiment", "sentiment/shift", "trends/entities"):
+        body = client.get(f"/api/v1/analytics/{path}").json()
+        assert body["method_sq"] and body["method_sq"] != body["method"], path
+    detail = client.get("/api/v1/topics/crime_justice", params={"days": 7}).json()["topic"]
+    assert detail["name_sq"] == "Krim, Drejtësi & Korrupsion"
+    assert detail["description_sq"].startswith("Krimi, policia")
+    row = next(
+        r for r in client.get("/api/v1/sources", params={"days": 7}).json() if r["top_topics"]
+    )
+    assert {"name_en", "name_sq"} <= set(row["top_topics"][0])
+    item = client.get("/api/v1/articles", params={"days": 7, "topic": "elections"}).json()["items"][
+        0
+    ]
+    assert item["topic_name"] == "Elections" and item["topic_name_sq"] == "Zgjedhje"
 
 
 def test_cooccurrence(client: TestClient, dataset: dict[str, Any]) -> None:

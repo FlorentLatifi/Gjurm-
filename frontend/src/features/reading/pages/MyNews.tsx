@@ -10,6 +10,7 @@ import { RankList } from "@/ui/RankList";
 import { missingSide, readingCoverage } from "../readingCoverage";
 import { useApiQuery } from "@/shared/query/apiQuery";
 import { myNewsQueries } from "../queries";
+import { t, tn } from "@/shared/i18n";
 
 /**
  * Ground News' "My News Bias", without accounts: the reading log lives in this browser only
@@ -17,7 +18,7 @@ import { myNewsQueries } from "../queries";
  * GJURMË, and shows their balance by perspective, region, ownership and factuality.
  */
 export default function MyNewsPage() {
-  useTitle("My news bias", "The balance of the outlets you read, kept only in your browser.");
+  useTitle(t("My news bias"), t("The balance of the outlets you read, kept only in your browser."));
   const reading = useReading();
   const queries = myNewsQueries();
   const sources = useApiQuery(queries.sources);
@@ -41,81 +42,84 @@ export default function MyNewsPage() {
     <>
       <div className="page-head">
         <div>
-          <h1>My news bias</h1>
+          <h1>{t("My news bias")}</h1>
           <p>
-            The outlets behind the articles you opened from GJURMË, and how they balance out. This
-            record stays in this browser only: no account, no cookies, nothing sent to a server.
+            {t("The outlets behind the articles you opened from GJURMË, and how they balance out. This record stays in this browser only: no account, no cookies, nothing sent to a server.")}
           </p>
         </div>
         {reading.length > 0 && (
-          <button type="button" className="btn" onClick={() => clearReading()}>Clear my history</button>
+          <button type="button" className="btn" onClick={() => clearReading()}>{t("Clear my history")}</button>
         )}
       </div>
       {!reading.length ? (
         <section className="card">
-          <h2>Nothing read yet</h2>
+          <h2>{t("Nothing read yet")}</h2>
           <p className="card__question mt-2">
-            Open a few articles from the <Link to="/">stories</Link> — this page then shows whether you
-            mostly read one side, one country or one kind of owner.
+            {t("Open a few articles from the stories — this page then shows whether you mostly read one side, one country or one kind of owner.")}{" "}
+            <Link to="/">{t("Go to the top stories")}</Link>
           </p>
         </section>
       ) : (
         <div className="stack">
           <div className="grid grid--kpi">
             <div className="card stat">
-              <span className="stat__label">Articles opened</span>
+              <span className="stat__label">{t("Articles opened")}</span>
               <span className="stat__value">{formatInt(reading.length)}</span>
-              <span className="stat__sub">last 90 days</span>
+              <span className="stat__sub">{t("last 90 days")}</span>
             </div>
             <div className="card stat">
-              <span className="stat__label">Different outlets</span>
+              <span className="stat__label">{t("Different outlets")}</span>
               <span className="stat__value">{formatInt(outlets.size)}</span>
             </div>
             <div className="card stat">
-              <span className="stat__label">Your blind side</span>
+              <span className="stat__label">{t("Your blind side")}</span>
               <span className="stat__value stat__value--text">
-                {missing ? BIAS_GROUP_LABEL[missing] : rated ? "None detected" : "Not yet known"}
+                {missing ? BIAS_GROUP_LABEL[missing] : rated ? t("None detected") : t("Not yet known")}
               </span>
               <span className="stat__sub">
-                {missing
-                  ? `few ${missing}-leaning outlets in your reading`
-                  : rated
-                    ? "needs 5+ articles from rated outlets"
-                    : "outlets have no perspective ratings yet"}
+                {missing === "left"
+                  ? t("few left-leaning outlets in your reading")
+                  : missing === "right"
+                    ? t("few right-leaning outlets in your reading")
+                    : rated
+                      ? t("needs 5+ articles from rated outlets")
+                      : t("outlets have no perspective ratings yet")}
               </span>
             </div>
           </div>
           <div className="grid grid--2">
-            <Card title="Your balance" question="Outlets of the articles you opened, counted once per article.">
+            <Card title={t("Your balance")} question={t("Outlets of the articles you opened, counted once per article.")}>
               {() => (
                 <div className="stack">
                   {lenses.map((l) => (
                     <div key={l} className="stack stack--tight">
                       <h3>{LENS_LABEL[l]}</h3>
-                      <StoryCoverage coverage={cov} lens={l} unit={["article", "articles"]} />
+                      <StoryCoverage coverage={cov} lens={l} unit={(n) => tn(n, "{n} article", "{n} articles")} />
                     </div>
                   ))}
                 </div>
               )}
             </Card>
-            <Card title="Outlets you read" query={sources}>
+            <Card title={t("Outlets you read")} query={sources}>
               {() => (
-                <RankList unit="articles" items={[...outlets.entries()].sort((a, b) => b[1] - a[1]).map(([slug, n]) => ({
+                <RankList unit={(n) => tn(n, "{n} article", "{n} articles")} items={[...outlets.entries()].sort((a, b) => b[1] - a[1]).map(([slug, n]) => ({
                   key: slug, label: bySlug.get(slug)?.name ?? slug, href: `/sources/${slug}`, value: n,
                   meta: <> · {formatPercent(n / reading.length)}</>,
                 }))} />
               )}
             </Card>
           </div>
-          <Card title="Step outside your bubble" query={blind} empty={!suggestions.length}
+          <Card title={t("Step outside your bubble")} query={blind} empty={!suggestions.length}
             question={
-              missing
-                ? `Stories that ${missing}-leaning outlets covered and the rest barely did.`
-                : rated
-                  ? "This week's blindspots."
-                  : "This week's stories about a country whose own outlets did not report them."
+              missing === "left"
+                ? t("Stories that left-leaning outlets covered and the rest barely did.")
+                : missing === "right"
+                  ? t("Stories that right-leaning outlets covered and the rest barely did.")
+                  : rated
+                    ? t("This week's blindspots.")
+                    : t("This week's stories about a country whose own outlets did not report them.")
             }
-            emptyText="No blindspot stories this week.">
+            emptyText={t("No blindspot stories this week.")}>
             {() => <div>{suggestions.slice(0, 6).map((s) => <StoryCard key={s.id} story={s} lens={kind} compact />)}</div>}
           </Card>
         </div>

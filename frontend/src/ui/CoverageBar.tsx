@@ -1,6 +1,7 @@
 import { formatPercent } from "@/shared/lib/format";
 import type { Segment } from "@/shared/model/ratings";
 import "./coverage.css";
+import { t, tn } from "@/shared/i18n";
 
 /**
  * Ground News-style coverage bar: the distinct outlets that covered a story, split by one
@@ -13,7 +14,7 @@ export function CoverageBar({
   size = "md",
   caption,
   labels = "nonzero",
-  unit = ["outlet", "outlets"],
+  unit = (n) => tn(n, "{n} outlet", "{n} outlets"),
 }: {
   parts: Segment[];
   size?: "sm" | "md";
@@ -21,14 +22,14 @@ export function CoverageBar({
   caption: string;
   /** "all": every category, so a 0% side is visible (hatched unrated/other only when > 0). */
   labels?: "nonzero" | "all" | "none";
-  /** What one unit of a segment counts (singular, plural). */
-  unit?: [string, string];
+  /** A segment's count in words, e.g. "3 outlets". */
+  unit?: (n: number) => string;
 }) {
   const total = parts.reduce((sum, p) => sum + p.value, 0);
-  if (!total) return <span className="rank-meta">No coverage data</span>;
+  if (!total) return <span className="rank-meta">{t("No coverage data")}</span>;
   const shown = parts.filter((p) => p.value > 0);
   const text = shown
-    .map((p) => `${p.label}: ${p.value} ${p.value === 1 ? unit[0] : unit[1]} (${formatPercent(p.value / total)})`)
+    .map((p) => `${p.label}: ${unit(p.value)} (${formatPercent(p.value / total)})`)
     .join(", ");
   return (
     <div className={`coverage coverage--${size}`}>

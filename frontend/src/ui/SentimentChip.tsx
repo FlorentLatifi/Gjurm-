@@ -1,4 +1,7 @@
 import type { SentimentLabel } from "@/shared/api/types";
+import { labels } from "@/shared/i18n";
+
+const TONE = labels({ negative: "Negative tone", neutral: "Neutral tone", positive: "Positive tone" });
 
 const SENTIMENT_COLOR: Record<SentimentLabel, string> = {
   negative: "var(--sent-negative)",
@@ -11,7 +14,7 @@ export function SentimentChip({ label }: { label: SentimentLabel | null }) {
   return (
     <span className="chip">
       <span className="dot" style={{ background: SENTIMENT_COLOR[label] }} aria-hidden="true" />
-      <span>{label[0]!.toUpperCase() + label.slice(1)} tone</span>
+      <span>{TONE[label]}</span>
     </span>
   );
 }

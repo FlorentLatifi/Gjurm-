@@ -40,6 +40,18 @@
   border-left-color: transparent;
 }
 @media (max-width: 720px) {
+  /* phones: the coloured dot says it; the words stay for screen readers and the tooltip */
+  .status-pill__text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .status-pill {
+    padding: var(--space-1) var(--space-2);
+  }
   .notice {
     --notice-lines: 2;
   }

@@ -9,22 +9,20 @@ import { noneRated } from "@/shared/model/ratings";
 import { Card } from "@/ui/Card";
 import { StoryCard } from "../StoryCard";
 import { blindspotKind, blindspotQueries } from "../queries";
+import { labels, localName, t } from "@/shared/i18n";
 
-const PRESETS = [
-  { days: 3, label: "3 days" },
-  { days: 7, label: "7 days" },
-  { days: 30, label: "30 days" },
-] as const;
+const PRESETS = [3, 7, 30] as const;
 
-const KINDS: { kind: Blindspot["kind"] | ""; label: string }[] = [
-  { kind: "", label: "All" },
-  { kind: "perspective", label: "Perspective" },
-  { kind: "region", label: "Region" },
+const KIND_LABEL = labels({ all: "All", perspective: "Perspective", region: "Region" });
+const KINDS: { kind: Blindspot["kind"] | ""; label: keyof typeof KIND_LABEL }[] = [
+  { kind: "", label: "all" },
+  { kind: "perspective", label: "perspective" },
+  { kind: "region", label: "region" },
 ];
 
 /** Ground News' Blindspot feed: stories that one side of the spectrum, or one country, missed. */
 export default function BlindspotPage() {
-  useTitle("Blindspot", "Stories one side of the spectrum, or one country's media, barely covered.");
+  useTitle(t("Blindspot"), t("Stories one side of the spectrum, or one country's media, barely covered."));
   const [params, setParams] = useSearchParams();
   const kind = blindspotKind(params);
   const query = useApiQuery(blindspotQueries(params).blindspots);
@@ -46,7 +44,7 @@ export default function BlindspotPage() {
 
   const column = (title: string, question: string, list: typeof items, lens: "perspective" | "region") => (
     <Card title={`${title} · ${formatInt(list.length)}`} question={question} query={query} empty={!list.length}
-      emptyText="None in this period.">
+      emptyText={t("None in this period.")}>
       {() => <div>{list.map((s) => <StoryCard key={s.id} story={s} lens={lens} compact />)}</div>}
     </Card>
   );
@@ -55,18 +53,17 @@ export default function BlindspotPage() {
     <>
       <div className="page-head">
         <div>
-          <h1>Blindspot</h1>
+          <h1>{t("Blindspot")}</h1>
           <p>
-            Stories that outlets on one side barely covered — or that are about a country whose own
-            outlets did not report them. Reading them is the quickest way out of a news bubble.
+            {t("Stories that outlets on one side barely covered — or that are about a country whose own outlets did not report them. Reading them is the quickest way out of a news bubble.")}
           </p>
         </div>
       </div>
       <FilterBar presets={PRESETS} defaultDays={7} showSources={false}>
-        <div className="segmented" role="group" aria-label="Blindspot type">
+        <div className="segmented" role="group" aria-label={t("Blindspot type")}>
           {KINDS.map((k) => (
             <button key={k.label} type="button" aria-pressed={kind === k.kind} onClick={() => setKind(k.kind)}>
-              {k.label}
+              {KIND_LABEL[k.label]}
             </button>
           ))}
         </div>
@@ -74,19 +71,18 @@ export default function BlindspotPage() {
       <div className="grid grid--3">
         {kind !== "region" && ratingsPending && (
           <section className="card" aria-labelledby="perspective-pending">
-            <h2 id="perspective-pending">Left and right blindspots</h2>
+            <h2 id="perspective-pending">{t("Left and right blindspots")}</h2>
             <p className="card__question mt-2">
-              These need outlets with a perspective rating, and none has one yet: ratings are
-              editorial judgements GJURMË publishes only with their basis.{" "}
-              <Link to="/about#ratings">How outlets are rated</Link>
+              {t("These need outlets with a perspective rating, and none has one yet: ratings are editorial judgements GJURMË publishes only with their basis.")}{" "}
+              <Link to="/about#ratings">{t("How outlets are rated")}</Link>
             </p>
           </section>
         )}
-        {kind !== "region" && !ratingsPending && column("For the left", "Mostly right-leaning outlets covered these; few or no left-leaning ones.", forLeft, "perspective")}
-        {kind !== "region" && !ratingsPending && column("For the right", "Mostly left-leaning outlets covered these; few or no right-leaning ones.", forRight, "perspective")}
-        {kind !== "perspective" && column("By region", "About a country whose outlets did not cover them.", byRegion, "region")}
+        {kind !== "region" && !ratingsPending && column(t("For the left"), t("Mostly right-leaning outlets covered these; few or no left-leaning ones."), forLeft, "perspective")}
+        {kind !== "region" && !ratingsPending && column(t("For the right"), t("Mostly left-leaning outlets covered these; few or no right-leaning ones."), forRight, "perspective")}
+        {kind !== "perspective" && column(t("By region"), t("About a country whose outlets did not cover them."), byRegion, "region")}
       </div>
-      {query.data && <p className="card__foot">{query.data.method}</p>}
+      {query.data && <p className="card__foot">{localName(query.data.method, query.data.method_sq)}</p>}
     </>
   );
 }
