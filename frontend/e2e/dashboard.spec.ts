@@ -400,6 +400,22 @@ test.describe("GJURMË in Albanian", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Lajmet kryesore");
   });
 
+  test("AI summaries show in Albanian when the analysis wrote one", async ({ page }) => {
+    // The demo is analysed by keyword rules, which write no summary: give the first story both.
+    await page.route(/\/api\/v1\/stories\?/, async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      body.items[0] = { ...body.items[0], summary_en: "Parliament passed the budget.", summary_sq: "Kuvendi miratoi buxhetin." };
+      await route.fulfill({ response, json: body });
+    });
+    await page.goto("/");
+    const summary = page.locator(".story-card__summary").first();
+    await expect(summary).toHaveText("Kuvendi miratoi buxhetin.");
+    await expect(summary).toHaveAttribute("lang", "sq");
+    await page.getByRole("button", { name: "English" }).click();
+    await expect(page.locator(".story-card__summary").first()).toHaveText("Parliament passed the budget.");
+  });
+
   test("topics, methods and the methodology are in Albanian too", async ({ page }) => {
     await page.goto("/topics/politics");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Politikë & Qeverisje");

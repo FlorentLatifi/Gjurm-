@@ -3,7 +3,7 @@ import { useId, useRef } from "react";
 import { Link } from "react-router-dom";
 
 import type { StorySummary } from "@/shared/api/types";
-import { formatRelative, realSummary } from "@/shared/lib/format";
+import { formatRelative, summaryFor } from "@/shared/lib/format";
 import {
   BIAS_GROUP_COLOR,
   BIAS_LABEL,
@@ -93,6 +93,7 @@ export function StoryCard({
   const prefetch = usePrefetchStory(story.id);
   // A story can be listed twice on one page (the lead and its section), so the heading id is per card.
   const titleId = useId();
+  const summary = summaryFor(story);
   return (
     <article
       className={`story-card ${compact ? "story-card--compact" : ""} ${lead ? "story-card--lead" : ""}`}
@@ -106,9 +107,7 @@ export function StoryCard({
       <h3 className="story-card__title" id={titleId} lang={story.language}>
         <Link to={`/stories/${story.id}`} {...prefetch}>{story.title}</Link>
       </h3>
-      {!compact && realSummary(story.summary_en) && (
-        <p className="story-card__summary" lang="en">{realSummary(story.summary_en)}</p>
-      )}
+      {!compact && summary && <p className="story-card__summary" lang={summary.lang}>{summary.text}</p>}
       <StoryCoverage coverage={story.coverage} lens={lens} size={compact ? "sm" : "md"} />
       <div className="story-card__foot">
         <SourceDots sources={story.sources} />

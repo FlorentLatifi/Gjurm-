@@ -88,6 +88,7 @@ const article = (over: Partial<ArticleSummary>): ArticleSummary => ({
   published_at_estimated: false,
   language: "sq",
   summary_en: "Parliament approved the budget.",
+  summary_sq: "Kuvendi miratoi buxhetin.",
   sentiment_label: "neutral",
   sentiment_score: 0,
   event_type: "policy_decision",

@@ -658,6 +658,11 @@ export interface components {
             language: string;
             /** Summary En */
             summary_en: string | null;
+            /**
+             * Summary Sq
+             * @description The summary in Albanian (prompt v1.2+)
+             */
+            summary_sq: string | null;
             /** Sentiment Label */
             sentiment_label: ("negative" | "neutral" | "positive") | null;
             /** Sentiment Score */
@@ -728,6 +733,11 @@ export interface components {
             language: string;
             /** Summary En */
             summary_en: string | null;
+            /**
+             * Summary Sq
+             * @description The summary in Albanian (prompt v1.2+)
+             */
+            summary_sq: string | null;
             /** Sentiment Label */
             sentiment_label: ("negative" | "neutral" | "positive") | null;
             /** Sentiment Score */
@@ -1497,6 +1507,11 @@ export interface components {
             language: string;
             /** Summary En */
             summary_en: string | null;
+            /**
+             * Summary Sq
+             * @description The summary in Albanian (prompt v1.2+)
+             */
+            summary_sq: string | null;
             /** Sentiment Label */
             sentiment_label: ("negative" | "neutral" | "positive") | null;
             /** Source Slug */
@@ -1541,6 +1556,11 @@ export interface components {
             language: string;
             /** Summary En */
             summary_en: string | null;
+            /**
+             * Summary Sq
+             * @description The summary in Albanian (prompt v1.2+)
+             */
+            summary_sq: string | null;
             /** Source Slug */
             source_slug: string;
             /** Source Name */
@@ -1622,6 +1642,11 @@ export interface components {
             language: string;
             /** Summary En */
             summary_en: string | null;
+            /**
+             * Summary Sq
+             * @description The summary in Albanian (prompt v1.2+)
+             */
+            summary_sq: string | null;
             /** Source Slug */
             source_slug: string;
             /** Source Name */

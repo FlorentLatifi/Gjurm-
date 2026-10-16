@@ -12,8 +12,8 @@ import {
   formatPercent,
   formatScore,
   hostOf,
-  realSummary,
   safeHref,
+  summaryFor,
 } from "@/shared/lib/format";
 import { recordRead } from "@/stores/reading";
 import { Card } from "@/ui/Card";
@@ -131,6 +131,7 @@ export function ArticlePage() {
   if (article.isPending) return <LoadingBlock height={300} />;
   if (article.isError || !a) return <ErrorState error={article.error} />;
   const href = safeHref(a.url);
+  const summary = summaryFor(a);
 
   return (
     <article className="stack article-page">
@@ -165,8 +166,8 @@ export function ArticlePage() {
           <p className="mt-3">{t("This article has not been analysed yet ({status}).", { status: a.enrichment_status })}</p>
         ) : (
           <dl className="facts mt-3">
-            <dt>{t("Summary")}</dt><dd>{realSummary(a.summary_en)
-              ? <span lang="en">{realSummary(a.summary_en)}</span>
+            <dt>{t("Summary")}</dt><dd>{summary
+              ? <span lang={summary.lang}>{summary.text}</span>
               : <span className="meta">{t("None — keyword rules do not write summaries.")}</span>}</dd>
             <dt>{t("Topics")}</dt>
             <dd className="chips">

@@ -3122,6 +3122,18 @@
             ],
             "title": "Summary En"
           },
+          "summary_sq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Sq",
+            "description": "The summary in Albanian (prompt v1.2+)"
+          },
           "sentiment_label": {
             "anyOf": [
               {
@@ -3339,6 +3351,7 @@
           "published_at_estimated",
           "language",
           "summary_en",
+          "summary_sq",
           "sentiment_label",
           "sentiment_score",
           "event_type",
@@ -3401,6 +3414,18 @@
               }
             ],
             "title": "Summary En"
+          },
+          "summary_sq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Sq",
+            "description": "The summary in Albanian (prompt v1.2+)"
           },
           "sentiment_label": {
             "anyOf": [
@@ -3518,6 +3543,7 @@
           "published_at_estimated",
           "language",
           "summary_en",
+          "summary_sq",
           "sentiment_label",
           "sentiment_score",
           "event_type",
@@ -5540,6 +5566,18 @@
             ],
             "title": "Summary En"
           },
+          "summary_sq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Sq",
+            "description": "The summary in Albanian (prompt v1.2+)"
+          },
           "sentiment_label": {
             "anyOf": [
               {
@@ -5618,6 +5656,7 @@
           "published_at",
           "language",
           "summary_en",
+          "summary_sq",
           "sentiment_label",
           "source_slug",
           "source_name",
@@ -5659,6 +5698,18 @@
               }
             ],
             "title": "Summary En"
+          },
+          "summary_sq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Sq",
+            "description": "The summary in Albanian (prompt v1.2+)"
           },
           "source_slug": {
             "type": "string",
@@ -5786,6 +5837,7 @@
           "url",
           "language",
           "summary_en",
+          "summary_sq",
           "source_slug",
           "source_name",
           "first_published_at",
@@ -5874,6 +5926,18 @@
               }
             ],
             "title": "Summary En"
+          },
+          "summary_sq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Sq",
+            "description": "The summary in Albanian (prompt v1.2+)"
           },
           "source_slug": {
             "type": "string",
@@ -5972,6 +6036,7 @@
           "url",
           "language",
           "summary_en",
+          "summary_sq",
           "source_slug",
           "source_name",
           "first_published_at",

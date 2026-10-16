@@ -90,6 +90,7 @@ erDiagram
         varchar sentiment_label
         numeric sentiment_score "-1..1"
         text summary_en
+        text summary_sq
         bool is_hidden "takedown"
     }
     ENRICHMENTS {
@@ -221,6 +222,7 @@ CREATE TABLE core.articles (
     detected_language      varchar(8),
     countries              text[] NOT NULL DEFAULT '{}',
     summary_en             text,
+    summary_sq             text,                                -- prompt v1.2+ (migration 0004)
     enrichment_confidence  numeric(4, 3),
     is_hidden              boolean NOT NULL DEFAULT false,   -- takedown
     hidden_reason          text,

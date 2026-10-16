@@ -33,6 +33,7 @@ VALID = {
     "sentiment_score": 0.05,
     "event_type": "policy_decision",
     "summary_en": "Kosovo's parliament approved the 2027 budget with 61 votes.",
+    "summary_sq": "Kuvendi i Kosovës miratoi buxhetin e vitit 2027 me 61 vota.",
     "entities": [{"name": "Kuvendi i Kosovës", "type": "organization"}],
     "countries": ["XK"],
     "confidence": 0.9,
@@ -53,10 +54,17 @@ class TestSchema:
         with pytest.raises(InvalidOutputError):
             parse_output(raw)
 
-    def test_missing_field_rejected(self) -> None:
-        data = {k: v for k, v in VALID.items() if k != "summary_en"}
-        with pytest.raises(InvalidOutputError, match="summary_en"):
+    @pytest.mark.parametrize("field", ["summary_en", "summary_sq"])
+    def test_missing_field_rejected(self, field: str) -> None:
+        data = {k: v for k, v in VALID.items() if k != field}
+        with pytest.raises(InvalidOutputError, match=field):
             parse_output(json.dumps(data))
+
+    def test_both_summaries_are_cleaned_and_kept_short(self) -> None:
+        long = "Kuvendi " + "miratoi buxhetin " * 40
+        out, flags = parse_output(json.dumps({**VALID, "summary_sq": f"  {long}  "}))
+        assert len(out.summary_sq) <= 400 and out.summary_sq.endswith("…")
+        assert flags["summary_truncated"] and out.summary_en == VALID["summary_en"]
 
     def test_unknown_topic_rejected(self) -> None:
         with pytest.raises(InvalidOutputError, match="primary_topic"):
