@@ -5,6 +5,11 @@ stories it can join without the story spanning more than ``STORY_WINDOW`` (first
 article). A fixed window, not a rolling one: rolling windows chain separate occurrences of a
 recurring event (two dialogue rounds in Brussels four days apart) into one story.
 
+An article is clustered once its analysis is done, or after ``story_enrichment_wait_minutes``
+without one (budget spent, kill switch): the guards below read the analysis' place and person
+names. An article clustered without names takes its places from the headline words that earlier
+analyses typed as places.
+
 1. a near-verbatim copy (``duplicate_of_id``, dedup layer L4) joins its original's story;
 2. otherwise it joins the most similar story whose centroid has cosine similarity ≥
    ``settings.story_similarity_threshold``, with which its headline shares a word that is not a
@@ -28,17 +33,20 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, text, update
+from sqlalchemy import or_, select, text, update
 from sqlalchemy.orm import Session
 
 from gjurme.config import Settings
-from gjurme.db.models import Article, Story
+from gjurme.db.models import Article, Entity, Story
 from gjurme.stories.similarity import (
+    BROAD_PLACES,
     Doc,
     Names,
     apply_place_lexicon,
     cosine,
+    headline_places,
     idf_table,
+    name_stems,
     names_conflict,
     place_lexicon,
     shares_event_term,
@@ -50,6 +58,7 @@ log = logging.getLogger(__name__)
 STORY_WINDOW = timedelta(hours=48)  # first to last article of one story
 # Stories whose topic and representative may change because members were (re-)analysed.
 REFRESH_RECENT = timedelta(days=3)
+ANALYSED = ("succeeded", "skipped")  # enrichment statuses that will not change by waiting
 
 
 @dataclass(slots=True)
@@ -138,7 +147,18 @@ def _load(session: Session, start: datetime, end: datetime) -> list[_Row]:
     lexicon = place_lexicon(r.doc for r in rows)
     for r in rows:
         r.doc.names = apply_place_lexicon(r.doc.names, lexicon)
+    unanalysed = [r for r in rows if not r.doc.has_entities]
+    if unanalysed:
+        known = lexicon | _known_places(session)
+        for r in unanalysed:
+            r.doc.names = headline_places(r.doc, known)
     return rows
+
+
+def _known_places(session: Session) -> frozenset[str]:
+    """Stems of every name an analysis has typed as a specific place."""
+    names = session.scalars(select(Entity.name).where(Entity.type == "location"))
+    return name_stems(names) - BROAD_PLACES
 
 
 def _story_spans(session: Session, ids: set[int]) -> dict[int, tuple[datetime, datetime]]:
@@ -156,12 +176,15 @@ def cluster_pending(
     """Assign every unclustered article to a story; commits after each batch."""
     stats = ClusterStats()
     tz = ZoneInfo(settings.timezone)
+    unclustered = select(Article.id, Article.published_at).where(Article.story_id.is_(None))
+    if settings.enrichment_enabled:
+        waited = datetime.now(UTC) - timedelta(minutes=settings.story_enrichment_wait_minutes)
+        unclustered = unclustered.where(
+            or_(Article.enrichment_status.in_(ANALYSED), Article.ingested_at < waited)
+        )
     while stats.considered < max_articles:
         pending = session.execute(
-            select(Article.id, Article.published_at)
-            .where(Article.story_id.is_(None))
-            .order_by(Article.published_at, Article.id)
-            .limit(batch_size)
+            unclustered.order_by(Article.published_at, Article.id).limit(batch_size)
         ).all()
         if not pending:
             break

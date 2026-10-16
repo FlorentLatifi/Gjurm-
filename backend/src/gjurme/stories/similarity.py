@@ -159,6 +159,7 @@ class Doc:
     # Every specific-place stem (headline + excerpt), for the batch's place lexicon.
     places_all: frozenset[str] = field(init=False)
     headline: frozenset[str] = field(init=False)  # the headline's terms
+    has_entities: bool = field(init=False)  # False before (or without) an analysis
 
     def __post_init__(self) -> None:
         terms: dict[str, float] = {}
@@ -168,6 +169,7 @@ class Doc:
         for t in set(tokens(self.excerpt, max_words=EXCERPT_MAX_WORDS)):
             terms[t] = terms.get(t, 0.0) + EXCERPT_WEIGHT
         entity_names = [*self.people, *self.places, *self.other_entities]
+        self.has_entities = bool(entity_names)
         for key in {"@" + normalize_key(n) for n in entity_names if normalize_key(n)}:
             terms[key] = terms.get(key, 0.0) + ENTITY_WEIGHT
         self.terms = terms
@@ -198,6 +200,15 @@ def apply_place_lexicon(names: Names, lexicon: frozenset[str]) -> Names:
     if not moved:
         return names
     return Names(names.people - moved, names.places | moved, names.orgs - moved, names.numbers)
+
+
+def headline_places(doc: Doc, known_places: frozenset[str]) -> Names:
+    """Guard names for an article without an analysis: the headline words known as places.
+
+    Without it the place guard has nothing to compare, and "Zjarr në Prizren" joins "Zjarr në
+    Gjakovë". Numbers come from the headline itself and need no analysis.
+    """
+    return Names(places=doc.headline & known_places, numbers=doc.names.numbers)
 
 
 def idf_table(docs: Iterable[Doc]) -> dict[str, float]:

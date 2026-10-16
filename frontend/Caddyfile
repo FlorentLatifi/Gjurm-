@@ -40,6 +40,12 @@
 		reverse_proxy {$API_UPSTREAM:api:8000}
 	}
 
+	# The sitemap lists the stories, outlets and topics, so the API builds it from the data.
+	handle /sitemap.xml {
+		rewrite * /api/share/sitemap.xml
+		reverse_proxy {$API_UPSTREAM:api:8000}
+	}
+
 	handle /api/* {
 		reverse_proxy {$API_UPSTREAM:api:8000} {
 			health_uri /health

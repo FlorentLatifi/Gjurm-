@@ -6,10 +6,11 @@ import { MemoryRouter } from "react-router-dom";
 
 import { ArticleList } from "@/features/articles/ArticleList";
 import { missingSide, readingCoverage } from "@/features/reading/readingCoverage";
+import { ShareStory } from "@/features/stories/ShareStory";
 import { StoryCard } from "@/features/stories/StoryCard";
 import { StoryCoverage } from "@/features/stories/StoryCoverage";
 import type { Coverage, SourceStat, StorySummary } from "@/shared/api/types";
-import { biasGroup, blindspotLabel, noneRated, segments } from "@/shared/model/ratings";
+import { availableLenses, biasGroup, blindspotLabel, type Lens, LENSES, noneRated, segments } from "@/shared/model/ratings";
 import { useLens } from "@/features/stories/useLens";
 import type { Filters } from "@/shared/hooks/useFilters";
 import { usePreferences } from "@/stores/preferences";
@@ -181,27 +182,75 @@ describe("useLens", () => {
   const router = (entries: string[]) => ({ children }: { children: ReactNode }) => (
     <MemoryRouter initialEntries={entries}>{children}</MemoryRouter>
   );
+  const unrated: Lens[] = ["region", "ownership"];
 
   it("defaults to region while nothing is rated, and remembers the reader's choice", () => {
-    const { result, rerender } = renderHook(({ none }) => useLens(none), {
-      initialProps: { none: true }, wrapper: router(["/"]),
+    const { result, rerender } = renderHook(({ available }) => useLens(available), {
+      initialProps: { available: unrated as Lens[] | null }, wrapper: router(["/"]),
     });
     expect(result.current[0]).toBe("region");
-    rerender({ none: false });
+    rerender({ available: LENSES });
     expect(result.current[0]).toBe("perspective");
     act(() => result.current[1]("ownership"));
     expect(result.current[0]).toBe("ownership");
     expect(JSON.parse(localStorage.getItem("gjurme-prefs")!).state.lens).toBe("ownership");
     // a new view without ?lens= starts from the remembered choice
-    const fresh = renderHook(() => useLens(false), { wrapper: router(["/"]) });
+    const fresh = renderHook(() => useLens(LENSES), { wrapper: router(["/"]) });
     expect(fresh.result.current[0]).toBe("ownership");
   });
 
   it("lets a shared link's ?lens= win over the remembered choice", () => {
     usePreferences.setState({ lens: "ownership" });
-    const { result } = renderHook(() => useLens(false), { wrapper: router(["/stories/7?lens=factuality"]) });
+    const { result } = renderHook(() => useLens(LENSES), { wrapper: router(["/stories/7?lens=factuality"]) });
     expect(result.current[0]).toBe("factuality");
-    const bogus = renderHook(() => useLens(false), { wrapper: router(["/?lens=<x>"]) });
+    const bogus = renderHook(() => useLens(LENSES), { wrapper: router(["/?lens=<x>"]) });
     expect(bogus.result.current[0]).toBe("ownership");
+  });
+
+  it("never splits by a lens with nothing to show, whatever the link or the stored choice", () => {
+    usePreferences.setState({ lens: "factuality" });
+    const { result } = renderHook(() => useLens(unrated), { wrapper: router(["/?lens=perspective"]) });
+    expect(result.current[0]).toBe("region");
+  });
+});
+
+describe("availableLenses", () => {
+  it("offers perspective and factuality only once an outlet in view is rated", () => {
+    expect(availableLenses([coverage({ bias: { left: 0, center: 0, right: 0, unrated: 4 }, factuality: { high: 0, mixed: 0, low: 0, unrated: 4 } })]))
+      .toEqual(["region", "ownership"]);
+    expect(availableLenses([coverage()])).toEqual(LENSES);
+  });
+});
+
+describe("ShareStory", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("copies the story's address and offers the region's messengers where the device cannot share", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { ...navigator, share: undefined, clipboard: { writeText } });
+    wrap(<ShareStory id={42} title="Zgjedhjet & votimi" />);
+    const url = `${window.location.origin}/stories/42`;
+    await userEvent.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(writeText).toHaveBeenCalledWith(url);
+    expect(screen.getByRole("status")).toHaveTextContent("Link copied");
+    expect(screen.getByRole("link", { name: "WhatsApp" })).toHaveAttribute(
+      "href", `https://wa.me/?text=${encodeURIComponent(`Zgjedhjet & votimi ${url}`)}`,
+    );
+    expect(screen.getByRole("link", { name: "Viber" })).toHaveAttribute("href", expect.stringMatching(/^viber:\/\/forward\?text=/));
+    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+  });
+
+  it("opens the device's share sheet where there is one, and treats closing it as no error", async () => {
+    const share = vi.fn().mockRejectedValue(new DOMException("closed", "AbortError"));
+    const writeText = vi.fn();
+    vi.stubGlobal("navigator", { ...navigator, share, clipboard: { writeText } });
+    wrap(<ShareStory id={7} title="Lajmi" />);
+    expect(screen.queryByRole("link", { name: "WhatsApp" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Share" }));
+    expect(share).toHaveBeenCalledWith({ title: "Lajmi", url: `${window.location.origin}/stories/7` });
+    expect(writeText).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 });

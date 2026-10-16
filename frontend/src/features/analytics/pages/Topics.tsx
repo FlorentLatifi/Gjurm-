@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArticleList } from "@/features/articles";
 import { FilterBar } from "@/features/filters";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
+import { isNotFound } from "@/shared/api/client";
 import { useTitle } from "@/shared/hooks/useTitle";
 import {
   ENTITY_TYPE_LABEL,
@@ -15,7 +16,7 @@ import {
 } from "@/shared/lib/format";
 import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
-import { ErrorState } from "@/ui/States";
+import { ErrorState, NotFoundState } from "@/ui/States";
 import { DailyLine, SentimentBar } from "@/ui/charts";
 import { useApiQuery } from "@/shared/query/apiQuery";
 import { topicQueries, topicsQueries } from "../queries";
@@ -90,7 +91,9 @@ export function TopicPage() {
   const topic = useApiQuery(queries.topic);
   const articles = useApiQuery(queries.articles);
   const t = topic.data?.topic;
-  useTitle(t ? t.name_en : "Topic", t?.description);
+  const missing = isNotFound(topic.error);
+  useTitle(missing ? "Topic not found" : t ? t.name_en : "Topic", t?.description, { index: !missing });
+  if (missing) return <NotFoundState title="Topic not found" />;
   if (topic.isError) return <ErrorState error={topic.error} onRetry={() => topic.refetch()} />;
 
   return (

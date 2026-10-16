@@ -70,10 +70,17 @@ services:
 
   api:
     <<: *app
+    environment:
+      <<: *app-env
+      # The public-facing process needs none of these: the LLM keys belong to the scheduler,
+      # the alert webhook to the scheduler and backups.
+      ANTHROPIC_API_KEY: ""
+      LLM_API_KEY: ""
+      ALERT_WEBHOOK_URL: ""
     depends_on:
       migrate: { condition: service_completed_successfully }
     mem_limit: 512m
-    networks: [data, edge] # no internet egress: the API only talks to the DB
+    networks: [data, edge] # both internal: no internet egress, the API only talks to the DB
 
   scheduler:
     <<: *app
@@ -106,7 +113,7 @@ services:
       - caddy_config:/config
     depends_on: [api]
     mem_limit: 256m
-    networks: [edge]
+    networks: [edge, public] # public: published ports and ACME; edge: to the API
     logging: *logging
     restart: unless-stopped
 
@@ -124,6 +131,7 @@ services:
       RETAIN_DAILY: ${RETAIN_DAILY:-7}
       RETAIN_WEEKLY: ${RETAIN_WEEKLY:-4}
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      BACKUP_HEALTHCHECK_URL: ${BACKUP_HEALTHCHECK_URL:-}
     command: ["/bin/sh", "/scripts/backup-loop.sh"]
     volumes:
       - ./backup:/scripts:ro
@@ -163,7 +171,9 @@ services:
     command:
       - |
         while true; do
-          rclone sync /backups "$${RCLONE_REMOTE}" --transfers 2 --log-level INFO || echo "offsite sync failed"
+          # --max-delete: rotation removes 1-2 files a day; an emptied or wrongly mounted /backups
+          # must not wipe the off-site copy too (sync mirrors deletions).
+          rclone sync /backups "$${RCLONE_REMOTE}" --transfers 2 --max-delete 4 --log-level INFO || echo "offsite sync failed"
           sleep 21600
         done
     environment:
@@ -179,7 +189,9 @@ services:
 networks:
   data:
     internal: true # the database network has no route to the internet
-  edge: {}
+  edge:
+    internal: true # Caddy ↔ API only
+  public: {} # Caddy: published ports, certificates
   egress: {}
   llm:
     internal: true # scheduler ↔ local model only

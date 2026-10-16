@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 
+import { isNotFound } from "@/shared/api/client";
 import type { StoryArticle, StoryDetail } from "@/shared/api/types";
 import { useTitle } from "@/shared/hooks/useTitle";
 import { useApiQuery } from "@/shared/query/apiQuery";
@@ -12,16 +13,17 @@ import {
   FACTUALITY_LABEL,
   type Lens,
   LENS_LABEL,
-  noneRated,
+  availableLenses,
   OWNERSHIP_LABEL,
   segments,
 } from "@/shared/model/ratings";
 import { recordRead } from "@/stores/reading";
 import { Card } from "@/ui/Card";
 import { SentimentChip } from "@/ui/SentimentChip";
-import { ErrorState, LoadingBlock } from "@/ui/States";
+import { ErrorState, LoadingBlock, NotFoundState } from "@/ui/States";
 import { BlindspotBadges, StoryCard } from "../StoryCard";
 import { LensPicker, StoryCoverage } from "../StoryCoverage";
+import { ShareStory } from "../ShareStory";
 import { useLens } from "../useLens";
 import { groupOf, markColor, segmentsByKey } from "../lensGroup";
 import { storyQueries } from "../queries";
@@ -68,10 +70,25 @@ function HeadlineColumns({ story, lens }: { story: StoryDetail; lens: Lens }) {
 
 export function StoryPage() {
   const id = Number(useParams().id);
-  const query = useApiQuery(storyQueries(id).story, isPositiveId(id));
+  const valid = isPositiveId(id);
+  const query = useApiQuery(storyQueries(id).story, valid);
   const s = query.data;
-  useTitle(s?.title ?? "Story", s ? `${s.source_count} outlets covered this story.` : undefined);
-  const [lens, setLens] = useLens(s ? noneRated([s.coverage]) : false);
+  const missing = !valid || isNotFound(query.error);
+  useTitle(
+    missing ? "Story not found" : (s?.title ?? "Story"),
+    s ? `${s.source_count} outlets covered this story.` : undefined,
+    { index: !missing },
+  );
+  const available = s ? availableLenses([s.coverage]) : null;
+  const [lens, setLens] = useLens(available);
+  if (missing) {
+    return (
+      <NotFoundState title="Story not found">
+        This story does not exist, or is no longer shown. Stories are regrouped from time to
+        time, so an old link can point nowhere.
+      </NotFoundState>
+    );
+  }
   if (query.isPending) return <LoadingBlock height={320} />;
   if (query.isError || !s) return <ErrorState error={query.error} />;
   const first = s.articles.find((a) => a.is_first) ?? s.articles[0]!;
@@ -92,13 +109,14 @@ export function StoryPage() {
           <BlindspotBadges story={s} />
         </p>
         {summary && <p className="story-head__summary">{summary} <span className="meta">(AI summary)</span></p>}
+        <ShareStory id={s.id} title={s.title} />
       </header>
 
       <div className="feed-layout">
         <div className="stack">
           <Card title="How each outlet headlined it"
             question="Every outlet's own headline, linked to the original. Compare the wording."
-            actions={<LensPicker lens={lens} onChange={setLens} />}>
+            actions={<LensPicker lens={lens} onChange={setLens} available={available ?? undefined} />}>
             {() => <HeadlineColumns story={s} lens={lens} />}
           </Card>
           <Card title="Timeline" question="Who reported it, and when — each mark is one report.">
@@ -134,7 +152,7 @@ export function StoryPage() {
           <Card title="Coverage details" question="Distinct outlets that covered this story.">
             {() => (
               <div className="stack">
-                {(["perspective", "factuality", "ownership", "region"] as Lens[]).map((l) => (
+                {(["perspective", "factuality", "ownership", "region"] as Lens[]).filter((l) => available?.includes(l)).map((l) => (
                   <div key={l} className="stack stack--tight">
                     <h3>{LENS_LABEL[l]}</h3>
                     <StoryCoverage coverage={s.coverage} lens={l} />
@@ -148,7 +166,9 @@ export function StoryPage() {
                   <dt>Last update</dt><dd>{formatDateTime(s.last_published_at)}</dd>
                 </dl>
                 <p className="card__foot">
-                  Ratings are editorial and belong to the outlet, not to the article.{" "}
+                  {available?.includes("perspective")
+                    ? "Ratings are editorial and belong to the outlet, not to the article. "
+                    : "None of these outlets has a perspective or factuality rating yet. "}
                   <Link to="/about#ratings">How outlets are rated</Link>
                 </p>
               </div>
@@ -164,7 +184,16 @@ export function StoryPage() {
                       <span className="dot" style={{ background: BIAS_GROUP_COLOR[biasGroup(src.bias)] }} aria-hidden="true" />
                       <span>
                         <Link to={`/sources/${src.slug}`}>{src.name}</Link>
-                        <span className="meta"> · {BIAS_LABEL[src.bias]} · {FACTUALITY_LABEL[a.source_factuality]} factuality · {OWNERSHIP_LABEL[a.source_ownership]} · {countryLabel(src.country)}</span>
+                        <span className="meta">
+                          {" · "}
+                          {[
+                            src.bias !== "unrated" && BIAS_LABEL[src.bias],
+                            a.source_factuality !== "unrated" && `${FACTUALITY_LABEL[a.source_factuality]} factuality`,
+                            src.bias === "unrated" && a.source_factuality === "unrated" && "not rated yet",
+                            OWNERSHIP_LABEL[a.source_ownership],
+                            countryLabel(src.country),
+                          ].filter(Boolean).join(" · ")}
+                        </span>
                       </span>
                     </li>
                   );

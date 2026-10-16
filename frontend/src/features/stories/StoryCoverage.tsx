@@ -1,5 +1,5 @@
 import type { Coverage } from "@/shared/api/types";
-import { type Lens, LENS_LABEL, segments } from "@/shared/model/ratings";
+import { type Lens, LENS_LABEL, LENSES, segments } from "@/shared/model/ratings";
 import { CoverageBar } from "@/ui/CoverageBar";
 
 /** A story's coverage through one lens. */
@@ -25,12 +25,18 @@ export function StoryCoverage({
   );
 }
 
-export const LENSES: Lens[] = ["perspective", "region", "ownership", "factuality"];
-
-export function LensPicker({ lens, onChange }: { lens: Lens; onChange: (lens: Lens) => void }) {
+export function LensPicker({
+  lens,
+  onChange,
+  available = LENSES,
+}: {
+  lens: Lens;
+  onChange: (lens: Lens) => void;
+  available?: Lens[];
+}) {
   return (
     <div className="segmented" role="group" aria-label="Split coverage by">
-      {LENSES.map((l) => (
+      {available.map((l) => (
         <button key={l} type="button" aria-pressed={lens === l} onClick={() => onChange(l)}>
           {LENS_LABEL[l]}
         </button>

@@ -45,6 +45,7 @@ The rows below apply to both paths. Skip the VPS/domain rows on the free path, a
 | 👤 | GHCR pull access on the server (`docker login ghcr.io`), or make the two packages public | Server / GitHub Packages | [DEPLOYMENT.md §4](DEPLOYMENT.md#4-registry-access--owner) |
 | 👤 | GitHub `production` environment with `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`; variables `DEPLOY_ENABLED=true`, `DOMAIN`, `PUBLIC_URL` | GitHub → Settings | [DEPLOYMENT.md §7](DEPLOYMENT.md#7-continuous-deployment--owner) |
 | 👤 | Alert webhook (Slack/Discord/ntfy) | `.env` (`ALERT_WEBHOOK_URL`, `ALERT_WEBHOOK_FORMAT`) | Test with `gjurme alert-test`. |
+| 👤 | Dead-man checks for the pipeline and the backups (healthchecks.io, free) | `.env` (`HEALTHCHECK_PING_URL`, `BACKUP_HEALTHCHECK_URL`) | They alert when runs or backups stop; the webhook cannot when the server is down ([DEPLOYMENT.md](DEPLOYMENT.md#8-verify)). |
 | 👤 | Off-site backup bucket (recommended) | rclone config + `RCLONE_REMOTE` | [DEPLOYMENT.md §9](DEPLOYMENT.md#9-off-site-backups-optional-recommended--owner) |
 | 👤 | **Private contact for correction/removal requests** on the About page | Repository variable `CONTACT_URL` (e.g. `mailto:press@your-domain`), used at image build | The default is the repository's GitHub issues, which are public. A person asking for their name to be removed should not have to post it publicly. Also set the server's `CONTACT_URL` (User-Agent and OpenAPI contact). |
 | 👤 | **Outlet ratings** (perspective and factuality) for the real outlets | `backend/src/gjurme/sources/sources.yaml`, each with its `ratings_note` ([SOURCES.md](SOURCES.md#ratings)) | Until then the feed opens on the region lens and perspective blindspots stay empty; ownership is already filled in. An editorial judgement — document the basis. |
@@ -60,7 +61,7 @@ The rows below apply to both paths. Skip the VPS/domain rows on the free path, a
 5. ⬜ Set `PUBLIC_URL` and run the *Uptime monitor* workflow manually once.
 6. ⬜ Paste a story link into WhatsApp or Telegram (or Facebook's Sharing Debugger): the preview shows the story's headline and "N outlets covered this story".
 7. ⬜ Set `DEPLOY_ENABLED=true` and confirm that the next push deploys through CI.
-8. ⬜ Set the repository variables `PUBLIC_URL` and `CONTACT_URL` **before** the first CI image build. CI passes them into the web build (`VITE_PUBLIC_URL`, `VITE_CONTACT_URL`), which makes canonical links, Open Graph and the sitemap point at the real domain and shows the private contact.
+8. ⬜ Set the repository variables `PUBLIC_URL` and `CONTACT_URL` **before** the first CI image build. CI passes them into the web build (`VITE_PUBLIC_URL`, `VITE_CONTACT_URL`), which makes canonical links, Open Graph and robots.txt point at the real domain and shows the private contact. Then submit `https://<domain>/sitemap.xml` in Google Search Console and Bing Webmaster Tools: it lists every multi-outlet story of the last 90 days, the outlets and the topics.
 
 ## 4. First week ⬜
 

@@ -79,6 +79,23 @@ test.describe("GJURMË stories", () => {
     await expect(page.locator(".story-card").first()).toBeVisible();
   });
 
+  test("the masthead search opens the story feed's keyword search from any page", async ({ page }) => {
+    await page.goto("/sources");
+    const toggle = page.getByRole("button", { name: "Search", expanded: false });
+    await toggle.click();
+    const box = page.getByRole("searchbox", { name: "Search stories" }).first();
+    await expect(box).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(box).toBeHidden();
+    await expect(toggle).toBeFocused();
+    await toggle.click();
+    await box.fill("autostrada");
+    await box.press("Enter");
+    await expect(page).toHaveURL(/\/\?q=autostrada$/);
+    await expect(box).toBeHidden();
+    await expect(page.locator(".story-card__title").first()).toContainText(/autostrad/i);
+  });
+
   test("blindspot page groups stories by the side that missed them", async ({ page }) => {
     await page.goto("/blindspot");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Blindspot");
@@ -269,9 +286,84 @@ test.describe("GJURMË dashboard", () => {
     expect(await reader.text()).toContain('<div id="root">');
   });
 
-  test("unknown routes show a 404 page", async ({ page }) => {
+  test("a story page shares its own address", async ({ page }) => {
+    // Record what is copied instead of reading the real clipboard (permissions differ by browser).
+    await page.addInitScript(
+      "Object.defineProperty(navigator, 'share', { value: undefined });" +
+        "Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (t) => { window.__copied = t; } } });",
+    );
+    await page.goto("/");
+    await page.locator(".story-card__title a").first().click();
+    await expect(page).toHaveURL(/\/stories\/\d+$/);
+    const url = page.url();
+    const share = page.getByRole("group", { name: "Share this story" });
+    await share.getByRole("button", { name: "Copy link" }).click();
+    await expect(share.getByRole("status")).toHaveText("Link copied");
+    expect(await page.evaluate("window.__copied")).toBe(url);
+    await expect(share.getByRole("link", { name: "WhatsApp" })).toHaveAttribute("href", new RegExp(encodeURIComponent(url).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  });
+
+  test("before any outlet is rated, nothing is split by perspective or factuality", async ({ page }) => {
+    // The launch state: the real outlets have ownership and region, but no editorial ratings yet.
+    const unrate = (value: unknown, key = ""): unknown => {
+      if (Array.isArray(value)) {
+        const list = key === "blindspots" ? value.filter((b: { kind?: string }) => b.kind !== "perspective") : value;
+        return list.map((v) => unrate(v));
+      }
+      if (!value || typeof value !== "object") {
+        return /^(source_)?(bias|factuality)$/.test(key) ? "unrated" : value;
+      }
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value)) {
+        if (k === "bias" && v && typeof v === "object") {
+          const n = Object.values(v as Record<string, number>).reduce((a, b) => a + b, 0);
+          out[k] = { left: 0, center: 0, right: 0, unrated: n };
+        } else if (k === "factuality" && v && typeof v === "object") {
+          const n = Object.values(v as Record<string, number>).reduce((a, b) => a + b, 0);
+          out[k] = { high: 0, mixed: 0, low: 0, unrated: n };
+        } else {
+          out[k] = unrate(v, k);
+        }
+      }
+      return out;
+    };
+    await page.route(/\/api\/v1\/(stories|sources)/, async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({ response, json: unrate(await response.json()) });
+    });
+    await page.goto("/");
+    const picker = page.getByRole("group", { name: "Split coverage by" });
+    await expect(picker.getByRole("button", { name: "Region", pressed: true })).toBeVisible();
+    await expect(picker.getByRole("button", { name: "Perspective" })).toHaveCount(0);
+    await expect(picker.getByRole("button", { name: "Factuality" })).toHaveCount(0);
+    await page.locator(".story-card__title a").first().click();
+    await expect(page.getByText("None of these outlets has a perspective or factuality rating yet.")).toBeVisible();
+    await page.goto("/blindspot");
+    await expect(page.getByRole("heading", { name: "Left and right blindspots" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^For the left/ })).toHaveCount(0);
+  });
+
+  test("unknown routes show a 404 page that search engines do not list", async ({ page }) => {
     await page.goto("/does-not-exist");
     await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+    for (const path of ["/stories/999999", "/stories/not-a-number"]) {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { name: "Story not found" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Go to the top stories" })).toBeVisible();
+    }
+  });
+
+  test("each page names its own canonical URL; the sitemap lists the stories", async ({ page, request }) => {
+    const list = await (await request.get("/api/v1/stories?days=30&min_sources=2&page_size=1")).json();
+    const id = (list.items[0] as { id: number }).id;
+    await page.goto(`/stories/${id}?lens=region`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", new RegExp(`/stories/${id}$`));
+    await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
+    const sitemap = await request.get("/sitemap.xml");
+    expect(sitemap.headers()["content-type"]).toContain("application/xml");
+    expect(await sitemap.text()).toContain(`/stories/${id}</loc>`);
   });
 
   for (const path of [

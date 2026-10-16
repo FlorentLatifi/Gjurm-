@@ -6,7 +6,7 @@ import { useFilters, withFilters } from "@/shared/hooks/useFilters";
 import { useTitle } from "@/shared/hooks/useTitle";
 import { useApiQuery } from "@/shared/query/apiQuery";
 import { ENTITY_TYPE_LABEL, formatInt } from "@/shared/lib/format";
-import { countryLabel, noneRated, REGION_ORDER } from "@/shared/model/ratings";
+import { availableLenses, countryLabel, REGION_ORDER } from "@/shared/model/ratings";
 import { useReadingCount } from "@/stores/reading";
 import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
@@ -58,7 +58,12 @@ export default function StoriesPage() {
     idle(() => void loadStoryPage());
   }, []);
   const items = stories.data?.items ?? [];
-  const [lens, setLens] = useLens(stories.data ? noneRated(items.map((s) => s.coverage)) : false);
+  const available = stories.data ? availableLenses(items.map((s) => s.coverage)) : null;
+  const [lens, setLens] = useLens(available);
+  // the blindspot box: perspective bars only once its stories have rated outlets
+  const blindLens = availableLenses((blind.data?.items ?? []).map((s) => s.coverage)).includes("perspective")
+    ? "perspective"
+    : "region";
   const data = stories.data;
 
   return (
@@ -105,7 +110,7 @@ export default function StoriesPage() {
       </div>
       <div className="lens-row">
         <span className="rank-meta">Split coverage by</span>
-        <LensPicker lens={lens} onChange={setLens} />
+        <LensPicker lens={lens} onChange={setLens} available={available ?? undefined} />
       </div>
 
       <div className="feed-layout">
@@ -144,7 +149,7 @@ export default function StoriesPage() {
             actions={<Link className="btn btn--ghost btn--sm" to="/blindspot" aria-label="All blindspots">See all</Link>}>
             {() => (
               <div>
-                {blind.data!.items.slice(0, 3).map((s) => <StoryCard key={s.id} story={s} lens="perspective" compact />)}
+                {blind.data!.items.slice(0, 3).map((s) => <StoryCard key={s.id} story={s} lens={blindLens} compact />)}
               </div>
             )}
           </Card>

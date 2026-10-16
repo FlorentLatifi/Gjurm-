@@ -24,6 +24,15 @@ from bs4 import BeautifulSoup
 # Text
 # --------------------------------------------------------------------------------------------
 _ZERO_WIDTH = dict.fromkeys(map(ord, "​‌‍⁠﻿­"), None)
+# C0 controls except tab/newline/CR, and DEL. PostgreSQL rejects NUL in text and JSON, so one
+# "&#0;" in a feed item would make the whole fetch unstorable.
+_CONTROL = dict.fromkeys([*range(0x00, 0x09), 0x0B, 0x0C, *range(0x0E, 0x20), 0x7F], None)
+
+
+def strip_control(text: str) -> str:
+    return text.translate(_CONTROL)
+
+
 _SPACES = re.compile(r"[\s   ]+")
 _MOJIBAKE = re.compile(r"[ÃÅÄ][\u0080-¿]")
 _WP_FOOTER = re.compile(r"\s*(The post .+? appeared first on .+?\.|Postimi .+? u shfaq .+?\.)\s*$")
@@ -61,7 +70,7 @@ def clean_text(value: Any) -> str:
     text = strip_html(text)
     text = html.unescape(text)  # double-escaped entities (&amp;euml;) are common in feeds
     text = fix_mojibake(text)
-    text = unicodedata.normalize("NFC", text).translate(_ZERO_WIDTH)
+    text = unicodedata.normalize("NFC", text).translate(_ZERO_WIDTH).translate(_CONTROL)
     text = _SPACES.sub(" ", text).strip()
     return text
 

@@ -11,6 +11,7 @@ from gjurme.config import Settings
 from gjurme.db.models import Article, FeedFetch, FeedItem, Source
 from gjurme.ingestion.ingest import ingest_all
 from gjurme.ingestion.processor import process_pending
+from gjurme.quality.checks import check_source_freshness
 from tests.conftest import feed_server, fixture_bytes
 from tests.integration.helpers import add_source, pubdate, rss
 
@@ -87,6 +88,58 @@ def test_source_auto_disabled_after_threshold(db, settings, make_fetcher) -> Non
             src is not None and not src.is_active and "auto-disabled" in (src.disabled_reason or "")
         )
     assert ingest_all(db, fetcher, cfg).sources == []  # disabled sources are skipped
+
+
+def test_an_outage_on_this_side_does_not_disable_the_sources(db, settings, make_fetcher) -> None:
+    """DNS or egress down on the server: every feed fails, none of them is at fault."""
+    with db() as s, s.begin():
+        for slug in ("aa", "bb", "cc", "dd"):
+            add_source(s, slug, f"https://{slug}.example.com/feed/")
+
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("Temporary failure in name resolution", request=request)
+
+    cfg = settings.model_copy(update={"source_failure_disable_threshold": 2})
+    for _ in range(3):
+        stats = ingest_all(db, make_fetcher(down), cfg)
+        assert stats.outage and stats.sources_failed == 4
+    with db() as s:
+        sources = s.scalars(select(Source)).all()
+        assert all(src.is_active and src.consecutive_failures == 0 for src in sources)
+        assert _count(s, FeedFetch) == 12  # the failed fetches are still logged
+        assert check_source_freshness(s).status == "fail"  # but nothing is being collected
+
+
+def test_an_auto_disabled_source_is_probed_again_and_recovers(db, settings, make_fetcher) -> None:
+    with db() as s, s.begin():
+        for slug in ("aa", "bb", "cc", "dd"):
+            add_source(s, slug, f"https://{slug}.example.com/feed/")
+    healthy = {
+        f"https://{slug}.example.com/feed/": (200, fixture_bytes("atom.xml"), {})
+        for slug in ("aa", "bb", "cc")
+    }
+    cfg = settings.model_copy(update={"source_failure_disable_threshold": 2})
+    for _ in range(2):  # only dd fails: an outage of dd, so it counts
+        stats = ingest_all(db, make_fetcher(feed_server(healthy)), cfg)
+    assert not stats.outage and [x.slug for x in stats.sources if x.auto_disabled] == ["dd"]
+    with db() as s:
+        result = check_source_freshness(s)
+        assert result.status == "warn" and result.details["auto_disabled"] == ["dd"]
+
+    recovered = {**healthy, "https://dd.example.com/feed/": (200, fixture_bytes("atom.xml"), {})}
+    assert "dd" not in {
+        x.slug for x in ingest_all(db, make_fetcher(feed_server(recovered)), cfg).sources
+    }
+    with db() as s, s.begin():  # six hours later it is probed again
+        dd = s.scalar(select(Source).where(Source.slug == "dd"))
+        assert dd is not None
+        dd.last_fetch_at = datetime.now(UTC) - timedelta(hours=7)
+    stats = ingest_all(db, make_fetcher(feed_server(recovered)), cfg)
+    assert [x.slug for x in stats.sources if x.re_enabled] == ["dd"]
+    with db() as s:
+        dd = s.scalar(select(Source).where(Source.slug == "dd"))
+        assert dd is not None and dd.is_active and dd.disabled_reason is None
+        assert check_source_freshness(s).status == "pass"
 
 
 def test_changed_item_is_requeued(db, settings, make_fetcher) -> None:
@@ -288,3 +341,53 @@ def test_unicode_survives_round_trip(db, settings, make_fetcher) -> None:
     assert stats.accepted == 1 and art is not None
     assert art.title == "Kosovë dhe Shqipëri nënshkruajnë marrëveshje për energjinë"
     assert art.excerpt == "Ministrja tha se çmimet do të ulen."
+
+
+def test_a_nul_character_does_not_block_the_feed(db, settings, make_fetcher) -> None:
+    """PostgreSQL rejects NUL in text and JSON; one "&#0;" used to make the whole fetch fail."""
+    with db() as s, s.begin():
+        add_source(s, "src", "https://src.example.com/feed/")
+    items = [
+        {
+            "title": f"Lajmi numër {i} për Kuvendin",
+            "link": f"https://src.example.com/{i}",
+            "guid": f"g{i}",
+            "pubDate": pubdate(),
+        }
+        for i in range(3)
+    ]
+    items.append(
+        {"title": "BAD", "link": "https://src.example.com/bad", "guid": "bad", "pubDate": pubdate()}
+    )
+    body = rss(items).replace(b"<![CDATA[BAD]]>", b"Titull me&#0; karakter\x01 t\xc3\xab keq")
+    feed = {"https://src.example.com/feed/": (200, body, {"content-type": "application/rss+xml"})}
+    stats = ingest_all(db, make_fetcher(feed_server(feed)), settings)
+    assert stats.sources[0].status == "ok" and stats.sources[0].items_new == 4
+    with db() as s:
+        process_pending(s, settings)
+        titles = set(s.scalars(select(Article.title)))
+    assert "Titull me karakter të keq" in titles
+
+
+def test_a_fetch_that_cannot_be_stored_counts_as_a_failure(
+    db, settings, make_fetcher, monkeypatch
+) -> None:
+    with db() as s, s.begin():
+        add_source(s, "src", "https://src.example.com/feed/")
+
+    def broken_store(*args: object, **kwargs: object) -> None:
+        raise ValueError("cannot store")
+
+    monkeypatch.setattr("gjurme.ingestion.ingest.store_fetch_result", broken_store)
+    feed = {"https://src.example.com/feed/": (200, fixture_bytes("atom.xml"), {})}
+    stats = ingest_all(db, make_fetcher(feed_server(feed)), settings)
+    assert stats.sources[0].status == "parse_error"
+    with db() as s:
+        src = s.scalar(select(Source))
+        fetch = s.scalar(select(FeedFetch))
+        assert src is not None and src.consecutive_failures == 1 and src.last_fetch_at
+        assert (
+            fetch is not None
+            and fetch.status == "parse_error"
+            and "cannot store" in (fetch.error or "")
+        )

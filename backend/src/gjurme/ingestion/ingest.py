@@ -2,6 +2,11 @@
 
 Network I/O runs concurrently (bounded thread pool); database writes happen per source in their
 own transaction, so one failing source — network, parse or DB error — never affects another.
+
+A source is auto-disabled after ``source_failure_disable_threshold`` failures in a row, except
+in runs where most sources fail at once: that is an outage on this side (DNS, egress), not the
+outlets'. Auto-disabled sources are fetched again every ``REPROBE_AFTER`` and re-enabled when
+the fetch succeeds.
 """
 
 from __future__ import annotations
@@ -10,10 +15,10 @@ import logging
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import case, select, tuple_
+from sqlalchemy import and_, case, or_, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -26,6 +31,11 @@ from gjurme.ingestion.normalize import clean_text, item_key, sha256_hex
 log = logging.getLogger(__name__)
 
 SUCCESS_STATUSES = ("ok", "not_modified")
+AUTO_DISABLED = "auto-disabled"  # prefix of Source.disabled_reason
+REPROBE_AFTER = timedelta(hours=6)
+# At least this many sources fetched, and at least this share of them failing: an outage here.
+OUTAGE_MIN_SOURCES = 3
+OUTAGE_FAILED_SHARE = 0.75
 
 
 @dataclass(slots=True)
@@ -40,11 +50,13 @@ class SourceIngestStats:
     duration_ms: int = 0
     error: str | None = None
     auto_disabled: bool = False
+    re_enabled: bool = False
 
 
 @dataclass(slots=True)
 class IngestStats:
     sources: list[SourceIngestStats] = field(default_factory=list)
+    outage: bool = False  # most sources failed: failures were not counted
 
     @property
     def sources_ok(self) -> int:
@@ -67,6 +79,8 @@ class IngestStats:
             "items_new": self.items_new,
             "items_changed": sum(s.items_changed for s in self.sources),
             "auto_disabled": [s.slug for s in self.sources if s.auto_disabled],
+            "re_enabled": [s.slug for s in self.sources if s.re_enabled],
+            "outage": self.outage,
             "per_source": [asdict(s) for s in self.sources],
         }
 
@@ -78,6 +92,7 @@ class _SourceSnapshot:
     feed_url: str
     etag: str | None
     last_modified: str | None
+    is_active: bool  # False: an auto-disabled source fetched again to see if it recovered
 
 
 def _prepare_items(entries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -107,8 +122,13 @@ def store_fetch_result(
     run_id: int | None,
     started_at: datetime,
     failure_threshold: int,
+    count_failure: bool = True,
 ) -> SourceIngestStats:
-    """Persist one fetch outcome and its items. Runs inside the caller's transaction."""
+    """Persist one fetch outcome and its items. Runs inside the caller's transaction.
+
+    ``count_failure=False`` (an outage on this side) records a failed fetch without counting it
+    towards auto-disabling the source.
+    """
     stats = SourceIngestStats(
         slug=source.slug,
         status=result.status,
@@ -152,17 +172,13 @@ def store_fetch_result(
             source.etag = result.etag
             source.last_modified = result.last_modified
         source.verification_status = "verified"  # proven by a successful fetch
-    else:
-        source.consecutive_failures += 1
-        if source.consecutive_failures >= failure_threshold and source.is_active:
-            source.is_active = False
-            source.verification_status = "failing"
-            source.disabled_reason = (
-                f"auto-disabled after {source.consecutive_failures} consecutive failures "
-                f"(last: {stats.status}: {stats.error})"
-            )
-            stats.auto_disabled = True
-            log.warning("source auto-disabled", extra={"source": source.slug})
+        if not source.is_active and (source.disabled_reason or "").startswith(AUTO_DISABLED):
+            source.is_active = True
+            source.disabled_reason = None
+            stats.re_enabled = True
+            log.info("auto-disabled source recovered", extra={"source": source.slug})
+    elif count_failure:
+        count_source_failure(source, stats, failure_threshold)
 
     if parsed is not None:
         prepared = _prepare_items(parsed.entries)
@@ -211,6 +227,20 @@ def store_fetch_result(
     return stats
 
 
+def count_source_failure(source: Source, stats: SourceIngestStats, threshold: int) -> None:
+    """One more failure in a row; auto-disable the source at ``threshold``."""
+    source.consecutive_failures += 1
+    if source.consecutive_failures >= threshold and source.is_active:
+        source.is_active = False
+        source.verification_status = "failing"
+        source.disabled_reason = (
+            f"{AUTO_DISABLED} after {source.consecutive_failures} consecutive failures "
+            f"(last: {stats.status}: {stats.error})"
+        )
+        stats.auto_disabled = True
+        log.warning("source auto-disabled", extra={"source": source.slug})
+
+
 def ingest_all(
     session_factory: Callable[[], Session],
     fetcher: FeedFetcher,
@@ -219,12 +249,21 @@ def ingest_all(
     run_id: int | None = None,
     only_slugs: list[str] | None = None,
 ) -> IngestStats:
+    reprobe = and_(
+        Source.is_active.is_(False),
+        Source.disabled_reason.startswith(AUTO_DISABLED),
+        or_(
+            Source.last_fetch_at.is_(None), Source.last_fetch_at < datetime.now(UTC) - REPROBE_AFTER
+        ),
+    )
     with session_factory() as session:
-        query = select(Source).where(Source.is_active.is_(True), Source.feed_url.is_not(None))
+        query = select(Source).where(
+            or_(Source.is_active.is_(True), reprobe), Source.feed_url.is_not(None)
+        )
         if only_slugs:
             query = query.where(Source.slug.in_(only_slugs))
         snapshots = [
-            _SourceSnapshot(s.id, s.slug, s.feed_url or "", s.etag, s.last_modified)
+            _SourceSnapshot(s.id, s.slug, s.feed_url or "", s.etag, s.last_modified, s.is_active)
             for s in session.scalars(query.order_by(Source.id))
         ]
 
@@ -242,6 +281,17 @@ def ingest_all(
     ) as pool:
         results = list(pool.map(_fetch, snapshots))
 
+    fetched = [r for snap, _, r in results if snap.is_active]
+    failed = sum(1 for r in fetched if r.status not in SUCCESS_STATUSES)
+    stats.outage = len(fetched) >= OUTAGE_MIN_SOURCES and failed >= OUTAGE_FAILED_SHARE * len(
+        fetched
+    )
+    if stats.outage:
+        log.error(
+            "most sources failed at once — an outage on this side; not counted against sources",
+            extra={"failed": failed, "fetched": len(fetched)},
+        )
+    threshold = settings.source_failure_disable_threshold
     for snap, started, result in results:
         try:
             with session_factory() as session, session.begin():
@@ -254,13 +304,19 @@ def ingest_all(
                     result,
                     run_id=run_id,
                     started_at=started,
-                    failure_threshold=settings.source_failure_disable_threshold,
+                    failure_threshold=threshold,
+                    count_failure=not stats.outage,
                 )
         except Exception as exc:  # isolate: a DB/parse bug on one source must not stop others
             log.exception("storing fetch result failed", extra={"source": snap.slug})
             source_stats = SourceIngestStats(
-                slug=snap.slug, status="parse_error", error=f"{type(exc).__name__}: {exc}"[:500]
+                slug=snap.slug,
+                status="parse_error",
+                http_status=result.http_status,
+                duration_ms=result.duration_ms,
+                error=f"{type(exc).__name__}: {exc}"[:500],
             )
+            _record_store_failure(session_factory, snap, started, source_stats, run_id, threshold)
         stats.sources.append(source_stats)
         log.info(
             "source ingested",
@@ -273,3 +329,35 @@ def ingest_all(
             },
         )
     return stats
+
+
+def _record_store_failure(
+    session_factory: Callable[[], Session],
+    snap: _SourceSnapshot,
+    started: datetime,
+    stats: SourceIngestStats,
+    run_id: int | None,
+    threshold: int,
+) -> None:
+    """A fetch whose result could not be stored still counts as a failed fetch, so a feed that
+    keeps breaking the store shows up in the fetch log and is eventually auto-disabled."""
+    try:
+        with session_factory() as session, session.begin():
+            source = session.get(Source, snap.id)
+            if source is None:
+                return
+            session.add(
+                FeedFetch(
+                    run_id=run_id,
+                    source_id=source.id,
+                    started_at=started,
+                    duration_ms=stats.duration_ms,
+                    status=stats.status,
+                    http_status=stats.http_status,
+                    error=stats.error,
+                )
+            )
+            source.last_fetch_at = datetime.now(UTC)
+            count_source_failure(source, stats, threshold)
+    except Exception:
+        log.exception("recording the failed fetch failed", extra={"source": snap.slug})

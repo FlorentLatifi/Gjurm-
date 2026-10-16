@@ -3,9 +3,9 @@
 Commands assume you are on the server as the `deploy` user in `/opt/gjurme`, with:
 
 ```bash
-# The compose file requires IMAGE_TAG; deploy.sh records the running tag in .deploy-state/current.
-alias dc='IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml'
-alias gj='IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml exec scheduler gjurme'   # CLI inside the running image
+# The compose file requires IMAGE_TAG; deploy.sh records the tag that is up in .deploy-state/running.
+alias dc='IMAGE_TAG=$(cat .deploy-state/running) docker compose -f docker-compose.prod.yml'
+alias gj='IMAGE_TAG=$(cat .deploy-state/running) docker compose -f docker-compose.prod.yml exec scheduler gjurme'   # CLI inside the running image
 export TOKEN=$(grep ^ADMIN_API_TOKEN= .env | cut -d= -f2-)
 admin() { curl -fsS -H "Authorization: Bearer $TOKEN" "https://$DOMAIN/api/v1/admin/$1" "${@:2}"; }
 ```
@@ -14,7 +14,8 @@ admin() { curl -fsS -H "Authorization: Bearer $TOKEN" "https://$DOMAIN/api/v1/ad
 
 | Signal | Where | Detects |
 |---|---|---|
-| **Uptime monitor** (GitHub Actions, every 30 min) | Failed workflow run → GitHub e-mail to the owner | Site or API down, DB unreachable, **pipeline stale** (`/api/v1/status` = `stale`: no successful run for 120 min), TLS certificate < 14 days. This is the only alarm that still works when the whole server is down. |
+| **Uptime monitor** (GitHub Actions, every 30 min) | Failed workflow run → GitHub e-mail to the owner | Site or API down, DB unreachable, **pipeline stale** (`/api/v1/status` = `stale`: no successful run for 120 min), TLS certificate < 14 days. Works when the whole server is down, but GitHub disables scheduled workflows after 60 days without repository activity, so also set up the dead-man checks below. |
+| **Dead-man checks** (optional: `HEALTHCHECK_PING_URL`, `BACKUP_HEALTHCHECK_URL`) | The external service's e-mail/app | Every pipeline run and every backup pings (`/fail` on failure); the service alerts when pings stop: server down, scheduler stuck, backups not running ([DEPLOYMENT.md](DEPLOYMENT.md#8-verify)). |
 | **Alert webhook** (from the scheduler) | Slack / Discord / ntfy / generic JSON | Run failed, all sources down, source auto-disabled, LLM budget exhausted, LLM fatal error, circuit breaker open, data-quality failures, abnormal article volume. Deduplicated per key for 6 h; every alert (including suppressed ones) is in `ops.alert_events`. |
 | `GET /api/v1/status` (public) | Browser / curl / the dashboard's Status page | `ok` / `degraded` / `stale`, last run, scheduler heartbeat, backlog, per-source health |
 | `GET /health/ready` | Caddy, deploy.sh, monitor | DB reachable and migration revision |
@@ -54,13 +55,14 @@ Run after every pipeline run (and on demand: `gj quality`). Results are in `ops.
 | `raw_rejection_rate_24h` | 24 h | > 10% / > 30% | A feed changed format (missing links/dates) → `admin failures` |
 | `duplicate_rate_24h` | 24 h | > 95% (info) | A feed republishing old items |
 | `estimated_publication_dates_24h` | 24 h | > 20% | A feed dropped or broke its dates |
-| `enrichment_backlog_6h` | pending > 6 h old | > 200 / > 1000 | Budget too small, enrichment paused, or LLM failing |
+| `enrichment_backlog_6h` | still due an analysis > 6 h after arriving (pending, or failed with attempts left) | > 200 / > 1000 | Budget too small, enrichment paused, or LLM failing |
 | `enrichment_failure_rate_24h` | 24 h | > 10% / > 30% (critical) | LLM incident, bad key, schema problem |
 | `enrichment_consistency` | all | any (critical) | `succeeded` article without a current enrichment, or the reverse (a bug) |
-| `story_backlog_2h` | unclustered > 2 h old | > 50 / > 500 | CLUSTER stage failing or skipped (`gjurme cluster` runs it alone) |
+| `story_backlog_2h` | unclustered > 2 h after it could be clustered (analysed, or `STORY_ENRICHMENT_WAIT_MINUTES` passed) | > 50 / > 500 | CLUSTER stage failing or skipped (`gjurme cluster` runs it alone) |
 | `malformed_entities` | all | any | Empty or markup-like entity names (prompt or repair regression) |
 | `ungrounded_entity_rate_24h` | 24 h | > 15% | The model is inventing entities: review the prompt or model |
-| `source_freshness_6h` | active sources | any stale / all stale (critical) | No successful fetch in 6 h |
+| `source_freshness_6h` | sources | any stale or auto-disabled / all stale or none active (critical) | No successful fetch in 6 h; an auto-disabled source is retried every 6 h and re-enabled when it works |
+| `feed_overflow_24h` | 24 h | any (warning) | A fetch in which every item (≥ 5) was new: the feed published more between two polls than it lists, so items were probably missed. Poll that source more often or ask the outlet for a longer feed |
 | `article_volume_anomaly` | 24 h vs 14-day baseline | \|z\| > 3, or 0 articles with a baseline ≥ 10 | Sources silently broken, or a real news surge |
 | `foreign_domain_links_24h` | 24 h | > 5% (info) | Feed links pointing off-site (syndication, tracking redirects) |
 | `low_confidence_rate_24h` | 24 h | > 30% (info) | Unusual content mix, or the model struggling |
@@ -99,13 +101,13 @@ A publisher or person asks for an article to be removed:
 ```bash
 admin articles/<id>/hide -X POST -H 'Content-Type: application/json' -d '{"reason":"takedown request <ref>"}'
 ```
-The article disappears from every public endpoint immediately; cached responses expire within 2 minutes (`API_CACHE_TTL_SECONDS`). The row is kept (hidden) for the audit trail. Undo with `.../unhide`. If a publisher asks to stop being monitored altogether: `gj sources disable <slug> --reason "publisher request"`, and set `enabled: false` with a note in `sources.yaml`.
+The article disappears from every public endpoint immediately (the API drops its cached responses). A browser that loaded a page just before may keep showing it for up to 3 minutes (`Cache-Control: max-age=60, stale-while-revalidate=120`). The row is kept (hidden) for the audit trail. Undo with `.../unhide`. If a publisher asks to stop being monitored altogether: `gj sources disable <slug> --reason "publisher request"`, and set `enabled: false` with a note in `sources.yaml`.
 
 ### Reprocess after a prompt or model change
 Bump `PROMPT_VERSION`, deploy, then `gj enrich-requeue --older-than-version <old>`. The scheduler works through the queue within the daily budget. See [AI_ENRICHMENT.md](AI_ENRICHMENT.md#versioning-and-reprocessing).
 
 ### Check or retune story clustering
-`gj stories-review --hours 48` lists the multi-outlet stories, the weakest member of each story (possible wrong merges) and the closest near misses (possible missed merges). The *Source validation* workflow publishes the same report for the live feeds. To change the threshold: set `STORY_SIMILARITY_THRESHOLD` in `.env` (default 0.45; lower merges more), restart, then `gj cluster --rebuild-days 3` (story ids in that period change, so shared story links break). See [ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings).
+`gj stories-review --hours 48` lists the multi-outlet stories, the weakest member of each story (possible wrong merges) and the closest near misses (possible missed merges). The *Source validation* workflow publishes the same report for the live feeds. To change the threshold: set `STORY_SIMILARITY_THRESHOLD` in `.env` (default 0.45; lower merges more), restart, then `gj cluster --rebuild-days 3` (story ids in that period change, so shared story links break). An article joins a story only once its analysis is done, or after `STORY_ENRICHMENT_WAIT_MINUTES` (default 360) without one, so while enrichment is paused or out of budget new articles reach stories with that delay. See [ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings).
 
 ### Rate an outlet
 Edit `bias`, `factuality`, `ownership`, `owner` and `ratings_note` in `sources.yaml` ([SOURCES.md](SOURCES.md#ratings)), commit and deploy; the `migrate` step syncs them. Ratings apply to every story at once (coverage is computed at query time).
@@ -113,7 +115,7 @@ Edit `bias`, `factuality`, `ownership`, `owner` and `ratings_note` in `sources.y
 ### Deploy and rollback
 - Normal path: merge to the default branch; CI deploys (tests → images → Trivy → deploy with health check and automatic rollback).
 - Manual: `./deploy.sh <full-sha>`; rollback: `./deploy.sh --rollback` (previous) or `./deploy.sh <sha>`.
-- `.deploy-state/current` and `.deploy-state/previous` hold the tags.
+- `.deploy-state/current` and `.deploy-state/previous` hold the last two healthy tags; `.deploy-state/running` the tag whose containers are up (also after a failed first deploy).
 - **Migrations are expand/contract.** A release may add columns, tables, indexes and triggers that the previous release tolerates. Drops and renames wait for a later release. Therefore an application rollback never needs `alembic downgrade`. If a migration itself fails, `deploy.sh` aborts before replacing any container.
 
 ### Backups
@@ -152,7 +154,7 @@ If a secret may have leaked, rotate first and investigate second. The token comp
 `df -h; docker system df`. Usual suspects: backups (retention is by count, so check the dump size trend), Docker images (deploy.sh prunes images older than 7 days), container logs (capped at 5 × 10 MB per container). Database growth: `dc exec db psql -U gjurme -c "SELECT pg_size_pretty(pg_database_size('gjurme'))"`. Retention runs daily and purges raw payloads and excerpts; `gj retention` shows what it would purge.
 
 ### Scale up
-In order: a bigger VPS (vertical scaling covers this product for a long time), a higher `ENRICH_CONCURRENCY` / budget, more uvicorn workers. At 365k articles the slowest analytics endpoint takes ~0.25 s uncached ([TESTING.md](TESTING.md#performance)), and responses are cached for 2 minutes.
+In order: a bigger VPS (vertical scaling covers this product for a long time), a higher `ENRICH_CONCURRENCY` / budget, more uvicorn workers. At 365k articles the 30-day pages take at most ~0.25 s uncached; year-long source pages take 2–4 s ([TESTING.md](TESTING.md#performance)). Responses are cached for 2 minutes, and at most `API_MAX_CONCURRENT_COMPUTATIONS` uncached responses are computed at once.
 
 ## Releases and versioning
 

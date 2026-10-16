@@ -1,13 +1,12 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import type { Lens } from "@/shared/model/ratings";
+import { type Lens, LENSES } from "@/shared/model/ratings";
 
 import { safeStorage } from "./storage";
 
 export type Theme = "light" | "dark" | "system";
 
-const LENSES: readonly Lens[] = ["perspective", "region", "ownership", "factuality"];
 export const PREFERENCES_KEY = "gjurme-prefs";
 
 export function isLens(value: unknown): value is Lens {

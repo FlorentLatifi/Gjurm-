@@ -4,6 +4,7 @@ import re
 from collections.abc import Callable, Iterator
 from datetime import date, datetime, timedelta
 from typing import Annotated, Any
+from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, HTTPException, Query, Request
@@ -78,6 +79,39 @@ DateRangeDep = Annotated[Range, Depends(date_range)]
 
 
 def cached(request: Request, compute: Callable[[], Any]) -> Any:
-    """Serve an analytics result from the in-process TTL cache (keyed by path + query)."""
-    key = request.url.path + "?" + "&".join(sorted(request.url.query.split("&")))
-    return request.app.state.cache.get_or_set(key, compute)
+    """Serve an analytics result from the in-process TTL cache."""
+    return request.app.state.cache.get_or_set(cache_key(request), compute)
+
+
+def cache_key(request: Request) -> str:
+    """Path plus the endpoint's own query parameters, sorted, numbers normalized.
+
+    Unknown parameters are left out and "007" counts as "7": otherwise ``?x=<random>`` (or a
+    padded number) misses the cache on every request and turns each into database work.
+    """
+    names = _query_names(request.scope.get("route"))
+    pairs = sorted(
+        (name, str(int(value)) if value.isdigit() else value)
+        for name, value in request.query_params.multi_items()
+        if name in names
+    )
+    return request.url.path + "?" + urlencode(pairs)
+
+
+_ROUTE_PARAMS: dict[int, frozenset[str]] = {}
+
+
+def _query_names(route: Any) -> frozenset[str]:
+    """Query parameter names a route accepts, its dependencies' included (computed once)."""
+    if route is None:
+        return frozenset()
+    names = _ROUTE_PARAMS.get(id(route))
+    if names is None:
+        found: set[str] = set()
+        stack = [route.dependant]
+        while stack:
+            dependant = stack.pop()
+            found.update(p.alias for p in dependant.query_params)
+            stack.extend(dependant.dependencies)
+        names = _ROUTE_PARAMS[id(route)] = frozenset(found)
+    return names

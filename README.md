@@ -18,7 +18,7 @@
 - **Clusters** articles from different outlets into stories: TF-IDF over headline, excerpt and names with Albanian word folding, guards against look-alike events in different places, a 48 h span; reviewable on live data with `gjurme stories-review`.
 - **Analyses:** volume with a moving average, topic momentum, entity spikes (z-scores), tone shifts, co-occurrence, source profiles, first reports, blindspots. Every method is stated next to the chart.
 - **Serves** a typed FastAPI (OpenAPI docs) and an accessible, fast React site: Stories, Story, Blindspot, My news bias, Source profiles, Dashboard, Trends, Topics, Entities, Sources, Articles, About/Methodology, Status. Its architecture and every performance trade-off are measured and documented ([frontend_system.md](docs/architecture/frontend_system.md)).
-- **Operates itself:** scheduler with overlap protection, 13 data-quality checks per run, webhook alerts, an external uptime monitor, nightly backups with weekly restore tests, and deploy with automatic rollback.
+- **Operates itself:** scheduler with overlap protection, 14 data-quality checks per run, webhook alerts, an external uptime monitor, nightly backups with weekly restore tests, and deploy with automatic rollback.
 
 It stores metadata and its own analysis only. It never republishes article text, and every item links to the original ([why](docs/DECISIONS.md#adr-003-store-metadata-and-derived-data-only)).
 

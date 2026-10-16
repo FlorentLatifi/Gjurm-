@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { StoryCard, StoryCoverage } from "@/features/stories";
 import { useTitle } from "@/shared/hooks/useTitle";
 import { formatInt, formatPercent } from "@/shared/lib/format";
-import { BIAS_GROUP_LABEL, type Lens, LENS_LABEL } from "@/shared/model/ratings";
+import { availableLenses, BIAS_GROUP_LABEL, type Lens, LENS_LABEL } from "@/shared/model/ratings";
 import { clearReading, useReading } from "@/stores/reading";
 import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
@@ -27,8 +27,14 @@ export default function MyNewsPage() {
   const missing = missingSide(cov);
   const outlets = new Map<string, number>();
   reading.forEach((e) => outlets.set(e.s, (outlets.get(e.s) ?? 0) + 1));
+  // Until outlets have perspective ratings, the balance and the suggestions go by region.
+  const rated = (sources.data ?? []).some((s) => s.bias !== "unrated");
+  const kind = rated ? "perspective" : "region";
+  const lenses = (["perspective", "region", "ownership", "factuality"] as Lens[]).filter((l) =>
+    availableLenses([cov]).includes(l),
+  );
   const suggestions = (blind.data?.items ?? []).filter((s) =>
-    s.blindspots.some((b) => b.kind === "perspective" && (!missing || b.missing !== missing)),
+    s.blindspots.some((b) => b.kind === kind && (!missing || b.missing !== missing)),
   );
 
   return (
@@ -67,15 +73,23 @@ export default function MyNewsPage() {
             </div>
             <div className="card stat">
               <span className="stat__label">Your blind side</span>
-              <span className="stat__value stat__value--text">{missing ? BIAS_GROUP_LABEL[missing] : "None detected"}</span>
-              <span className="stat__sub">{missing ? `few ${missing}-leaning outlets in your reading` : "needs 5+ articles from rated outlets"}</span>
+              <span className="stat__value stat__value--text">
+                {missing ? BIAS_GROUP_LABEL[missing] : rated ? "None detected" : "Not yet known"}
+              </span>
+              <span className="stat__sub">
+                {missing
+                  ? `few ${missing}-leaning outlets in your reading`
+                  : rated
+                    ? "needs 5+ articles from rated outlets"
+                    : "outlets have no perspective ratings yet"}
+              </span>
             </div>
           </div>
           <div className="grid grid--2">
             <Card title="Your balance" question="Outlets of the articles you opened, counted once per article.">
               {() => (
                 <div className="stack">
-                  {(["perspective", "region", "ownership", "factuality"] as Lens[]).map((l) => (
+                  {lenses.map((l) => (
                     <div key={l} className="stack stack--tight">
                       <h3>{LENS_LABEL[l]}</h3>
                       <StoryCoverage coverage={cov} lens={l} unit={["article", "articles"]} />
@@ -94,9 +108,15 @@ export default function MyNewsPage() {
             </Card>
           </div>
           <Card title="Step outside your bubble" query={blind} empty={!suggestions.length}
-            question={missing ? `Stories that ${missing}-leaning outlets covered and the rest barely did.` : "This week's blindspots."}
+            question={
+              missing
+                ? `Stories that ${missing}-leaning outlets covered and the rest barely did.`
+                : rated
+                  ? "This week's blindspots."
+                  : "This week's stories about a country whose own outlets did not report them."
+            }
             emptyText="No blindspot stories this week.">
-            {() => <div>{suggestions.slice(0, 6).map((s) => <StoryCard key={s.id} story={s} lens="perspective" compact />)}</div>}
+            {() => <div>{suggestions.slice(0, 6).map((s) => <StoryCard key={s.id} story={s} lens={kind} compact />)}</div>}
           </Card>
         </div>
       )}

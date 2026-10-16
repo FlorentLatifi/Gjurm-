@@ -32,11 +32,17 @@ fi
 
 log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*"; }
 
+# Health through this server's own Caddy (--resolve), not public DNS: DuckDNS's name servers
+# sometimes answer SERVFAIL, which would roll back a healthy release. With an expected version,
+# /api/v1/status must also report it (the new containers, not the old ones, are answering).
 healthy() {
-  local deadline=$((SECONDS + HEALTH_TIMEOUT))
+  local expect="${1:-}" deadline=$((SECONDS + HEALTH_TIMEOUT)) status
+  local curl=(curl -fsS --max-time 5 --resolve "${DOMAIN}:443:127.0.0.1" "${CURL_EXTRA[@]}")
   while (( SECONDS < deadline )); do
-    if curl -fsS --max-time 5 "${CURL_EXTRA[@]}" "https://${DOMAIN}/health/ready" >/dev/null 2>&1 &&
-       curl -fsS --max-time 5 "${CURL_EXTRA[@]}" "https://${DOMAIN}/api/v1/status" >/dev/null 2>&1; then
+    if "${curl[@]}" "https://${DOMAIN}/health/ready" >/dev/null 2>&1 &&
+       status="$("${curl[@]}" "https://${DOMAIN}/api/v1/status" 2>/dev/null)" &&
+       { [[ -z "$expect" ]] || [[ "$status" == *"\"version\":\"$expect\""* ]]; } &&
+       "${COMPOSE[@]}" ps --status running --services 2>/dev/null | grep -qx scheduler; then
       return 0
     fi
     sleep 3
@@ -49,7 +55,8 @@ switch_to() {
   export IMAGE_TAG="$tag"
   if [[ "$DEPLOY_SKIP_PULL" != "1" ]]; then
     log "pulling images $tag"
-    "${COMPOSE[@]}" pull --quiet migrate api scheduler web || return 1
+    # db and backup too: their images (postgres:16-alpine) get minor and security updates.
+    "${COMPOSE[@]}" pull --quiet migrate api scheduler web db backup || return 1
   fi
   log "running migrations"
   "${COMPOSE[@]}" up -d db || return 1
@@ -58,8 +65,17 @@ switch_to() {
   local services=(db api scheduler web backup)
   # Optional local model (COMPOSE_PROFILES=local-llm in .env): named services ignore profiles.
   [[ ",${COMPOSE_PROFILES:-}," == *",local-llm,"* ]] && services+=(ollama)
-  "${COMPOSE[@]}" up -d --remove-orphans "${services[@]}"
+  "${COMPOSE[@]}" up -d --remove-orphans "${services[@]}" || return 1
+  # What is up now, healthy or not: `IMAGE_TAG=$(cat .deploy-state/running) docker compose ...`
+  # addresses these containers even after a first deploy that never became healthy.
+  echo "$tag" > "$STATE/running"
 }
+
+backups="${BACKUP_DIR:-./backups}"
+if [[ -d "$backups" && "$(stat -c %u "$backups")" != 70 ]]; then
+  log "WARNING: $backups is not owned by UID 70, so the backup container cannot write dumps." \
+      "Fix once: sudo chown 70:70 $backups && sudo chmod 700 $backups && sudo chmod 755 backup"
+fi
 
 log "deploying $target (current: ${current:-none})"
 if ! switch_to "$target"; then
@@ -67,13 +83,15 @@ if ! switch_to "$target"; then
   log "deploy ABORTED before switching containers; ${current:-previous} release still running"
   exit 1
 fi
-if healthy; then
+if healthy "$target"; then
   if [[ "$target" != "$current" ]]; then
     [[ -n "$current" ]] && echo "$current" > "$STATE/previous"
     echo "$target" > "$STATE/current"
   fi
   "${COMPOSE[@]}" ps
-  docker image prune -f --filter "until=168h" >/dev/null || true
+  # -a: per-release tags are never "dangling"; without it every release's images stay on disk.
+  # Images of running containers are kept, and old releases remain in the registry.
+  docker image prune -af --filter "until=168h" >/dev/null || true
   log "deploy OK: $target"
   exit 0
 fi
@@ -81,7 +99,11 @@ fi
 log "health check FAILED for $target"
 if [[ -n "$current" && "$current" != "$target" ]]; then
   log "rolling back to $current"
-  switch_to "$current"
-  healthy && log "rollback OK: $current" || log "ROLLBACK ALSO UNHEALTHY — manual intervention needed"
+  # Not under set -e: a failed rollback must be reported, not end the script without a word.
+  if switch_to "$current" && healthy; then
+    log "rollback OK: $current"
+  else
+    log "ROLLBACK ALSO UNHEALTHY — manual intervention needed (running: $(cat "$STATE/running" 2>/dev/null))"
+  fi
 fi
 exit 1

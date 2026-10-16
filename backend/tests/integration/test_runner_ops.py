@@ -10,13 +10,20 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from gjurme.alerts.engine import Alert, AlertDispatcher
 from gjurme.config import Settings
-from gjurme.db.models import AlertEvent, Article, DataQualityResult, FeedItem, PipelineRun
+from gjurme.db.models import (
+    AlertEvent,
+    Article,
+    DataQualityResult,
+    FeedFetch,
+    FeedItem,
+    PipelineRun,
+)
 from gjurme.enrichment.providers import FakeProvider
 from gjurme.pipeline.locking import PIPELINE_LOCK_KEY, advisory_lock
 from gjurme.pipeline.retention import apply_retention
 from gjurme.pipeline.runner import run_pipeline
 from gjurme.pipeline.scheduler import HEARTBEAT_KEY, Scheduler
-from gjurme.quality.checks import run_checks
+from gjurme.quality.checks import check_enrichment_backlog, check_feed_overflow, run_checks
 from gjurme.runtime_settings import RUN_REQUEST, get_setting, put_setting
 from tests.conftest import feed_server, fixture_bytes
 from tests.integration.helpers import add_source, pubdate, rss
@@ -187,6 +194,58 @@ def test_quality_checks_persist_results(db, settings, make_fetcher) -> None:
     assert results["enrichment_consistency"].status == "fail"
 
 
+def test_backlog_counts_only_articles_still_due_an_analysis(db, settings, make_fetcher) -> None:
+    fetcher = _sources(db, make_fetcher)
+    run_pipeline(
+        settings,
+        db,
+        trigger="test",
+        provider=FakeProvider(),
+        fetcher=fetcher,
+        stages=["ingest", "process"],
+    )
+    old = datetime.now(UTC) - timedelta(hours=7)
+    with db() as s, s.begin():
+        ids = list(s.scalars(select(Article.id).order_by(Article.id)))
+        s.execute(update(Article).values(ingested_at=old))
+        s.execute(  # attempts used up: nothing will analyse these any more
+            update(Article)
+            .where(Article.id.in_(ids[:3]))
+            .values(enrichment_status="failed", enrichment_attempts=settings.enrich_max_attempts)
+        )
+        s.execute(  # failed once, will be retried
+            update(Article)
+            .where(Article.id == ids[3])
+            .values(enrichment_status="failed", enrichment_attempts=1)
+        )
+        backlog = check_enrichment_backlog(s)
+    assert backlog.observed == len(ids) - 3
+
+
+def test_feed_overflow_flags_fetches_where_every_item_was_new(db, settings, make_fetcher) -> None:
+    fetcher = _sources(db, make_fetcher)
+    run_pipeline(
+        settings, db, trigger="test", provider=FakeProvider(), fetcher=fetcher, stages=["ingest"]
+    )
+    with db() as s, s.begin():
+        assert check_feed_overflow(s).status == "pass"  # a source's first fetch is all new
+        first = s.scalar(select(FeedFetch).order_by(FeedFetch.id))
+        assert first is not None and first.items_seen >= 5
+        s.add(
+            FeedFetch(
+                source_id=first.source_id,
+                started_at=datetime.now(UTC),
+                duration_ms=10,
+                status="ok",
+                items_seen=10,
+                items_new=10,
+            )
+        )
+        s.flush()
+        result = check_feed_overflow(s)
+    assert result.status == "warn" and result.details["sources"][0]["fetches"] == 1
+
+
 def test_retention_purges_only_old_data(db, settings, make_fetcher) -> None:
     fetcher = _sources(db, make_fetcher)
     run_pipeline(settings, db, trigger="test", provider=FakeProvider(), fetcher=fetcher)
@@ -197,20 +256,26 @@ def test_retention_purges_only_old_data(db, settings, make_fetcher) -> None:
             .values(first_seen_at=datetime.now(UTC) - timedelta(days=40))
         )
         with_excerpt = list(
-            s.scalars(select(Article.id).where(Article.excerpt.is_not(None)).limit(2))
+            s.scalars(select(Article.id).where(Article.excerpt.is_not(None)).limit(3))
         )
         s.execute(
             update(Article)
             .where(Article.id.in_(with_excerpt))
             .values(ingested_at=datetime.now(UTC) - timedelta(days=100))
         )
+        # never analysed (attempts used up): its publisher text goes after 90 days all the same
+        s.execute(
+            update(Article)
+            .where(Article.id == with_excerpt[2])
+            .values(enrichment_status="failed", enrichment_attempts=3)
+        )
         dry = apply_retention(s, settings, dry_run=True)
-    assert dry["raw_payloads_purged"] == 3 and dry["excerpts_purged"] == 2
+    assert dry["raw_payloads_purged"] == 3 and dry["excerpts_purged"] == 3
     with db() as s, s.begin():
         apply_retention(s, settings)
     with db() as s:
         assert s.scalar(select(func_count(FeedItem)).where(FeedItem.payload.is_(None))) == 3
-        assert s.scalar(select(func_count(Article)).where(Article.excerpt.is_(None))) >= 2
+        assert s.scalar(select(func_count(Article)).where(Article.excerpt.is_(None))) >= 3
         assert s.scalar(select(func_count(Article))) == 8  # metadata is kept forever
 
 
@@ -264,3 +329,18 @@ def test_engine_session_defaults(engine) -> None:  # type: ignore[no-untyped-def
     finally:
         eng.dispose()
     assert tuple(got) == ("force_custom_plan", "UTC", "1234ms")
+
+
+def test_dead_man_check_is_pinged_after_each_run(db, settings, make_fetcher, monkeypatch) -> None:
+    pings: list[str] = []
+    monkeypatch.setattr("gjurme.pipeline.runner.httpx.get", lambda url, **_: pings.append(url))
+    cfg = settings.model_copy(update={"healthcheck_ping_url": "https://hc.example/abc/"})
+    fetcher = _sources(db, make_fetcher)
+    run_pipeline(cfg, db, trigger="test", provider=FakeProvider(), fetcher=fetcher)
+
+    def broken(*_a: object, **_k: object) -> None:
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr("gjurme.pipeline.runner.process_pending", broken)
+    assert run_pipeline(cfg, db, trigger="test", stages=["process"]).status == "failed"
+    assert pings == ["https://hc.example/abc", "https://hc.example/abc/fail"]

@@ -260,3 +260,38 @@ def test_cli_refuses_unsafe_production_config(
     result = cli_env.invoke(app, ["run"])
     assert result.exit_code != 0
     assert "ADMIN_API_TOKEN" in str(result.exception)
+
+
+@pytest.mark.parametrize(
+    "command", [["enrich"], ["cluster"], ["cluster", "--rebuild-days", "1"], ["process"]]
+)
+def test_stage_commands_do_not_overlap_a_pipeline_run(
+    cli_env: CliRunner, command: list[str]
+) -> None:
+    """Run by hand next to the scheduler, two ENRICH stages analysed the same articles."""
+    from gjurme.pipeline.locking import PIPELINE_LOCK_KEY, advisory_lock
+
+    with advisory_lock(get_engine(), PIPELINE_LOCK_KEY) as acquired:
+        assert acquired
+        result = cli_env.invoke(app, command)
+    assert result.exit_code == 1
+    assert "pipeline run is in progress" in result.output
+    assert cli_env.invoke(app, command).exit_code == 0  # free again
+
+
+def test_db_upgrade_on_a_newer_database_lets_a_rollback_run(cli_env: CliRunner) -> None:
+    """deploy.sh rolls back by starting the previous release, whose `db upgrade` runs first;
+    against a database a newer release migrated, alembic used to fail and stop the rollback."""
+    from sqlalchemy import text
+
+    assert cli_env.invoke(app, ["db", "upgrade"]).exit_code == 0
+    with get_engine().begin() as conn:
+        head = conn.execute(text("SELECT version_num FROM ops.alembic_version")).scalar_one()
+        conn.execute(text("UPDATE ops.alembic_version SET version_num = '9999_from_the_future'"))
+    try:
+        result = cli_env.invoke(app, ["db", "upgrade"])
+        assert result.exit_code == 0, result.output
+        assert "skipped: database is at 9999_from_the_future" in result.output
+    finally:
+        with get_engine().begin() as conn:
+            conn.execute(text("UPDATE ops.alembic_version SET version_num = :v"), {"v": head})

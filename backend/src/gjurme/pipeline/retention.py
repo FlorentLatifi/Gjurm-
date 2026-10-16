@@ -5,7 +5,7 @@ Policy (documented in docs/DATA_MODEL.md#retention):
 | Data                              | Kept     | Why                                          |
 |-----------------------------------|----------|----------------------------------------------|
 | raw.feed_items.payload            | 30 days  | replay window for reprocessing; minimisation |
-| core.articles.excerpt             | 90 days  | re-enrichment window; publisher text          |
+| core.articles.excerpt             | 90 days  | re-enrichment window; publisher text (any status) |
 | core.enrichments.raw_response     | 90 days  | debugging failed outputs                     |
 | raw.feed_fetches                  | 90 days  | source-health history                        |
 | ops.pipeline_runs (+ DQ results)  | 180 days | operational history                          |
@@ -39,8 +39,8 @@ _RULES: dict[str, tuple[str, str, str | None, str]] = {
         "update",
         "core.articles",
         "excerpt = NULL",
-        "excerpt IS NOT NULL AND enrichment_status IN ('succeeded', 'skipped') "
-        "AND ingested_at < now() - make_interval(days => :excerpt_days)",
+        # Whatever the analysis status: publisher text is kept 90 days, not "until analysed".
+        "excerpt IS NOT NULL AND ingested_at < now() - make_interval(days => :excerpt_days)",
     ),
     "raw_responses_purged": (
         "update",

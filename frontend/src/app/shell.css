@@ -68,6 +68,26 @@
   align-items: center;
   gap: var(--space-2);
 }
+/* Opens under the masthead, the full width of the page. */
+.site-search {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--paper);
+  border-bottom: var(--hairline);
+}
+.site-search[hidden] {
+  display: none;
+}
+.site-search__form {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: var(--space-3) var(--gutter);
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+}
 
 main {
   max-width: var(--maxw);
@@ -108,5 +128,14 @@ main {
   .nav {
     order: 3;
     flex-basis: 100%;
+  }
+  /* phones: the header buttons show their icons; the words stay for screen readers */
+  .site-header__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 }
