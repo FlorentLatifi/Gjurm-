@@ -708,10 +708,15 @@ def sources_compare(session: Session, rng: Range) -> list[dict[str, Any]]:
           SELECT a.story_id, count(DISTINCT a.source_id) AS outlets,
                  (array_agg(a.source_id ORDER BY a.published_at, a.id))[1] AS first_source
           FROM core.articles a JOIN core.stories st ON st.id = a.story_id
-          WHERE st.published_date BETWEEN :start AND :end AND NOT a.is_hidden GROUP BY 1),
+          WHERE st.published_date BETWEEN :start AND :end AND NOT a.is_hidden
+            -- members of those stories (stories span <= 48 h; see analytics/stories.py)
+            AND a.published_date BETWEEN :start AND CAST(:end AS date) + 3
+          GROUP BY 1),
         story_cov AS (
           SELECT a.source_id, count(DISTINCT a.story_id) AS stories
-          FROM core.articles a JOIN story USING (story_id) WHERE NOT a.is_hidden GROUP BY 1),
+          FROM core.articles a JOIN story USING (story_id)
+          WHERE NOT a.is_hidden AND a.published_date BETWEEN :start AND CAST(:end AS date) + 3
+          GROUP BY 1),
         firsts AS (
           SELECT first_source AS source_id, count(*) AS first_reports
           FROM story WHERE outlets >= 2 GROUP BY 1)

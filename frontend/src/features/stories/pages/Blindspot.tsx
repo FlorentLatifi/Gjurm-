@@ -1,10 +1,11 @@
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { FilterBar } from "@/features/filters";
 import type { Blindspot } from "@/shared/api/types";
 import { useTitle } from "@/shared/hooks/useTitle";
 import { useApiQuery } from "@/shared/query/apiQuery";
 import { formatInt } from "@/shared/lib/format";
+import { noneRated } from "@/shared/model/ratings";
 import { Card } from "@/ui/Card";
 import { StoryCard } from "../StoryCard";
 import { blindspotKind, blindspotQueries } from "../queries";
@@ -31,6 +32,9 @@ export default function BlindspotPage() {
   const forLeft = items.filter((s) => s.blindspots.some((b) => b.kind === "perspective" && b.missing === "left"));
   const forRight = items.filter((s) => s.blindspots.some((b) => b.kind === "perspective" && b.missing === "right"));
   const byRegion = items.filter((s) => s.blindspots.some((b) => b.kind === "region"));
+  // A perspective blindspot needs 3+ rated outlets on the story, so when none of the stories in
+  // view has a rated outlet, the two perspective columns could only ever be empty.
+  const ratingsPending = items.length > 0 && noneRated(items.map((s) => s.coverage));
 
   const setKind = (k: string) =>
     setParams((prev) => {
@@ -68,8 +72,18 @@ export default function BlindspotPage() {
         </div>
       </FilterBar>
       <div className="grid grid--3">
-        {kind !== "region" && column("For the left", "Mostly right-leaning outlets covered these; few or no left-leaning ones.", forLeft, "perspective")}
-        {kind !== "region" && column("For the right", "Mostly left-leaning outlets covered these; few or no right-leaning ones.", forRight, "perspective")}
+        {kind !== "region" && ratingsPending && (
+          <section className="card" aria-labelledby="perspective-pending">
+            <h2 id="perspective-pending">Left and right blindspots</h2>
+            <p className="card__question mt-2">
+              These need outlets with a perspective rating, and none has one yet: ratings are
+              editorial judgements GJURMË publishes only with their basis.{" "}
+              <Link to="/about#ratings">How outlets are rated</Link>
+            </p>
+          </section>
+        )}
+        {kind !== "region" && !ratingsPending && column("For the left", "Mostly right-leaning outlets covered these; few or no left-leaning ones.", forLeft, "perspective")}
+        {kind !== "region" && !ratingsPending && column("For the right", "Mostly left-leaning outlets covered these; few or no right-leaning ones.", forRight, "perspective")}
         {kind !== "perspective" && column("By region", "About a country whose outlets did not cover them.", byRegion, "region")}
       </div>
       {query.data && <p className="card__foot">{query.data.method}</p>}

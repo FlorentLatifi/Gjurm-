@@ -5,6 +5,7 @@ import { ArticleList } from "@/features/articles";
 import { FilterBar } from "@/features/filters";
 import type { EntityType } from "@/shared/api/types";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
+import { isNotFound } from "@/shared/api/client";
 import { useTitle } from "@/shared/hooks/useTitle";
 import {
   ENTITY_TYPE_LABEL,
@@ -17,7 +18,7 @@ import {
 import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
 import { SearchField } from "@/ui/SearchField";
-import { ErrorState } from "@/ui/States";
+import { ErrorState, NotFoundState } from "@/ui/States";
 import { DailyLine } from "@/ui/charts";
 import { useApiQuery } from "@/shared/query/apiQuery";
 import { entitiesQueries, entitiesState, entityQueries } from "../queries";
@@ -116,7 +117,9 @@ export function EntityPage() {
   const entity = useApiQuery(queries.entity, valid);
   const articles = useApiQuery(queries.articles, valid);
   const e = entity.data;
-  useTitle(e?.entity.name ?? "Entity");
+  const missing = !valid || isNotFound(entity.error);
+  useTitle(missing ? "Not found" : (e?.entity.name ?? "Entity"), undefined, { index: !missing });
+  if (missing) return <NotFoundState title="Not found">No person, organisation or place has this address.</NotFoundState>;
   if (entity.isError) return <ErrorState error={entity.error} onRetry={() => entity.refetch()} />;
 
   return (

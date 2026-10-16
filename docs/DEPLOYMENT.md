@@ -56,7 +56,7 @@ The free path, as of September 2026. Oracle changes this tier: in June 2026 it h
 
 Port 22 is open by default. The VM has a second firewall (iptables) that the bootstrap script opens in step 5.
 
-**4. Free subdomain 👤 owner.** At duckdns.org, sign in, create a subdomain such as `gjurme`, and set its IP to the VM's public IP. Use `DOMAIN=gjurme.duckdns.org` in `.env`. Caddy obtains the HTTPS certificate automatically on first start. DuckDNS's name servers occasionally fail lookups (SERVFAIL); Caddy retries on its own, so a delayed certificate usually resolves itself. If it keeps failing, check `IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml logs web` in `/opt/gjurme` and the IP on duckdns.org.
+**4. Free subdomain 👤 owner.** At duckdns.org, sign in, create a subdomain such as `gjurme`, and set its IP to the VM's public IP. Use `DOMAIN=gjurme.duckdns.org` in `.env`. Caddy obtains the HTTPS certificate automatically on first start. DuckDNS's name servers occasionally fail lookups (SERVFAIL); Caddy retries on its own, so a delayed certificate usually resolves itself. If it keeps failing, check `IMAGE_TAG=$(cat .deploy-state/running) docker compose -f docker-compose.prod.yml logs web` in `/opt/gjurme` and the IP on duckdns.org.
 
 **5. Bootstrap.** SSH in as `ubuntu`, then run the script as root (`sudo -i`), as in [step 2 below](#2-bootstrap-as-root-once). It detects Oracle's Ubuntu image and **does not enable UFW**, which Oracle warns can stop an instance from booting. Instead it adds ACCEPT rules for 80/443 to Oracle's own `/etc/iptables/rules.v4`, before its REJECT rule, and keeps a copy as `rules.v4.pre-gjurme`.
 
@@ -126,7 +126,7 @@ scp -r deploy/backup deploy@<server>:/opt/gjurme/
 ssh deploy@<server> 'cd /opt/gjurme && ./deploy.sh <full-git-sha>'
 ```
 
-`deploy.sh` pulls the images, starts `db`, runs `migrate` (Alembic plus source sync) and then starts `api`, `scheduler`, `web` and `backup`. It then waits up to 120 s for `https://$DOMAIN/health/ready` **and** `/api/v1/status`, and records the tag as current. If the pull or migration fails, nothing was replaced and the running release stays. If the health check fails, it redeploys the previous tag automatically.
+`deploy.sh` pulls the images (including `db` and `backup`, so PostgreSQL gets minor updates), starts `db`, runs `migrate` (Alembic plus source sync) and then starts `api`, `scheduler`, `web` and `backup`. It then waits up to 120 s until this server's Caddy answers `/health/ready` **and** `/api/v1/status` reports the new tag as its `version` and the scheduler is running (it asks Caddy on 127.0.0.1, so a DuckDNS lookup failure cannot fail a healthy release), and records the tag as current. `.deploy-state/running` always holds the tag whose containers are up, healthy or not; use it in `IMAGE_TAG=$(cat .deploy-state/running) docker compose …`. If the pull or migration fails, nothing was replaced and the running release stays. If the health check fails, it redeploys the previous tag automatically; the previous release's `db upgrade` leaves a database that a newer release migrated as it is (migrations are expand-only). Old images are pruned after a week.
 
 ### 7. Continuous deployment 👤 owner
 In GitHub → Settings:
@@ -140,7 +140,7 @@ In GitHub → Settings:
 | | `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan` |
 | Repository variables | `DEPLOY_ENABLED` | `true` (the deploy job is skipped until set) |
 | | `DOMAIN` | `gjurme.example.com` |
-| | `PUBLIC_URL` | `https://gjurme.example.com`. Enables the uptime monitor and is built into the SPA (canonical, Open Graph, sitemap). |
+| | `PUBLIC_URL` | `https://gjurme.example.com`. Enables the uptime monitor and is built into the SPA (canonical links, Open Graph, robots.txt). The sitemap is built by the API from `DOMAIN`. |
 | | `CONTACT_URL` | `mailto:…` for correction/removal requests on the About page. The default is public GitHub issues. |
 | Repository secrets (optional) | `ANTHROPIC_API_KEY` | lets the weekly *Source validation* live job enrich with the real model |
 
@@ -153,22 +153,26 @@ curl -fsS https://$DOMAIN/api/v1/status | jq
 curl -sI https://$DOMAIN/ | grep -iE 'strict-transport|content-security'
 curl -s -o /dev/null -w '%{http_code}\n' https://$DOMAIN/metrics          # expect 404
 curl -fsS -H "Authorization: Bearer $ADMIN_API_TOKEN" https://$DOMAIN/api/v1/admin/runs | jq '.[0]'
-ssh deploy@<server> 'cd /opt/gjurme && IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml ps'
-ssh deploy@<server> 'cd /opt/gjurme && IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml run --rm backup sh /scripts/backup.sh'
+ssh deploy@<server> 'cd /opt/gjurme && IMAGE_TAG=$(cat .deploy-state/running) docker compose -f docker-compose.prod.yml ps'
+ssh deploy@<server> 'cd /opt/gjurme && IMAGE_TAG=$(cat .deploy-state/running) docker compose -f docker-compose.prod.yml run --rm backup sh /scripts/backup.sh'
 ```
 
 Then run *Actions → Uptime monitor → Run workflow* once to confirm the external check passes. The full list is in [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md).
+
+**Dead-man checks (recommended, free).** GitHub stops scheduled workflows in a repository without activity for 60 days, and the uptime monitor cannot tell whether backups run. At healthchecks.io (or similar) create two checks: *pipeline* (period 15 min, grace 1 h) and *backup* (period 1 day, grace 2 h). Put their ping URLs in `.env` as `HEALTHCHECK_PING_URL` and `BACKUP_HEALTHCHECK_URL` and redeploy: every pipeline run and every backup pings, with `/fail` on failure, and the service alerts when pings stop.
+
+**Servers set up before October 2026.** The bootstrap script used to create `backups/` owned by the deploy user, which the backup container (UID 70) cannot write, so no backup ever ran. `deploy.sh` warns about it; fix it once with `sudo chown 70:70 /opt/gjurme/backups && sudo chmod 700 /opt/gjurme/backups && sudo chmod 755 /opt/gjurme/backup`.
 
 ### 9. Off-site backups (optional, recommended) 👤 owner
 Create a bucket and credentials at an S3-compatible provider, write `/opt/gjurme/rclone/rclone.conf` with a remote named `offsite` (see `rclone config`), and set `RCLONE_REMOTE=offsite:<bucket>` in `.env`. Then enable the profile:
 
 ```bash
-IMAGE_TAG=$(cat .deploy-state/current) docker compose -f docker-compose.prod.yml --profile offsite up -d offsite
+IMAGE_TAG=$(cat .deploy-state/running) docker compose -f docker-compose.prod.yml --profile offsite up -d backup-offsite
 ```
 
 ## Rehearsal (what was verified locally)
 
-With `DOMAIN=localhost`, Caddy's internal CA, and images built locally (`DEPLOY_SKIP_PULL=1`, `DEPLOY_CURL_OPTS=-k`, `COMPOSE_PROJECT_NAME=rehearsal`):
+With `DOMAIN=localhost`, Caddy's internal CA, and images built locally (`DEPLOY_SKIP_PULL=1`, `DEPLOY_CURL_OPTS=-k`, `COMPOSE_PROJECT_NAME=rehearsal`; build the API image with `--build-arg VERSION=<tag>`, since the health check now expects `/api/v1/status` to report the deployed tag):
 
 - HTTPS served; HTTP → HTTPS `308`; HSTS and the strict CSP present; `/metrics` → 404 through the edge.
 - The app refused to start with an unsafe configuration (short admin token).

@@ -7,12 +7,12 @@ from zoneinfo import ZoneInfo
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from gjurme.api.app import create_app
 from gjurme.config import Settings
-from gjurme.db.models import Article, Enrichment, PipelineRun
+from gjurme.db.models import Article, Enrichment, PipelineRun, Source
 from gjurme.enrichment.schema import EnrichmentOutput
 from gjurme.enrichment.service import apply_output, requeue
 from gjurme.ingestion.normalize import normalize_key, sha256_hex
@@ -322,7 +322,8 @@ def test_security_and_cache_headers(client: TestClient) -> None:
     assert "default-src 'none'" in resp.headers["content-security-policy"]
     assert resp.headers["cache-control"].startswith("public, max-age=60")
     assert len(resp.headers["x-request-id"]) >= 8
-    assert client.get("/api/v1/status").headers["cache-control"] == "no-store"
+    assert client.get("/api/v1/status").headers["cache-control"] == "public, max-age=30"
+    assert client.get("/api/v1/admin/runs", headers=AUTH).headers["cache-control"] == "no-store"
     rid = client.get("/health", headers={"X-Request-ID": "trace-12345678"})
     assert rid.headers["x-request-id"] == "trace-12345678"
 
@@ -388,8 +389,9 @@ def test_admin_actions(client: TestClient, db, dataset: dict[str, Any]) -> None:
         == 200
     )
     assert client.get(f"/api/v1/articles/{visible}").status_code == 404
-    client.post(f"/api/v1/admin/articles/{visible}/unhide", headers=AUTH)
+    assert client.post(f"/api/v1/admin/articles/{visible}/unhide", headers=AUTH).status_code == 200
     assert client.get(f"/api/v1/articles/{visible}").status_code == 200
+    assert client.post("/api/v1/admin/articles/999999/unhide", headers=AUTH).status_code == 404
     assert (
         client.post(f"/api/v1/admin/articles/{visible}/reenrich", headers=AUTH).status_code == 202
     )
@@ -419,6 +421,38 @@ def test_public_status(client: TestClient, dataset: dict[str, Any]) -> None:
     body = client.get("/api/v1/status").json()
     assert body["last_run_status"] == "succeeded" and body["status"] in ("ok", "degraded")
     assert body["minutes_since_success"] < 10
+
+
+def test_public_status_is_cached_briefly_and_reports_lost_sources(
+    db,
+    api_settings: Settings,  # type: ignore[no-untyped-def]
+    dataset: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import gjurme.api.routers.ops as ops
+
+    calls: list[int] = []
+    real = ops._public_status
+    monkeypatch.setattr(ops, "_public_status", lambda *a: calls.append(1) or real(*a))
+    c = TestClient(create_app(api_settings, db))  # the response cache TTL is 0 here
+    first = c.get("/api/v1/status")
+    assert first.headers["Cache-Control"] == "public, max-age=30"
+    assert c.get("/api/v1/status").json() == first.json() and len(calls) == 1
+
+    with db() as s, s.begin():  # one outlet auto-disabled after failing in a row
+        s.execute(
+            update(Source)
+            .where(Source.slug == "beta")
+            .values(is_active=False, verification_status="failing", disabled_reason="auto-disabled")
+        )
+    assert TestClient(create_app(api_settings, db)).get("/api/v1/status").json()["status"] == (
+        "degraded"
+    )
+    with db() as s, s.begin():  # nothing is collected any more
+        s.execute(update(Source).values(is_active=False))
+    assert TestClient(create_app(api_settings, db)).get("/api/v1/status").json()["status"] == (
+        "stale"
+    )
 
 
 def _current_enrichment(s: Session, article_id: int, provider: str, model: str) -> None:
@@ -453,6 +487,7 @@ def test_analysis_method_is_disclosed(
         _current_enrichment(s, ai_id, "anthropic", "claude-sonnet-5")
         for other in ids[2:5]:
             _current_enrichment(s, other, "fake", "fake")
+    client.app.state.cache.clear()  # the status is cached for 30 s
     analysis = client.get("/api/v1/status").json()["analysis"]
     assert analysis == {"mode": "mixed", "rule_based_share": 0.8, "model": "claude-sonnet-5"}
 
@@ -495,10 +530,53 @@ def test_unhandled_errors_do_not_leak(
         raise RuntimeError("password=hunter2 in stack trace")
 
     monkeypatch.setattr(q, "topics", boom)
-    c = TestClient(create_app(api_settings, db), raise_server_exceptions=False)
-    resp = c.get("/api/v1/topics")
+    app = create_app(api_settings, db)
+    c = TestClient(app, raise_server_exceptions=False)
+    resp = c.get("/api/v1/topics", headers={"X-Request-ID": "trace-500-abc"})
     assert resp.status_code == 500 and "hunter2" not in resp.text
     assert resp.json()["error"]["code"] == "internal_error"
+    # handled inside the request middleware: traceable, with the usual headers, and counted
+    assert resp.headers["X-Request-ID"] == "trace-500-abc"
+    assert resp.headers["Cache-Control"] == "no-store"
+    assert resp.headers["X-Content-Type-Options"] == "nosniff"
+    counted = app.state.metrics.requests.labels("GET", "/api/v1/topics", 500)._value.get()
+    assert counted == 1
+
+
+def test_unknown_parameters_do_not_bypass_the_cache(
+    db,
+    api_settings: Settings,  # type: ignore[no-untyped-def]
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import gjurme.analytics.queries as q
+
+    calls: list[int] = []
+    real = q.topics
+    monkeypatch.setattr(q, "topics", lambda *a, **k: calls.append(1) or real(*a, **k))
+    c = TestClient(create_app(api_settings.model_copy(update={"api_cache_ttl_seconds": 600}), db))
+    for params in ({"days": 7}, {"days": "007", "x": "a"}, {"x": "b", "days": 7, "cb": "c"}):
+        assert c.get("/api/v1/topics", params=params).status_code == 200
+    assert len(calls) == 1
+    c.get("/api/v1/topics", params={"days": 8})
+    assert len(calls) == 2  # a real parameter still selects a different response
+
+
+def test_overload_answers_503_with_retry_after(
+    db,
+    api_settings: Settings,  # type: ignore[no-untyped-def]
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gjurme.api.security import Overloaded
+
+    app = create_app(api_settings, db)
+
+    def busy(*_a: Any, **_k: Any) -> Any:
+        raise Overloaded
+
+    monkeypatch.setattr(app.state.cache, "get_or_set", busy)
+    resp = TestClient(app).get("/api/v1/topics")
+    assert resp.status_code == 503 and resp.headers["Retry-After"] == "5"
+    assert resp.json()["error"]["code"] == "overloaded" and "X-Request-ID" in resp.headers
 
 
 def test_cache_invalidated_by_admin_mutation(

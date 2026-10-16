@@ -71,7 +71,7 @@ sequenceDiagram
         M-->>S: structured output
         S->>C: validate, ground entities, enrichments + bridges
         S->>C: cluster new articles into stories (TF-IDF, name guards, 48 h span)
-        S->>O: 13 data-quality checks → data_quality_results
+        S->>O: 14 data-quality checks → data_quality_results
         S->>O: alert evaluation → alert_events (+ webhook)
         S->>O: pipeline_runs(status, per-stage stats)
     end
@@ -81,7 +81,8 @@ Failure behaviour, stage by stage:
 
 | Stage | Failure | Result |
 |---|---|---|
-| ingest | one feed times out / 5xx / is malformed | That source's fetch is recorded with the error; the others continue. After 20 consecutive failures (~5 h) the source is auto-disabled and an alert fires. Malformed XML that feedparser can recover is used and flagged. |
+| ingest | most feeds fail in the same run | Treated as an outage on this side (DNS, egress): the fetches are logged but do not count towards auto-disabling the outlets. `source_freshness_6h` fails once nothing has been collected for 6 h. |
+| ingest | one feed times out / 5xx / is malformed | That source's fetch is recorded with the error; the others continue. After 20 consecutive failures (~5 h) the source is auto-disabled and an alert fires; it is fetched again every 6 h and re-enabled when a fetch succeeds. Malformed XML that feedparser can recover is used and flagged; control characters PostgreSQL cannot store (NUL) are dropped. |
 | process | one entry lacks a title/URL, has an unsafe URL, is too old | Rejected with a reason in `raw.feed_items.rejection_reason`; counted by the rejection-rate check. |
 | enrich | timeout, 429, 5xx | SDK retries, then the attempt is stored as `failed`; the article is retried in later runs (max 3 attempts). |
 | enrich | invalid JSON / schema violation | One repair pass, then stored as `invalid` with the raw response. |
@@ -132,7 +133,7 @@ backend/src/gjurme/
   analytics/queries.py every analytical query (parameterized SQL)
   analytics/stories.py story feed, story detail, blindspots, source profiles
   stories/             similarity (tokens, TF-IDF, name guards), clustering stage, review report
-  quality/checks.py    13 data-quality checks
+  quality/checks.py    14 data-quality checks
   alerts/engine.py     alert rules, dedup, webhook delivery
   pipeline/            runner, advisory locking, scheduler loop, retention
   api/                 FastAPI app, routers (public, ops/admin), schemas, security, metrics

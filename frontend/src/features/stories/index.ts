@@ -2,4 +2,4 @@
 // router, never re-exported here (that would pull them into other chunks).
 export { blindspotsQuery, storiesQuery, storyQuery } from "./api";
 export { BlindspotBadges, SourceDots, StoryCard } from "./StoryCard";
-export { LENSES, LensPicker, StoryCoverage } from "./StoryCoverage";
+export { LensPicker, StoryCoverage } from "./StoryCoverage";

@@ -8,6 +8,7 @@ ever scaled horizontally, both move to Redis (documented in docs/ARCHITECTURE.md
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import threading
 import time
 from collections import OrderedDict
@@ -67,6 +68,21 @@ def client_ip(request: Request, trust_proxy: bool) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def rate_key(ip: str) -> str:
+    """The client a rate limit applies to: an IPv4 address, or an IPv6 /64. One IPv6
+    subscriber is handed a whole /64, so per-address buckets let a client rotate addresses
+    and get a fresh limit on every request."""
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped is not None:
+            return str(addr.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{addr}/64", strict=False))
+    return str(addr)
+
+
 def bucket_for(path: str) -> str:
     if path.startswith("/api/v1/admin"):
         return "admin"
@@ -78,33 +94,90 @@ def bucket_for(path: str) -> str:
 # ------------------------------------------------------------------------------------------
 # TTL cache for expensive, read-only analytics responses
 # ------------------------------------------------------------------------------------------
+class Overloaded(Exception):  # noqa: N818 - an HTTP condition (503), not a programming error
+    """Too many responses are being computed at once: answer 503 instead of queueing for the
+    database pool, which would hold every request (cheap ones too) for the pool timeout."""
+
+
+@dataclass(slots=True)
+class _Flight:
+    """One computation in progress; requests for the same key wait for it."""
+
+    done: threading.Event
+    value: Any = None
+    error: BaseException | None = None
+
+
 class TTLCache:
-    def __init__(self, ttl_seconds: float, max_items: int = 512) -> None:
+    """In-process TTL cache with single-flight and a bound on concurrent computations.
+
+    A cache miss computes the response with database work. Concurrent requests for the same key
+    share one computation, and at most ``max_computations`` run at once: past that, a request
+    waits ``wait_seconds`` for a slot and then gets ``Overloaded`` (503).
+    """
+
+    def __init__(
+        self,
+        ttl_seconds: float,
+        max_items: int = 512,
+        *,
+        max_computations: int = 6,
+        wait_seconds: float = 2.0,
+        flight_timeout: float = 30.0,
+    ) -> None:
         self.ttl = ttl_seconds
         self.max_items = max_items
         self._data: OrderedDict[str, tuple[float, Any]] = OrderedDict()
+        self._flights: dict[str, _Flight] = {}
         self._lock = threading.Lock()
+        self._slots = threading.BoundedSemaphore(max_computations)
+        self._wait = wait_seconds
+        self._flight_timeout = flight_timeout
         self.hits = 0
         self.misses = 0
 
-    def get_or_set(self, key: str, factory: Callable[[], Any]) -> Any:
-        if self.ttl <= 0:
-            return factory()
+    def get_or_set(self, key: str, factory: Callable[[], Any], ttl: float | None = None) -> Any:
+        """Cached value for ``key``, computed by ``factory`` on a miss (kept ``ttl`` seconds,
+        default: the cache's TTL)."""
+        ttl = self.ttl if ttl is None else ttl
         now = time.monotonic()
         with self._lock:
-            entry = self._data.get(key)
+            entry = self._data.get(key) if ttl > 0 else None
             if entry and entry[0] > now:
                 self._data.move_to_end(key)
                 self.hits += 1
                 return entry[1]
             self.misses += 1
-        value = factory()  # computed outside the lock; a rare duplicate computation is fine
-        with self._lock:
-            self._data[key] = (now + self.ttl, value)
-            self._data.move_to_end(key)
-            while len(self._data) > self.max_items:
-                self._data.popitem(last=False)
-        return value
+            flight = self._flights.get(key)
+            leader = flight is None
+            if flight is None:
+                flight = self._flights[key] = _Flight(threading.Event())
+        if not leader:
+            if not flight.done.wait(self._flight_timeout):
+                raise Overloaded
+            if flight.error is not None:
+                raise flight.error
+            return flight.value
+        try:
+            if not self._slots.acquire(timeout=self._wait):
+                raise Overloaded
+            try:
+                flight.value = factory()
+            finally:
+                self._slots.release()
+        except BaseException as exc:
+            flight.error = exc
+            raise
+        finally:
+            with self._lock:
+                self._flights.pop(key, None)
+                if flight.error is None and ttl > 0:
+                    self._data[key] = (time.monotonic() + ttl, flight.value)
+                    self._data.move_to_end(key)
+                    while len(self._data) > self.max_items:
+                        self._data.popitem(last=False)
+            flight.done.set()
+        return flight.value
 
     def clear(self) -> None:
         with self._lock:

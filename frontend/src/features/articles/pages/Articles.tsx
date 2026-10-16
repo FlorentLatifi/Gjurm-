@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { FilterBar } from "@/features/filters";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
+import { isNotFound } from "@/shared/api/client";
 import { useTitle } from "@/shared/hooks/useTitle";
 import {
   ENTITY_TYPE_LABEL,
@@ -19,7 +20,7 @@ import { recordRead } from "@/stores/reading";
 import { Card } from "@/ui/Card";
 import { SentimentChip } from "@/ui/SentimentChip";
 import { SearchField } from "@/ui/SearchField";
-import { ErrorState, LoadingBlock } from "@/ui/States";
+import { ErrorState, LoadingBlock, NotFoundState } from "@/ui/States";
 import { ArticleList } from "../ArticleList";
 import { useApiQuery } from "@/shared/query/apiQuery";
 import { articleQueries, articlesQueries, articlesState } from "../queries";
@@ -114,9 +115,18 @@ export function ArticlesPage() {
 
 export function ArticlePage() {
   const id = Number(useParams().id);
-  const article = useApiQuery(articleQueries(id).article, isPositiveId(id));
+  const valid = isPositiveId(id);
+  const article = useApiQuery(articleQueries(id).article, valid);
   const a = article.data;
-  useTitle(a?.title ?? "Article");
+  const missing = !valid || isNotFound(article.error);
+  useTitle(missing ? "Article not found" : (a?.title ?? "Article"), undefined, { index: !missing });
+  if (missing) {
+    return (
+      <NotFoundState title="Article not found">
+        This article does not exist, or was removed at the publisher&apos;s or a person&apos;s request.
+      </NotFoundState>
+    );
+  }
   if (article.isPending) return <LoadingBlock height={300} />;
   if (article.isError || !a) return <ErrorState error={article.error} />;
   const href = safeHref(a.url);

@@ -16,7 +16,7 @@ from urllib.parse import urljoin
 import feedparser
 from bs4 import BeautifulSoup
 
-from gjurme.ingestion.normalize import parse_feed_datetime
+from gjurme.ingestion.normalize import parse_feed_datetime, strip_control
 
 FEED_MIME_TYPES = (
     "application/rss+xml",
@@ -41,8 +41,11 @@ class ParsedFeed:
 
 
 def _clip(value: Any) -> Any:
-    if isinstance(value, str) and len(value) > _MAX_FIELD:
-        return value[:_MAX_FIELD]
+    """Bound a payload field and drop control characters PostgreSQL cannot store."""
+    if isinstance(value, str):
+        return strip_control(value[:_MAX_FIELD])
+    if isinstance(value, list):
+        return [_clip(v) for v in value]
     return value
 
 

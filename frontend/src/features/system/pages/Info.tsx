@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useTitle } from "@/shared/hooks/useTitle";
 import { formatDateTime, formatInt, formatRelative } from "@/shared/lib/format";
 import { Card } from "@/ui/Card";
+import { NotFoundState } from "@/ui/States";
 import { useStatus, useTaxonomy } from "../api";
 
 // Where correction and removal requests go. Set VITE_CONTACT_URL at build time (e.g. a mailto:
@@ -209,12 +210,6 @@ export function StatusPage() {
 }
 
 export function NotFoundPage() {
-  useTitle("Not found");
-  return (
-    <div className="state state--page">
-      <h1>Page not found</h1>
-      <p>The page you are looking for does not exist.</p>
-      <Link className="btn" to="/">Go to the top stories</Link>
-    </div>
-  );
+  useTitle("Not found", undefined, { index: false });
+  return <NotFoundState title="Page not found" />;
 }

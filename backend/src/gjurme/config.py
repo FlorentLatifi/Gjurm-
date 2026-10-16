@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     db_pool_size: int = Field(default=5, ge=1, le=50)
     db_max_overflow: int = Field(default=5, ge=0, le=50)
     db_statement_timeout_ms: int = Field(default=15_000, ge=100)
+    # Wait this long for a free pooled connection, then fail: requests queued behind a slow
+    # burst should not all hang for SQLAlchemy's default 30 s.
+    db_pool_timeout_seconds: float = Field(default=3.0, gt=0)
 
     # --- ingestion -------------------------------------------------------------------------
     http_timeout_seconds: float = Field(default=15.0, gt=0)
@@ -84,6 +87,10 @@ class Settings(BaseSettings):
     enrich_concurrency: int = Field(default=4, ge=1, le=16)
     enrich_max_attempts: int = Field(default=3, ge=1, le=10)
     enrich_circuit_breaker_threshold: int = Field(default=5, ge=1)
+    # No new calls after this many seconds of one ENRICH stage (0 = no limit): a slow local model
+    # must not hold up the next feed fetches, and feeds that list only their latest 10 items
+    # would overflow meanwhile. The rest of the queue waits for the next run.
+    enrich_max_seconds: int = Field(default=600, ge=0)
     enrichment_enabled: bool = True
     allow_fake_llm_in_production: bool = False
 
@@ -91,6 +98,9 @@ class Settings(BaseSettings):
     # Cosine similarity of an article to a story's TF-IDF centroid needed to join it. Hand
     # calibrated (ADR-020): lower merges more paraphrases but also more different events.
     story_similarity_threshold: float = Field(default=0.45, gt=0, lt=1)
+    # How long an article waits for its analysis before it is clustered without one. The guards
+    # that keep look-alike events apart read the analysis' place and person names.
+    story_enrichment_wait_minutes: int = Field(default=360, ge=0)
 
     # --- scheduler -------------------------------------------------------------------------
     scheduler_interval_minutes: int = Field(default=15, ge=1)
@@ -108,6 +118,10 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = Field(default=300, ge=1)
     rate_limit_search_per_minute: int = Field(default=90, ge=1)
     api_cache_ttl_seconds: int = Field(default=120, ge=0)
+    # Responses computed at once (cache misses) per API process; the rest wait briefly, then
+    # get 503. Keep it below the DB pool (DB_POOL_SIZE + DB_MAX_OVERFLOW) so cheap requests
+    # always find a connection.
+    api_max_concurrent_computations: int = Field(default=6, ge=1)
     trust_proxy_headers: bool = False
     expose_docs: bool = True
 
@@ -116,6 +130,9 @@ class Settings(BaseSettings):
     alert_webhook_format: Literal["slack", "discord", "ntfy", "generic"] = "generic"
     alert_dedup_hours: int = Field(default=6, ge=0)
     alert_stale_pipeline_minutes: int = Field(default=120, ge=5)
+    # Dead-man check (e.g. healthchecks.io): GET after every run, "/fail" appended when it
+    # failed. The external service alerts when the pings stop, e.g. the whole server is down.
+    healthcheck_ping_url: str | None = None
 
     @field_validator("cors_origins", mode="before")
     @classmethod

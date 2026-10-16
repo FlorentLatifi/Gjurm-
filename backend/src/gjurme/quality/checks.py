@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from gjurme.config import get_settings
 from gjurme.db.models import DataQualityResult
 
 
@@ -108,12 +109,16 @@ def check_estimated_dates(s: Session) -> CheckResult:
 
 
 def check_enrichment_backlog(s: Session) -> CheckResult:
+    """Articles still due an analysis after 6 h (failures that used up their attempts are not
+    waiting for anything)."""
     backlog = s.execute(
         text("""
         SELECT count(*) FROM core.articles
-        WHERE enrichment_status IN ('pending', 'failed') AND NOT is_hidden
-          AND ingested_at < now() - interval '6 hours'
-    """)
+        WHERE (enrichment_status = 'pending'
+               OR (enrichment_status = 'failed' AND enrichment_attempts < :max_attempts))
+          AND NOT is_hidden AND ingested_at < now() - interval '6 hours'
+    """),
+        {"max_attempts": get_settings().enrich_max_attempts},
     ).scalar_one()
     return CheckResult(
         "enrichment_backlog_6h",
@@ -164,12 +169,16 @@ def check_enrichment_consistency(s: Session) -> CheckResult:
 
 
 def check_story_backlog(s: Session) -> CheckResult:
-    """Articles the CLUSTER stage should have grouped into a story by now."""
+    """Articles the CLUSTER stage should have grouped into a story by now (an article waiting
+    for its analysis is clustered after STORY_ENRICHMENT_WAIT_MINUTES at the latest)."""
     backlog = s.execute(
         text("""
         SELECT count(*) FROM core.articles
         WHERE story_id IS NULL AND NOT is_hidden AND ingested_at < now() - interval '2 hours'
-    """)
+          AND (enrichment_status IN ('succeeded', 'skipped')
+               OR ingested_at < now() - interval '2 hours' - make_interval(mins => :wait))
+    """),
+        {"wait": get_settings().story_enrichment_wait_minutes},
     ).scalar_one()
     return CheckResult(
         "story_backlog_2h",
@@ -233,14 +242,54 @@ def check_source_freshness(s: Session) -> CheckResult:
         )
     ]
     active = s.execute(text("SELECT count(*) FROM core.sources WHERE is_active")).scalar_one()
-    status = "fail" if active and len(stale) == active else ("warn" if stale else "pass")
+    # Disabled after failing in a row: no longer "stale", but no longer collected either.
+    auto_disabled = list(
+        s.scalars(
+            text("""
+            SELECT slug FROM core.sources
+            WHERE NOT is_active AND disabled_reason LIKE 'auto-disabled%' ORDER BY slug
+        """)
+        )
+    )
+    if not active or len(stale) == active:
+        status = "fail"  # nothing is being collected
+    else:
+        status = "warn" if stale or auto_disabled else "pass"
     return CheckResult(
         "source_freshness_6h",
         "critical",
         status,
         float(len(stale)),
         0.0,
-        {"stale_sources": stale, "active_sources": active},
+        {"stale_sources": stale, "active_sources": active, "auto_disabled": auto_disabled},
+    )
+
+
+def check_feed_overflow(s: Session) -> CheckResult:
+    """Fetches in which every item was new: the feed published more between two polls than it
+    lists, so items were probably missed (feeds that show only their latest 10 items)."""
+    rows = [
+        dict(r._mapping)
+        for r in s.execute(
+            text("""
+            SELECT src.slug, count(*) AS fetches, max(f.items_seen) AS items_listed
+            FROM raw.feed_fetches f JOIN core.sources src ON src.id = f.source_id
+            WHERE f.started_at >= now() - interval '24 hours' AND f.status = 'ok'
+              AND f.items_seen >= 5 AND f.items_new = f.items_seen
+              AND EXISTS (SELECT 1 FROM raw.feed_fetches e  -- not the source's first fetch
+                          WHERE e.source_id = f.source_id AND e.status = 'ok'
+                            AND e.started_at < f.started_at)
+            GROUP BY src.slug ORDER BY src.slug
+        """)
+        )
+    ]
+    return CheckResult(
+        "feed_overflow_24h",
+        "warning",
+        "warn" if rows else "pass",
+        float(len(rows)),
+        0.0,
+        {"sources": rows},
     )
 
 
@@ -344,6 +393,7 @@ CHECKS: tuple[Callable[[Session], CheckResult], ...] = (
     check_malformed_entities,
     check_ungrounded_entities,
     check_source_freshness,
+    check_feed_overflow,
     check_volume_anomaly,
     check_foreign_domains,
     check_low_confidence,
