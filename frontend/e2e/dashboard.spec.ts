@@ -269,6 +269,46 @@ test.describe("GJURMË dashboard", () => {
     expect(await reader.text()).toContain('<div id="root">');
   });
 
+  test("before any outlet is rated, nothing is split by perspective or factuality", async ({ page }) => {
+    // The launch state: the real outlets have ownership and region, but no editorial ratings yet.
+    const unrate = (value: unknown, key = ""): unknown => {
+      if (Array.isArray(value)) {
+        const list = key === "blindspots" ? value.filter((b: { kind?: string }) => b.kind !== "perspective") : value;
+        return list.map((v) => unrate(v));
+      }
+      if (!value || typeof value !== "object") {
+        return /^(source_)?(bias|factuality)$/.test(key) ? "unrated" : value;
+      }
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value)) {
+        if (k === "bias" && v && typeof v === "object") {
+          const n = Object.values(v as Record<string, number>).reduce((a, b) => a + b, 0);
+          out[k] = { left: 0, center: 0, right: 0, unrated: n };
+        } else if (k === "factuality" && v && typeof v === "object") {
+          const n = Object.values(v as Record<string, number>).reduce((a, b) => a + b, 0);
+          out[k] = { high: 0, mixed: 0, low: 0, unrated: n };
+        } else {
+          out[k] = unrate(v, k);
+        }
+      }
+      return out;
+    };
+    await page.route(/\/api\/v1\/(stories|sources)/, async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({ response, json: unrate(await response.json()) });
+    });
+    await page.goto("/");
+    const picker = page.getByRole("group", { name: "Split coverage by" });
+    await expect(picker.getByRole("button", { name: "Region", pressed: true })).toBeVisible();
+    await expect(picker.getByRole("button", { name: "Perspective" })).toHaveCount(0);
+    await expect(picker.getByRole("button", { name: "Factuality" })).toHaveCount(0);
+    await page.locator(".story-card__title a").first().click();
+    await expect(page.getByText("None of these outlets has a perspective or factuality rating yet.")).toBeVisible();
+    await page.goto("/blindspot");
+    await expect(page.getByRole("heading", { name: "Left and right blindspots" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^For the left/ })).toHaveCount(0);
+  });
+
   test("unknown routes show a 404 page that search engines do not list", async ({ page }) => {
     await page.goto("/does-not-exist");
     await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();

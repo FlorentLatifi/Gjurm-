@@ -13,7 +13,7 @@ import {
   FACTUALITY_LABEL,
   type Lens,
   LENS_LABEL,
-  noneRated,
+  availableLenses,
   OWNERSHIP_LABEL,
   segments,
 } from "@/shared/model/ratings";
@@ -78,7 +78,8 @@ export function StoryPage() {
     s ? `${s.source_count} outlets covered this story.` : undefined,
     { index: !missing },
   );
-  const [lens, setLens] = useLens(s ? noneRated([s.coverage]) : false);
+  const available = s ? availableLenses([s.coverage]) : null;
+  const [lens, setLens] = useLens(available);
   if (missing) {
     return (
       <NotFoundState title="Story not found">
@@ -113,7 +114,7 @@ export function StoryPage() {
         <div className="stack">
           <Card title="How each outlet headlined it"
             question="Every outlet's own headline, linked to the original. Compare the wording."
-            actions={<LensPicker lens={lens} onChange={setLens} />}>
+            actions={<LensPicker lens={lens} onChange={setLens} available={available ?? undefined} />}>
             {() => <HeadlineColumns story={s} lens={lens} />}
           </Card>
           <Card title="Timeline" question="Who reported it, and when — each mark is one report.">
@@ -149,7 +150,7 @@ export function StoryPage() {
           <Card title="Coverage details" question="Distinct outlets that covered this story.">
             {() => (
               <div className="stack">
-                {(["perspective", "factuality", "ownership", "region"] as Lens[]).map((l) => (
+                {(["perspective", "factuality", "ownership", "region"] as Lens[]).filter((l) => available?.includes(l)).map((l) => (
                   <div key={l} className="stack stack--tight">
                     <h3>{LENS_LABEL[l]}</h3>
                     <StoryCoverage coverage={s.coverage} lens={l} />
@@ -163,7 +164,9 @@ export function StoryPage() {
                   <dt>Last update</dt><dd>{formatDateTime(s.last_published_at)}</dd>
                 </dl>
                 <p className="card__foot">
-                  Ratings are editorial and belong to the outlet, not to the article.{" "}
+                  {available?.includes("perspective")
+                    ? "Ratings are editorial and belong to the outlet, not to the article. "
+                    : "None of these outlets has a perspective or factuality rating yet. "}
                   <Link to="/about#ratings">How outlets are rated</Link>
                 </p>
               </div>
@@ -179,7 +182,16 @@ export function StoryPage() {
                       <span className="dot" style={{ background: BIAS_GROUP_COLOR[biasGroup(src.bias)] }} aria-hidden="true" />
                       <span>
                         <Link to={`/sources/${src.slug}`}>{src.name}</Link>
-                        <span className="meta"> · {BIAS_LABEL[src.bias]} · {FACTUALITY_LABEL[a.source_factuality]} factuality · {OWNERSHIP_LABEL[a.source_ownership]} · {countryLabel(src.country)}</span>
+                        <span className="meta">
+                          {" · "}
+                          {[
+                            src.bias !== "unrated" && BIAS_LABEL[src.bias],
+                            a.source_factuality !== "unrated" && `${FACTUALITY_LABEL[a.source_factuality]} factuality`,
+                            src.bias === "unrated" && a.source_factuality === "unrated" && "not rated yet",
+                            OWNERSHIP_LABEL[a.source_ownership],
+                            countryLabel(src.country),
+                          ].filter(Boolean).join(" · ")}
+                        </span>
                       </span>
                     </li>
                   );

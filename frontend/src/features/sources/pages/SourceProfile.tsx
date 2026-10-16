@@ -15,6 +15,7 @@ import {
   toneLabel,
 } from "@/shared/lib/format";
 import {
+  availableLenses,
   BIAS_GROUP_COLOR,
   BIAS_LABEL,
   biasGroup,
@@ -93,7 +94,10 @@ export function SourceProfilePage() {
       <div className="grid grid--2">
         <Card title="Recent stories" question={`Stories ${p.name} covered, newest first.`}
           empty={!p.recent_stories.length}>
-          {() => <div>{p.recent_stories.map((s) => <StoryCard key={s.id} story={s} lens="perspective" compact />)}</div>}
+          {() => {
+            const lens = availableLenses(p.recent_stories.map((s) => s.coverage)).includes("perspective") ? "perspective" : "region";
+            return <div>{p.recent_stories.map((s) => <StoryCard key={s.id} story={s} lens={lens} compact />)}</div>;
+          }}
         </Card>
         <div className="stack">
           <Card title="Covers the same stories as" question="Outlets that covered the most stories in common."
