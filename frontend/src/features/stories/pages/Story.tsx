@@ -23,6 +23,7 @@ import { SentimentChip } from "@/ui/SentimentChip";
 import { ErrorState, LoadingBlock, NotFoundState } from "@/ui/States";
 import { BlindspotBadges, StoryCard } from "../StoryCard";
 import { LensPicker, StoryCoverage } from "../StoryCoverage";
+import { ShareStory } from "../ShareStory";
 import { useLens } from "../useLens";
 import { groupOf, markColor, segmentsByKey } from "../lensGroup";
 import { storyQueries } from "../queries";
@@ -108,6 +109,7 @@ export function StoryPage() {
           <BlindspotBadges story={s} />
         </p>
         {summary && <p className="story-head__summary">{summary} <span className="meta">(AI summary)</span></p>}
+        <ShareStory id={s.id} title={s.title} />
       </header>
 
       <div className="feed-layout">

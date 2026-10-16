@@ -1,15 +1,13 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
+import { publicUrl } from "@/shared/lib/publicUrl";
+
 const SITE_TITLE = "GJURMË — every side of the Albanian-language news";
 // index.html's description, for pages that have none of their own (the previous page's would
 // otherwise stay in place after client-side navigation).
 const DEFAULT_DESCRIPTION =
   document.querySelector('meta[name="description"]')?.getAttribute("content") ?? "";
-// Absolute URLs need the public address; VITE_PUBLIC_URL is set at image build time.
-const PUBLIC_URL = (
-  /^https?:\/\//.test(import.meta.env.VITE_PUBLIC_URL ?? "") ? import.meta.env.VITE_PUBLIC_URL! : window.location.origin
-).replace(/\/$/, "");
 
 function headElement(selector: string, create: () => HTMLElement): HTMLElement {
   let el = document.head.querySelector<HTMLElement>(selector);
@@ -44,7 +42,7 @@ export function useTitle(title: string, description?: string, { index = true }: 
   useEffect(() => {
     const fullTitle = title ? `${title} · GJURMË` : SITE_TITLE;
     const text = description ?? DEFAULT_DESCRIPTION;
-    const url = PUBLIC_URL + pathname;
+    const url = publicUrl(pathname);
     document.title = fullTitle;
     setMeta("name", "description", text);
     setMeta("property", "og:title", fullTitle);
