@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { FilterBar } from "@/features/filters";
 import { StoryCard } from "@/features/stories";
 import { useFilters, withFilters } from "@/shared/hooks/useFilters";
+import { isNotFound } from "@/shared/api/client";
 import { useTitle } from "@/shared/hooks/useTitle";
 import {
   ENTITY_TYPE_LABEL,
@@ -24,7 +25,7 @@ import {
 import { Card } from "@/ui/Card";
 import { RankList } from "@/ui/RankList";
 import { StatTile } from "@/ui/StatTile";
-import { ErrorState, LoadingBlock } from "@/ui/States";
+import { ErrorState, LoadingBlock, NotFoundState } from "@/ui/States";
 import { useApiQuery } from "@/shared/query/apiQuery";
 import { validSlug } from "../api";
 import { sourceProfileQueries } from "../queries";
@@ -36,7 +37,13 @@ export function SourceProfilePage() {
   const [search] = useSearchParams();
   const query = useApiQuery(sourceProfileQueries(slug, search).profile, validSlug(slug));
   const p = query.data;
-  useTitle(p?.name ?? "Source", p ? `${p.name}: ratings, ownership and coverage.` : undefined);
+  const missing = !validSlug(slug) || isNotFound(query.error);
+  useTitle(
+    missing ? "Outlet not found" : (p?.name ?? "Source"),
+    p ? `${p.name}: ratings, ownership and coverage.` : undefined,
+    { index: !missing },
+  );
+  if (missing) return <NotFoundState title="Outlet not found">GJURMË does not follow this outlet.</NotFoundState>;
   if (query.isPending) return <LoadingBlock height={320} />;
   if (query.isError || !p) return <ErrorState error={query.error} />;
   const href = safeHref(p.homepage_url);

@@ -140,7 +140,7 @@ In GitHub → Settings:
 | | `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan` |
 | Repository variables | `DEPLOY_ENABLED` | `true` (the deploy job is skipped until set) |
 | | `DOMAIN` | `gjurme.example.com` |
-| | `PUBLIC_URL` | `https://gjurme.example.com`. Enables the uptime monitor and is built into the SPA (canonical, Open Graph, sitemap). |
+| | `PUBLIC_URL` | `https://gjurme.example.com`. Enables the uptime monitor and is built into the SPA (canonical links, Open Graph, robots.txt). The sitemap is built by the API from `DOMAIN`. |
 | | `CONTACT_URL` | `mailto:…` for correction/removal requests on the About page. The default is public GitHub issues. |
 | Repository secrets (optional) | `ANTHROPIC_API_KEY` | lets the weekly *Source validation* live job enrich with the real model |
 

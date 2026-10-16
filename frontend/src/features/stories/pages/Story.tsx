@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 
+import { isNotFound } from "@/shared/api/client";
 import type { StoryArticle, StoryDetail } from "@/shared/api/types";
 import { useTitle } from "@/shared/hooks/useTitle";
 import { useApiQuery } from "@/shared/query/apiQuery";
@@ -19,7 +20,7 @@ import {
 import { recordRead } from "@/stores/reading";
 import { Card } from "@/ui/Card";
 import { SentimentChip } from "@/ui/SentimentChip";
-import { ErrorState, LoadingBlock } from "@/ui/States";
+import { ErrorState, LoadingBlock, NotFoundState } from "@/ui/States";
 import { BlindspotBadges, StoryCard } from "../StoryCard";
 import { LensPicker, StoryCoverage } from "../StoryCoverage";
 import { useLens } from "../useLens";
@@ -68,10 +69,24 @@ function HeadlineColumns({ story, lens }: { story: StoryDetail; lens: Lens }) {
 
 export function StoryPage() {
   const id = Number(useParams().id);
-  const query = useApiQuery(storyQueries(id).story, isPositiveId(id));
+  const valid = isPositiveId(id);
+  const query = useApiQuery(storyQueries(id).story, valid);
   const s = query.data;
-  useTitle(s?.title ?? "Story", s ? `${s.source_count} outlets covered this story.` : undefined);
+  const missing = !valid || isNotFound(query.error);
+  useTitle(
+    missing ? "Story not found" : (s?.title ?? "Story"),
+    s ? `${s.source_count} outlets covered this story.` : undefined,
+    { index: !missing },
+  );
   const [lens, setLens] = useLens(s ? noneRated([s.coverage]) : false);
+  if (missing) {
+    return (
+      <NotFoundState title="Story not found">
+        This story does not exist, or is no longer shown. Stories are regrouped from time to
+        time, so an old link can point nowhere.
+      </NotFoundState>
+    );
+  }
   if (query.isPending) return <LoadingBlock height={320} />;
   if (query.isError || !s) return <ErrorState error={query.error} />;
   const first = s.articles.find((a) => a.is_first) ?? s.articles[0]!;

@@ -269,9 +269,27 @@ test.describe("GJURMË dashboard", () => {
     expect(await reader.text()).toContain('<div id="root">');
   });
 
-  test("unknown routes show a 404 page", async ({ page }) => {
+  test("unknown routes show a 404 page that search engines do not list", async ({ page }) => {
     await page.goto("/does-not-exist");
     await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+    for (const path of ["/stories/999999", "/stories/not-a-number"]) {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { name: "Story not found" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Go to the top stories" })).toBeVisible();
+    }
+  });
+
+  test("each page names its own canonical URL; the sitemap lists the stories", async ({ page, request }) => {
+    const list = await (await request.get("/api/v1/stories?days=30&min_sources=2&page_size=1")).json();
+    const id = (list.items[0] as { id: number }).id;
+    await page.goto(`/stories/${id}?lens=region`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", new RegExp(`/stories/${id}$`));
+    await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
+    const sitemap = await request.get("/sitemap.xml");
+    expect(sitemap.headers()["content-type"]).toContain("application/xml");
+    expect(await sitemap.text()).toContain(`/stories/${id}</loc>`);
   });
 
   for (const path of [
