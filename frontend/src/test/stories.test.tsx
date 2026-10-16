@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 
 import { ArticleList } from "@/features/articles/ArticleList";
 import { missingSide, readingCoverage } from "@/features/reading/readingCoverage";
+import { ShareStory } from "@/features/stories/ShareStory";
 import { StoryCard } from "@/features/stories/StoryCard";
 import { StoryCoverage } from "@/features/stories/StoryCoverage";
 import type { Coverage, SourceStat, StorySummary } from "@/shared/api/types";
@@ -218,5 +219,38 @@ describe("availableLenses", () => {
     expect(availableLenses([coverage({ bias: { left: 0, center: 0, right: 0, unrated: 4 }, factuality: { high: 0, mixed: 0, low: 0, unrated: 4 } })]))
       .toEqual(["region", "ownership"]);
     expect(availableLenses([coverage()])).toEqual(LENSES);
+  });
+});
+
+describe("ShareStory", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("copies the story's address and offers the region's messengers where the device cannot share", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { ...navigator, share: undefined, clipboard: { writeText } });
+    wrap(<ShareStory id={42} title="Zgjedhjet & votimi" />);
+    const url = `${window.location.origin}/stories/42`;
+    await userEvent.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(writeText).toHaveBeenCalledWith(url);
+    expect(screen.getByRole("status")).toHaveTextContent("Link copied");
+    expect(screen.getByRole("link", { name: "WhatsApp" })).toHaveAttribute(
+      "href", `https://wa.me/?text=${encodeURIComponent(`Zgjedhjet & votimi ${url}`)}`,
+    );
+    expect(screen.getByRole("link", { name: "Viber" })).toHaveAttribute("href", expect.stringMatching(/^viber:\/\/forward\?text=/));
+    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+  });
+
+  it("opens the device's share sheet where there is one, and treats closing it as no error", async () => {
+    const share = vi.fn().mockRejectedValue(new DOMException("closed", "AbortError"));
+    const writeText = vi.fn();
+    vi.stubGlobal("navigator", { ...navigator, share, clipboard: { writeText } });
+    wrap(<ShareStory id={7} title="Lajmi" />);
+    expect(screen.queryByRole("link", { name: "WhatsApp" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Share" }));
+    expect(share).toHaveBeenCalledWith({ title: "Lajmi", url: `${window.location.origin}/stories/7` });
+    expect(writeText).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 });

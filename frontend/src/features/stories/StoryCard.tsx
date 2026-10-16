@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useId, useRef } from "react";
 import { Link } from "react-router-dom";
 
 import type { StorySummary } from "@/shared/api/types";
@@ -90,17 +90,19 @@ export function StoryCard({
   lead?: boolean;
 }) {
   const prefetch = usePrefetchStory(story.id);
+  // A story can be listed twice on one page (the lead and its section), so the heading id is per card.
+  const titleId = useId();
   return (
     <article
       className={`story-card ${compact ? "story-card--compact" : ""} ${lead ? "story-card--lead" : ""}`}
-      aria-labelledby={`story-${story.id}`}
+      aria-labelledby={titleId}
     >
       <div className="story-card__top">
         {story.topic_name && <span className="kicker">{story.topic_name}</span>}
         <span>· <time dateTime={story.last_published_at}>Updated {formatRelative(story.last_published_at)}</time></span>
         <BlindspotBadges story={story} />
       </div>
-      <h3 className="story-card__title" id={`story-${story.id}`} lang={story.language}>
+      <h3 className="story-card__title" id={titleId} lang={story.language}>
         <Link to={`/stories/${story.id}`} {...prefetch}>{story.title}</Link>
       </h3>
       {!compact && realSummary(story.summary_en) && (

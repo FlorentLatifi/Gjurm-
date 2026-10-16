@@ -269,6 +269,23 @@ test.describe("GJURMË dashboard", () => {
     expect(await reader.text()).toContain('<div id="root">');
   });
 
+  test("a story page shares its own address", async ({ page }) => {
+    // Record what is copied instead of reading the real clipboard (permissions differ by browser).
+    await page.addInitScript(
+      "Object.defineProperty(navigator, 'share', { value: undefined });" +
+        "Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (t) => { window.__copied = t; } } });",
+    );
+    await page.goto("/");
+    await page.locator(".story-card__title a").first().click();
+    await expect(page).toHaveURL(/\/stories\/\d+$/);
+    const url = page.url();
+    const share = page.getByRole("group", { name: "Share this story" });
+    await share.getByRole("button", { name: "Copy link" }).click();
+    await expect(share.getByRole("status")).toHaveText("Link copied");
+    expect(await page.evaluate("window.__copied")).toBe(url);
+    await expect(share.getByRole("link", { name: "WhatsApp" })).toHaveAttribute("href", new RegExp(encodeURIComponent(url).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  });
+
   test("before any outlet is rated, nothing is split by perspective or factuality", async ({ page }) => {
     // The launch state: the real outlets have ownership and region, but no editorial ratings yet.
     const unrate = (value: unknown, key = ""): unknown => {
