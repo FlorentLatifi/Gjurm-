@@ -79,6 +79,23 @@ test.describe("GJURMË stories", () => {
     await expect(page.locator(".story-card").first()).toBeVisible();
   });
 
+  test("the masthead search opens the story feed's keyword search from any page", async ({ page }) => {
+    await page.goto("/sources");
+    const toggle = page.getByRole("button", { name: "Search", expanded: false });
+    await toggle.click();
+    const box = page.getByRole("searchbox", { name: "Search stories" }).first();
+    await expect(box).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(box).toBeHidden();
+    await expect(toggle).toBeFocused();
+    await toggle.click();
+    await box.fill("autostrada");
+    await box.press("Enter");
+    await expect(page).toHaveURL(/\/\?q=autostrada$/);
+    await expect(box).toBeHidden();
+    await expect(page.locator(".story-card__title").first()).toContainText(/autostrad/i);
+  });
+
   test("blindspot page groups stories by the side that missed them", async ({ page }) => {
     await page.goto("/blindspot");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Blindspot");

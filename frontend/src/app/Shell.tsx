@@ -6,6 +6,7 @@ import { LoadingBlock } from "@/ui/States";
 
 import { RouteError } from "./RouteError";
 import { RouteFocus } from "./RouteFocus";
+import { SiteSearch } from "./SiteSearch";
 import { ThemeToggle } from "./ThemeToggle";
 import "./shell.css";
 
@@ -59,6 +60,7 @@ export function Shell() {
           </nav>
           <div className="header-actions">
             <StatusPill />
+            <SiteSearch />
             <ThemeToggle />
           </div>
         </div>
