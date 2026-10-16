@@ -15,6 +15,11 @@ export class ApiError extends Error {
   }
 }
 
+/** The API said the requested thing does not exist (or is no longer shown). */
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}
+
 export type Params = Record<string, string | number | boolean | string[] | undefined | null>;
 
 export function buildQuery(params: Params = {}): string {

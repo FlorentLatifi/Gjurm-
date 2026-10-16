@@ -61,7 +61,7 @@ The rows below apply to both paths. Skip the VPS/domain rows on the free path, a
 5. ⬜ Set `PUBLIC_URL` and run the *Uptime monitor* workflow manually once.
 6. ⬜ Paste a story link into WhatsApp or Telegram (or Facebook's Sharing Debugger): the preview shows the story's headline and "N outlets covered this story".
 7. ⬜ Set `DEPLOY_ENABLED=true` and confirm that the next push deploys through CI.
-8. ⬜ Set the repository variables `PUBLIC_URL` and `CONTACT_URL` **before** the first CI image build. CI passes them into the web build (`VITE_PUBLIC_URL`, `VITE_CONTACT_URL`), which makes canonical links, Open Graph and the sitemap point at the real domain and shows the private contact.
+8. ⬜ Set the repository variables `PUBLIC_URL` and `CONTACT_URL` **before** the first CI image build. CI passes them into the web build (`VITE_PUBLIC_URL`, `VITE_CONTACT_URL`), which makes canonical links, Open Graph and robots.txt point at the real domain and shows the private contact. Then submit `https://<domain>/sitemap.xml` in Google Search Console and Bing Webmaster Tools: it lists every multi-outlet story of the last 90 days, the outlets and the topics.
 
 ## 4. First week ⬜
 

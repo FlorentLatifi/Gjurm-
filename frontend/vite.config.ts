@@ -3,49 +3,24 @@ import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 
-const ROUTES = [
-  "/",
-  "/blindspot",
-  "/dashboard",
-  "/trends",
-  "/topics",
-  "/entities",
-  "/sources",
-  "/articles",
-  "/about",
-  "/status",
-];
-
-/** Emits sitemap.xml + robots.txt for the public URL the build targets (VITE_PUBLIC_URL). */
+/**
+ * Emits robots.txt and, when the deployment URL is known at build time (VITE_PUBLIC_URL), the
+ * absolute og:image. Canonical links and og:url are set per page (shared/hooks/useTitle): one
+ * built into index.html would declare every route a copy of the home page. The sitemap is built
+ * by the API from the data (Caddy routes /sitemap.xml there).
+ */
 function seoFiles(publicUrl: string | undefined): Plugin {
+  const base = (publicUrl || "").replace(/\/$/, "");
   return {
     name: "gjurme-seo-files",
     apply: "build",
     transformIndexHtml() {
-      // Absolute URLs are only meaningful when the deployment URL is known at build time.
-      const base = (publicUrl || "").replace(/\/$/, "");
       if (!/^https?:\/\//.test(base)) return [];
-      return [
-        { tag: "link", attrs: { rel: "canonical", href: `${base}/` }, injectTo: "head" },
-        { tag: "meta", attrs: { property: "og:url", content: `${base}/` }, injectTo: "head" },
-        { tag: "meta", attrs: { property: "og:image", content: `${base}/og-image.png` }, injectTo: "head" },
-      ];
+      return [{ tag: "meta", attrs: { property: "og:image", content: `${base}/og-image.png` }, injectTo: "head" }];
     },
     generateBundle() {
-      const base = (publicUrl || "").replace(/\/$/, "");
       const robots = ["User-agent: *", "Allow: /", "Disallow: /api/"];
-      if (base) {
-        const today = new Date().toISOString().slice(0, 10);
-        const urls = ROUTES.map(
-          (r) => `  <url><loc>${base}${r}</loc><lastmod>${today}</lastmod><changefreq>hourly</changefreq></url>`,
-        ).join("\n");
-        this.emitFile({
-          type: "asset",
-          fileName: "sitemap.xml",
-          source: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`,
-        });
-        robots.push(`Sitemap: ${base}/sitemap.xml`);
-      }
+      if (base) robots.push(`Sitemap: ${base}/sitemap.xml`);
       this.emitFile({ type: "asset", fileName: "robots.txt", source: robots.join("\n") + "\n" });
     },
   };

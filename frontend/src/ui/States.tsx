@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 import { ApiError } from "@/shared/api/client";
 
 export function Skeleton({ height = 16, width = "100%" }: { height?: number; width?: number | string }) {
@@ -31,6 +33,20 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
           Try again
         </button>
       )}
+    </div>
+  );
+}
+
+/** A page-level "not found": what is missing, and the ways on from here. */
+export function NotFoundState({ title, children }: { title: string; children?: React.ReactNode }) {
+  return (
+    <div className="state state--page">
+      <h1>{title}</h1>
+      <p>{children ?? "The page you are looking for does not exist."}</p>
+      <p className="state__actions">
+        <Link className="btn" to="/">Go to the top stories</Link>
+        <Link to="/articles">Search the articles</Link>
+      </p>
     </div>
   );
 }

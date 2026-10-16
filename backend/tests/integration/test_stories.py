@@ -613,6 +613,22 @@ def test_link_preview_carries_the_story_and_escapes_it(
     assert missing.status_code == 404 and 'content="http://localhost:5173/"' in missing.text
 
 
+def test_sitemap_lists_pages_outlets_topics_and_multi_outlet_stories(
+    client: TestClient, db: sessionmaker[Session], clustered: dict[str, Any]
+) -> None:
+    resp = client.get("/api/share/sitemap.xml")
+    assert resp.status_code == 200 and resp.headers["content-type"].startswith("application/xml")
+    assert resp.headers["cache-control"] == "public, max-age=3600"
+    xml = resp.text
+    assert xml.startswith('<?xml version="1.0" encoding="UTF-8"?>')
+    assert "<loc>http://localhost:5173/</loc>" in xml and "/blindspot</loc>" in xml
+    budget = clustered["budget_story"]
+    assert f"<loc>http://localhost:5173/stories/{budget}</loc><lastmod>" in xml
+    single = story_of(db, clustered["fire_gjakove"])
+    assert f"/stories/{single}<" not in xml  # one outlet: no comparison to offer
+    assert "/sources/qendra</loc>" in xml and "/topics/politics</loc>" in xml
+
+
 def escape_attr(value: str) -> str:
     from html import escape
 
