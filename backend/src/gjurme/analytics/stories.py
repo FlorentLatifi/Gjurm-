@@ -48,6 +48,15 @@ BLINDSPOT_METHOD = (
     "outlets covered it, and none of the followed outlets based in that country did. Outlets "
     "are counted once per story; unrated outlets are not part of the perspective rule."
 )
+BLINDSPOT_METHOD_SQ = (
+    f"Pikë e verbër sipas këndvështrimit: të paktën {BLINDSPOT_MIN_RATED} media të vlerësuara "
+    f"e raportuan lajmin, ≥ {BLINDSPOT_DOMINANT_SHARE:.0%} prej tyre nga njëra anë (majtas ose "
+    f"djathtas) dhe ≤ {BLINDSPOT_MISSING_SHARE:.0%} nga tjetra. Pikë e verbër sipas rajonit: "
+    "lajmi ka të bëjë me një shtet (të përmendur në të paktën gjysmën e artikujve të analizuar), "
+    f"{BLINDSPOT_MIN_SOURCES}+ media e raportuan, dhe asnjë nga mediat e ndjekura me seli në atë "
+    "shtet. Secila media numërohet një herë për lajm; mediat pa vlerësim nuk hyjnë në rregullin "
+    "e këndvështrimit."
+)
 
 _FACTUALITY_GROUP = {
     "very_high": "high",
@@ -324,7 +333,7 @@ def blindspots(
     for s in items:
         if kind is not None:
             s["blindspots"] = [b for b in s["blindspots"] if b["kind"] == kind]
-    return {"method": BLINDSPOT_METHOD, "items": items[:limit]}
+    return {"method": BLINDSPOT_METHOD, "method_sq": BLINDSPOT_METHOD_SQ, "items": items[:limit]}
 
 
 def story_detail(session: Session, story_id: int) -> dict[str, Any] | None:

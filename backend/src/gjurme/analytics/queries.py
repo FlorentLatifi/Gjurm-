@@ -200,6 +200,8 @@ def volume(session: Session, rng: Range, group_by: str | None = None) -> dict[st
             "series": [{**r, "ma7": _f(r["ma7"], 2)} for r in rows],
             "method": "Daily count of articles by local publication date; ma7 is the "
             "trailing 7-day mean (days without articles count as 0).",
+            "method_sq": "Numri ditor i artikujve sipas datës lokale të publikimit; ma7 është "
+            "mesatarja e 7 ditëve të fundit (ditët pa artikuj llogariten 0).",
         }
     key = {"source": "s.slug", "topic": "t.slug"}[group_by]
     rows = _rows(
@@ -217,6 +219,9 @@ def volume(session: Session, rng: Range, group_by: str | None = None) -> dict[st
         "series": rows,
         "group_by": group_by,
         "method": f"Daily article count per {group_by} (primary topic for topics).",
+        "method_sq": "Numri ditor i artikujve për "
+        + {"source": "secilën media", "topic": "secilën temë (tema kryesore)"}[group_by]
+        + ".",
     }
 
 
@@ -291,6 +296,11 @@ def topic_momentum(
             f"{window} days with the {window} days before; topics with fewer than "
             f"{min_articles} articles are omitted. The floor of 5 keeps tiny counts "
             "from producing huge percentages."
+        ),
+        "method_sq": (
+            f"rritja = (tani − më parë) / max(më parë, 5), duke krahasuar {window} ditët e fundit "
+            f"me {window} ditët para tyre; temat me më pak se {min_articles} artikuj nuk "
+            "përfshihen. Kufiri 5 i mban numrat e vegjël larg përqindjeve të mëdha."
         ),
     }
 
@@ -483,6 +493,12 @@ def entity_spikes(
             f"days (days without mentions count as 0). A spike needs z ≥ {z_threshold:g} "
             f"and at least {min_mentions} mentions."
         ),
+        "method_sq": (
+            "z = (përmendjet e 24 orëve të fundit − μ) / max(σ, 1), ku μ dhe σ janë mesatarja "
+            f"dhe devijimi standard i përmendjeve ditore gjatë {baseline_days} ditëve paraprake "
+            f"(ditët pa përmendje llogariten 0). Një kulm kërkon z ≥ {z_threshold:g} "
+            f"dhe të paktën {min_mentions} përmendje."
+        ),
     }
 
 
@@ -618,6 +634,8 @@ def sentiment_series(session: Session, rng: Range, group_by: str | None = None) 
             "series": [{**r, "average": _f(r["average"]), "ma7": _f(r["ma7"])} for r in rows],
             "method": "Mean sentiment score (−1…1) of enriched articles per day; ma7 is the "
             "article-weighted mean over the trailing 7 days.",
+            "method_sq": "Toni mesatar (−1…1) i artikujve të analizuar për çdo ditë; ma7 është "
+            "mesatarja e 7 ditëve të fundit, e peshuar me numrin e artikujve.",
         }
     key = {"source": "s.slug", "topic": "t.slug"}[group_by]
     rows = _rows(
@@ -677,6 +695,8 @@ def sentiment_shift(
         "items": items,
         "method": f"Mean sentiment of the last {window} days minus the {window} days before, "
         f"per primary topic; both windows need at least {min_n} articles.",
+        "method_sq": f"Toni mesatar i {window} ditëve të fundit minus {window} ditëve para tyre, "
+        f"për çdo temë kryesore; secila periudhë duhet të ketë të paktën {min_n} artikuj.",
     }
 
 
