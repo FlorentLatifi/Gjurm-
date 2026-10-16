@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { publicUrl } from "@/shared/lib/publicUrl";
+import { t } from "@/shared/i18n";
 
 type Copy = "idle" | "copied" | "failed";
 
@@ -41,11 +42,11 @@ export function ShareStory({ id, title }: { id: number; title: string }) {
 
   const external = { target: "_blank", rel: "noopener noreferrer", className: "btn btn--sm btn--ghost" };
   return (
-    <div className="share" role="group" aria-label="Share this story">
+    <div className="share" role="group" aria-label={t("Share this story")}>
       {canShare && (
-        <button type="button" className="btn btn--sm" onClick={share}>Share</button>
+        <button type="button" className="btn btn--sm" onClick={share}>{t("Share")}</button>
       )}
-      <button type="button" className="btn btn--sm" onClick={copyLink}>Copy link</button>
+      <button type="button" className="btn btn--sm" onClick={copyLink}>{t("Copy link")}</button>
       {!canShare && (
         <>
           <a {...external} href={`https://wa.me/?text=${message}`}>WhatsApp</a>
@@ -54,7 +55,7 @@ export function ShareStory({ id, title }: { id: number; title: string }) {
         </>
       )}
       <span className="meta" role="status">
-        {copy === "copied" ? "Link copied" : copy === "failed" ? "Could not copy; use the address bar" : ""}
+        {copy === "copied" ? t("Link copied") : copy === "failed" ? t("Could not copy; use the address bar") : ""}
       </span>
     </div>
   );

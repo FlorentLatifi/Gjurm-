@@ -98,6 +98,7 @@ const article = (over: Partial<ArticleSummary>): ArticleSummary => ({
   source_name: "KOHA",
   topic_slug: "politics",
   topic_name: "Politics & Government",
+  topic_name_sq: "Politikë & Qeverisje",
   ...over,
 });
 
@@ -131,7 +132,7 @@ describe("ArticleList", () => {
 
 describe("RankList & SentimentBar", () => {
   it("renders ranked items with proportional bars", () => {
-    wrap(<RankList unit="articles" items={[
+    wrap(<RankList unit={(n) => `${n} articles`} items={[
       { key: "a", label: "Politics", value: 10, href: "/topics/politics" },
       { key: "b", label: "Sports", value: 5 },
     ]} />);

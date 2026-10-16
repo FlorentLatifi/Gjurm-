@@ -2,6 +2,7 @@ import { useId, useState, type ReactNode } from "react";
 
 import { EmptyState, ErrorState, LoadingBlock } from "./States";
 import "./card.css";
+import { t } from "@/shared/i18n";
 
 interface QueryLike {
   isPending: boolean;
@@ -40,7 +41,7 @@ export function Card({
   method,
   query,
   empty,
-  emptyText = "No data for this period yet.",
+  emptyText,
   table,
   actions,
   loadingHeight,
@@ -52,9 +53,9 @@ export function Card({
   const refetching = Boolean(query?.isPlaceholderData && query?.isFetching);
 
   let body: ReactNode;
-  if (query?.isPending) body = <LoadingBlock height={loadingHeight} label={`Loading ${title}`} />;
+  if (query?.isPending) body = <LoadingBlock height={loadingHeight} label={t("Loading {title}", { title })} />;
   else if (query?.isError) body = <ErrorState error={query.error} onRetry={() => query.refetch()} />;
-  else if (empty) body = <EmptyState>{emptyText}</EmptyState>;
+  else if (empty) body = <EmptyState>{emptyText ?? t("No data for this period yet.")}</EmptyState>;
   else body = showTable && table ? <div className="table-wrap">{table()}</div> : children();
 
   return (
@@ -77,7 +78,7 @@ export function Card({
               aria-pressed={showTable}
               onClick={() => setShowTable((v) => !v)}
             >
-              {showTable ? "Chart" : "Table"}
+              {showTable ? t("Chart") : t("Table")}
             </button>
           )}
         </div>

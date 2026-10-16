@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
 
 import type { PublicStatus } from "@/shared/api/types";
-import { formatRelative } from "@/shared/lib/format";
+import { formatPercent, formatRelative } from "@/shared/lib/format";
 
 import { useStatus } from "./api";
 import "./system.css";
+import { t } from "@/shared/i18n";
 
 export function StatusPill() {
   const { data } = useStatus();
@@ -16,11 +17,11 @@ export function StatusPill() {
         ? "var(--status-warning)"
         : "var(--status-critical)";
   const text =
-    data.status === "stale" ? "Data not updating" : `Updated ${formatRelative(data.last_success_at)}`;
+    data.status === "stale" ? t("Data not updating") : t("Updated {when}", { when: formatRelative(data.last_success_at) });
   return (
-    <Link to="/status" className="status-pill" title="Pipeline status">
+    <Link to="/status" className="status-pill" title={`${t("Pipeline status")}: ${text}`}>
       <span className="dot" style={{ background: colour }} aria-hidden="true" />
-      {text}
+      <span className="status-pill__text">{text}</span>
     </Link>
   );
 }
@@ -36,19 +37,21 @@ export function noticeFor(status: PublicStatus | undefined): Notice | null {
   if (!status) return null;
   if (status.demo_data) {
     return {
-      label: "Demo dataset.",
-      text: "Fictional outlets (“… Demo”) and invented names, so the product can be explored without live data.",
+      label: t("Demo dataset."),
+      text: t("Fictional outlets (“… Demo”) and invented names, so the product can be explored without live data."),
       href: "/about",
     };
   }
   const { mode, rule_based_share } = status.analysis;
   if (mode !== "rules" && mode !== "mixed") return null;
   return {
-    label: "Rule-based analysis.",
+    label: t("Rule-based analysis."),
     text:
       mode === "rules"
-        ? "Topics, tone and names are assigned by keyword rules, not by an AI model — treat them as rough indications."
-        : `${Math.round((rule_based_share ?? 0) * 100)}% of recent articles were analysed by keyword rules, not by an AI model — treat them as rough indications.`,
+        ? t("Topics, tone and names are assigned by keyword rules, not by an AI model — treat them as rough indications.")
+        : t("{share} of recent articles were analysed by keyword rules, not by an AI model — treat them as rough indications.", {
+            share: formatPercent(rule_based_share ?? 0),
+          }),
     href: "/about#analysis",
   };
 }

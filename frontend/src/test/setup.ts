@@ -1,5 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 
+import { setLang } from "@/shared/i18n";
+
 // Recharts' ResponsiveContainer needs ResizeObserver; jsdom does not provide it.
 class ResizeObserverStub {
   observe() {}
@@ -17,3 +19,6 @@ window.matchMedia ??= ((query: string) => ({
   removeListener: () => {},
   dispatchEvent: () => false,
 })) as unknown as typeof window.matchMedia;
+
+// The suites check English text; src/test/i18n.test.ts covers the Albanian interface.
+setLang("en");

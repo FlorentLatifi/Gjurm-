@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 import { isChunkLoadError, reloadOnce } from "./chunkReload";
+import { t } from "@/shared/i18n";
 
 interface Props {
   children: ReactNode;
@@ -38,21 +39,21 @@ export class RouteError extends Component<Props, State> {
     if (reloading) {
       return (
         <div className="state" role="status">
-          <p>Loading the latest version of GJURMË…</p>
+          <p>{t("Loading the latest version of GJURMË…")}</p>
         </div>
       );
     }
     const chunk = isChunkLoadError(error);
     return (
       <div className="state state--error" role="alert">
-        <h1 className="state__title">{chunk ? "This page could not be loaded" : "Something went wrong on this page"}</h1>
+        <h1 className="state__title">{chunk ? t("This page could not be loaded") : t("Something went wrong on this page")}</h1>
         <p>
           {chunk
-            ? "Check your connection, then reload. If the site was just updated, a reload fetches the new version."
-            : "The rest of the site still works. Reloading usually helps; if it keeps happening, please tell us."}
+            ? t("Check your connection, then reload. If the site was just updated, a reload fetches the new version.")
+            : t("The rest of the site still works. Reloading usually helps; if it keeps happening, please tell us.")}
         </p>
         <button type="button" className="btn btn--sm" onClick={() => window.location.reload()}>
-          Reload page
+          {t("Reload page")}
         </button>
       </div>
     );

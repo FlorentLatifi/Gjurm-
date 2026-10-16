@@ -3316,6 +3316,18 @@
             },
             "type": "array",
             "title": "Related"
+          },
+          "topic_name_sq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Name Sq",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -3347,7 +3359,8 @@
           "topic_name",
           "topics",
           "entities",
-          "related"
+          "related",
+          "topic_name_sq"
         ],
         "title": "ArticleDetail"
       },
@@ -3482,6 +3495,18 @@
               }
             ],
             "title": "Topic Name"
+          },
+          "topic_name_sq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Name Sq",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -3502,7 +3527,8 @@
           "source_slug",
           "source_name",
           "topic_slug",
-          "topic_name"
+          "topic_name",
+          "topic_name_sq"
         ],
         "title": "ArticleSummary"
       },
@@ -3519,13 +3545,19 @@
           "is_primary": {
             "type": "boolean",
             "title": "Is Primary"
+          },
+          "name_sq": {
+            "type": "string",
+            "title": "Name Sq",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
           "slug",
           "name_en",
-          "is_primary"
+          "is_primary",
+          "name_sq"
         ],
         "title": "ArticleTopicRef"
       },
@@ -3587,6 +3619,11 @@
             "title": "Method",
             "description": "Plain-language description of how the numbers are computed"
           },
+          "method_sq": {
+            "type": "string",
+            "title": "Method Sq",
+            "description": "The same description in Albanian"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/StorySummary"
@@ -3598,6 +3635,7 @@
         "type": "object",
         "required": [
           "method",
+          "method_sq",
           "items"
         ],
         "title": "Blindspots"
@@ -4050,6 +4088,11 @@
             "title": "Method",
             "description": "Plain-language description of how the numbers are computed"
           },
+          "method_sq": {
+            "type": "string",
+            "title": "Method Sq",
+            "description": "The same description in Albanian"
+          },
           "as_of": {
             "type": "string",
             "format": "date-time",
@@ -4066,6 +4109,7 @@
         "type": "object",
         "required": [
           "method",
+          "method_sq",
           "as_of",
           "items"
         ],
@@ -4237,6 +4281,11 @@
             "title": "Method",
             "description": "Plain-language description of how the numbers are computed"
           },
+          "method_sq": {
+            "type": "string",
+            "title": "Method Sq",
+            "description": "The same description in Albanian"
+          },
           "group_by": {
             "type": "string",
             "title": "Group By"
@@ -4252,6 +4301,7 @@
         "type": "object",
         "required": [
           "method",
+          "method_sq",
           "group_by",
           "series"
         ],
@@ -4815,6 +4865,11 @@
             "title": "Method",
             "description": "Plain-language description of how the numbers are computed"
           },
+          "method_sq": {
+            "type": "string",
+            "title": "Method Sq",
+            "description": "The same description in Albanian"
+          },
           "series": {
             "items": {
               "$ref": "#/components/schemas/SentimentPoint"
@@ -4826,6 +4881,7 @@
         "type": "object",
         "required": [
           "method",
+          "method_sq",
           "series"
         ],
         "title": "SentimentSeries"
@@ -4836,6 +4892,11 @@
             "type": "string",
             "title": "Method",
             "description": "Plain-language description of how the numbers are computed"
+          },
+          "method_sq": {
+            "type": "string",
+            "title": "Method Sq",
+            "description": "The same description in Albanian"
           },
           "window_days": {
             "type": "integer",
@@ -4852,6 +4913,7 @@
         "type": "object",
         "required": [
           "method",
+          "method_sq",
           "window_days",
           "items"
         ],
@@ -4907,6 +4969,11 @@
               }
             ],
             "title": "Delta"
+          },
+          "name_sq": {
+            "type": "string",
+            "title": "Name Sq",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -4917,7 +4984,8 @@
           "previous",
           "n_current",
           "n_previous",
-          "delta"
+          "delta",
+          "name_sq"
         ],
         "title": "SentimentShiftItem"
       },
@@ -5697,6 +5765,18 @@
             "type": "array",
             "title": "Related",
             "description": "Stories within 3 days sharing 2+ names"
+          },
+          "topic_name_sq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Name Sq",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -5723,7 +5803,8 @@
           "articles",
           "entities",
           "topics",
-          "related"
+          "related",
+          "topic_name_sq"
         ],
         "title": "StoryDetail"
       },
@@ -5870,6 +5951,18 @@
             },
             "type": "array",
             "title": "Blindspots"
+          },
+          "topic_name_sq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Name Sq",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -5892,7 +5985,8 @@
           "coverage",
           "tone",
           "sources",
-          "blindspots"
+          "blindspots",
+          "topic_name_sq"
         ],
         "title": "StorySummary"
       },
@@ -5971,6 +6065,11 @@
               }
             ],
             "title": "Share"
+          },
+          "name_sq": {
+            "type": "string",
+            "title": "Name Sq",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -5978,7 +6077,8 @@
           "slug",
           "name_en",
           "articles",
-          "share"
+          "share",
+          "name_sq"
         ],
         "title": "TopTopic"
       },
@@ -5995,13 +6095,19 @@
           "articles": {
             "type": "integer",
             "title": "Articles"
+          },
+          "name_sq": {
+            "type": "string",
+            "title": "Name Sq",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
           "slug",
           "name_en",
-          "articles"
+          "articles",
+          "name_sq"
         ],
         "title": "TopicArticles"
       },
@@ -6014,12 +6120,24 @@
           "articles": {
             "type": "integer",
             "title": "Articles"
+          },
+          "name_en": {
+            "type": "string",
+            "title": "Name En",
+            "readOnly": true
+          },
+          "name_sq": {
+            "type": "string",
+            "title": "Name Sq",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
           "slug",
-          "articles"
+          "articles",
+          "name_en",
+          "name_sq"
         ],
         "title": "TopicCount"
       },
@@ -6080,6 +6198,11 @@
           "description": {
             "type": "string",
             "title": "Description"
+          },
+          "description_sq": {
+            "type": "string",
+            "title": "Description Sq",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -6088,7 +6211,8 @@
           "slug",
           "name_en",
           "name_sq",
-          "description"
+          "description",
+          "description_sq"
         ],
         "title": "TopicInfo"
       },
@@ -6098,6 +6222,11 @@
             "type": "string",
             "title": "Method",
             "description": "Plain-language description of how the numbers are computed"
+          },
+          "method_sq": {
+            "type": "string",
+            "title": "Method Sq",
+            "description": "The same description in Albanian"
           },
           "window_days": {
             "type": "integer",
@@ -6114,6 +6243,7 @@
         "type": "object",
         "required": [
           "method",
+          "method_sq",
           "window_days",
           "items"
         ],
@@ -6147,6 +6277,11 @@
               }
             ],
             "title": "Growth"
+          },
+          "name_sq": {
+            "type": "string",
+            "title": "Name Sq",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -6155,7 +6290,8 @@
           "name_en",
           "current",
           "previous",
-          "growth"
+          "growth",
+          "name_sq"
         ],
         "title": "TopicMomentumItem"
       },
@@ -6203,13 +6339,19 @@
           "articles": {
             "type": "integer",
             "title": "Articles"
+          },
+          "name_sq": {
+            "type": "string",
+            "title": "Name Sq",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
           "slug",
           "name_en",
-          "articles"
+          "articles",
+          "name_sq"
         ],
         "title": "TopicSlice"
       },
@@ -6375,6 +6517,11 @@
             "title": "Method",
             "description": "Plain-language description of how the numbers are computed"
           },
+          "method_sq": {
+            "type": "string",
+            "title": "Method Sq",
+            "description": "The same description in Albanian"
+          },
           "series": {
             "items": {
               "$ref": "#/components/schemas/VolumePoint"
@@ -6386,6 +6533,7 @@
         "type": "object",
         "required": [
           "method",
+          "method_sq",
           "series"
         ],
         "title": "VolumeSeries"

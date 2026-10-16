@@ -29,6 +29,7 @@ import { groupOf, markColor, segmentsByKey } from "../lensGroup";
 import { storyQueries } from "../queries";
 import { StoryTrace } from "../StoryTrace";
 import { isPositiveId } from "@/shared/lib/ids";
+import { getLang, localName, t, tn } from "@/shared/i18n";
 
 function OutletLink({ story, a }: { story: StoryDetail; a: StoryArticle }) {
   const href = safeHref(a.url);
@@ -37,7 +38,7 @@ function OutletLink({ story, a }: { story: StoryDetail; a: StoryArticle }) {
     <a href={href} target="_blank" rel="noopener noreferrer" lang={a.language}
       onClick={() => recordRead(a.source_slug, story.id, story.topic_slug)}>
       {a.title}
-      <span className="visually-hidden"> (opens {hostOf(a.url)} in a new tab)</span>
+      <span className="visually-hidden"> {t("(opens {host} in a new tab)", { host: hostOf(a.url) })}</span>
     </a>
   );
 }
@@ -50,7 +51,7 @@ function HeadlineColumns({ story, lens }: { story: StoryDetail; lens: Lens }) {
   return (
     <div className="headline-columns">
       {columns.map(({ seg, articles }) => (
-        <section key={seg.key} className="headline-column" aria-label={`${seg.label}: ${articles.length} articles`}
+        <section key={seg.key} className="headline-column" aria-label={`${seg.label}: ${tn(articles.length, "{n} article", "{n} articles")}`}
           style={{ ["--col-color" as string]: seg.color }}>
           <h3>{seg.label} · {articles.length}</h3>
           {articles.map((a) => (
@@ -58,7 +59,7 @@ function HeadlineColumns({ story, lens }: { story: StoryDetail; lens: Lens }) {
               <OutletLink story={story} a={a} />
               <span className="headline__meta">
                 <Link to={`/sources/${a.source_slug}`}>{a.source_name}</Link> · {formatDateTime(a.published_at)}
-                {a.is_first && <> · <strong>first report</strong></>}
+                {a.is_first && <> · <strong>{t("first report")}</strong></>}
               </span>
             </div>
           ))}
@@ -75,17 +76,16 @@ export function StoryPage() {
   const s = query.data;
   const missing = !valid || isNotFound(query.error);
   useTitle(
-    missing ? "Story not found" : (s?.title ?? "Story"),
-    s ? `${s.source_count} outlets covered this story.` : undefined,
+    missing ? t("Story not found") : (s?.title ?? t("Story")),
+    s ? tn(s.source_count, "{n} outlet covered this story.", "{n} outlets covered this story.") : undefined,
     { index: !missing },
   );
   const available = s ? availableLenses([s.coverage]) : null;
   const [lens, setLens] = useLens(available);
   if (missing) {
     return (
-      <NotFoundState title="Story not found">
-        This story does not exist, or is no longer shown. Stories are regrouped from time to
-        time, so an old link can point nowhere.
+      <NotFoundState title={t("Story not found")}>
+        {t("This story does not exist, or is no longer shown. Stories are regrouped from time to time, so an old link can point nowhere.")}
       </NotFoundState>
     );
   }
@@ -98,28 +98,33 @@ export function StoryPage() {
     <article>
       <header className="story-head">
         <p className="kicker">
-          <Link to="/">Stories</Link> /{" "}
-          {s.topic_slug ? <Link to={`/topics/${s.topic_slug}`}>{s.topic_name}</Link> : "Story"}
+          <Link to="/">{t("Stories")}</Link> /{" "}
+          {s.topic_slug ? <Link to={`/topics/${s.topic_slug}`}>{localName(s.topic_name, s.topic_name_sq)}</Link> : t("Story")}
         </p>
         <h1 lang={s.language}>{s.title}</h1>
         <p className="story-head__meta">
-          <span><strong>{s.source_count} {s.source_count === 1 ? "outlet" : "outlets"}</strong> · {s.article_count} articles</span>
-          <span>First reported by <Link to={`/sources/${first.source_slug}`}>{first.source_name}</Link>, {formatDateTime(first.published_at)}</span>
-          <span>Updated {formatRelative(s.last_published_at)}</span>
+          <span><strong>{tn(s.source_count, "{n} outlet", "{n} outlets")}</strong> · {tn(s.article_count, "{n} article", "{n} articles")}</span>
+          <span>{t("First reported by")} <Link to={`/sources/${first.source_slug}`}>{first.source_name}</Link>, {formatDateTime(first.published_at)}</span>
+          <span>{t("Updated {when}", { when: formatRelative(s.last_published_at) })}</span>
           <BlindspotBadges story={s} />
         </p>
-        {summary && <p className="story-head__summary">{summary} <span className="meta">(AI summary)</span></p>}
+        {summary && (
+          <p className="story-head__summary">
+            <span lang="en">{summary}</span>{" "}
+            <span className="meta">{getLang() === "en" ? t("(AI summary)") : t("(AI summary, in English)")}</span>
+          </p>
+        )}
         <ShareStory id={s.id} title={s.title} />
       </header>
 
       <div className="feed-layout">
         <div className="stack">
-          <Card title="How each outlet headlined it"
-            question="Every outlet's own headline, linked to the original. Compare the wording."
+          <Card title={t("How each outlet headlined it")}
+            question={t("Every outlet's own headline, linked to the original. Compare the wording.")}
             actions={<LensPicker lens={lens} onChange={setLens} available={available ?? undefined} />}>
             {() => <HeadlineColumns story={s} lens={lens} />}
           </Card>
-          <Card title="Timeline" question="Who reported it, and when — each mark is one report.">
+          <Card title={t("Timeline")} question={t("Who reported it, and when — each mark is one report.")}>
             {() => {
               const segs = segmentsByKey(s.coverage, lens);
               return (
@@ -131,7 +136,7 @@ export function StoryPage() {
                         <span>
                           <time dateTime={a.published_at}>{formatDateTime(a.published_at)}</time>{" "}
                           <strong>{a.source_name}</strong>
-                          {a.is_first && <span className="meta"> · first report</span>}
+                          {a.is_first && <span className="meta"> · {t("first report")}</span>}
                         </span>
                         <span><OutletLink story={s} a={a} /> <SentimentChip label={a.sentiment_label} /></span>
                       </li>
@@ -142,14 +147,14 @@ export function StoryPage() {
             }}
           </Card>
           {s.related.length > 0 && (
-            <Card title="Related stories" question="Stories within three days that name the same people, organisations or places.">
+            <Card title={t("Related stories")} question={t("Stories within three days that name the same people, organisations or places.")}>
               {() => <div>{s.related.map((r) => <StoryCard key={r.id} story={r} lens={lens} compact />)}</div>}
             </Card>
           )}
         </div>
 
-        <aside className="feed-aside" aria-label="Coverage details">
-          <Card title="Coverage details" question="Distinct outlets that covered this story.">
+        <aside className="feed-aside" aria-label={t("Coverage details")}>
+          <Card title={t("Coverage details")} question={t("Distinct outlets that covered this story.")}>
             {() => (
               <div className="stack">
                 {(["perspective", "factuality", "ownership", "region"] as Lens[]).filter((l) => available?.includes(l)).map((l) => (
@@ -159,22 +164,22 @@ export function StoryPage() {
                   </div>
                 ))}
                 <dl className="facts">
-                  <dt>Outlets</dt><dd>{s.source_count}</dd>
-                  <dt>Articles</dt><dd>{s.article_count}</dd>
-                  <dt>Tone</dt><dd>{s.tone.negative} negative · {s.tone.neutral} neutral · {s.tone.positive} positive</dd>
-                  <dt>Started</dt><dd>{formatDateTime(s.first_published_at)}</dd>
-                  <dt>Last update</dt><dd>{formatDateTime(s.last_published_at)}</dd>
+                  <dt>{t("Outlets")}</dt><dd>{s.source_count}</dd>
+                  <dt>{t("Articles")}</dt><dd>{s.article_count}</dd>
+                  <dt>{t("Tone")}</dt><dd>{t("{n} negative · {u} neutral · {p} positive", { n: s.tone.negative, u: s.tone.neutral, p: s.tone.positive })}</dd>
+                  <dt>{t("Started")}</dt><dd>{formatDateTime(s.first_published_at)}</dd>
+                  <dt>{t("Last update")}</dt><dd>{formatDateTime(s.last_published_at)}</dd>
                 </dl>
                 <p className="card__foot">
                   {available?.includes("perspective")
-                    ? "Ratings are editorial and belong to the outlet, not to the article. "
-                    : "None of these outlets has a perspective or factuality rating yet. "}
-                  <Link to="/about#ratings">How outlets are rated</Link>
+                    ? t("Ratings are editorial and belong to the outlet, not to the article.")
+                    : t("None of these outlets has a perspective or factuality rating yet.")}{" "}
+                  <Link to="/about#ratings">{t("How outlets are rated")}</Link>
                 </p>
               </div>
             )}
           </Card>
-          <Card title="Outlets" question="Their ratings, and where they are based.">
+          <Card title={t("Outlets")} question={t("Their ratings, and where they are based.")}>
             {() => (
               <ul className="plain-list">
                 {s.sources.map((src) => {
@@ -188,8 +193,8 @@ export function StoryPage() {
                           {" · "}
                           {[
                             src.bias !== "unrated" && BIAS_LABEL[src.bias],
-                            a.source_factuality !== "unrated" && `${FACTUALITY_LABEL[a.source_factuality]} factuality`,
-                            src.bias === "unrated" && a.source_factuality === "unrated" && "not rated yet",
+                            a.source_factuality !== "unrated" && t("{level} factuality", { level: FACTUALITY_LABEL[a.source_factuality].toLowerCase() }),
+                            src.bias === "unrated" && a.source_factuality === "unrated" && t("not rated yet"),
                             OWNERSHIP_LABEL[a.source_ownership],
                             countryLabel(src.country),
                           ].filter(Boolean).join(" · ")}
@@ -202,10 +207,10 @@ export function StoryPage() {
             )}
           </Card>
           {(s.entities.length > 0 || s.topics.length > 0) && (
-            <Card title="Tags" question="Topics and names in this story.">
+            <Card title={t("Tags")} question={t("Topics and names in this story.")}>
               {() => (
                 <div className="chips">
-                  {s.topics.map((t) => <Link key={t.slug} className="chip" to={`/topics/${t.slug}`}>{t.name_en}</Link>)}
+                  {s.topics.map((tp) => <Link key={tp.slug} className="chip" to={`/topics/${tp.slug}`}>{localName(tp.name_en, tp.name_sq)}</Link>)}
                   {s.entities.map((e) => (
                     <Link key={e.id} className="chip" to={`/entities/${e.id}`}>{e.name} · {ENTITY_TYPE_LABEL[e.type]}</Link>
                   ))}
