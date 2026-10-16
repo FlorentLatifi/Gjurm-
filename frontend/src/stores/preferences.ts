@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
+import { DEFAULT_LANG, isLang, type Lang } from "@/shared/i18n";
 import { type Lens, LENSES } from "@/shared/model/ratings";
 
 import { safeStorage } from "./storage";
@@ -32,8 +33,11 @@ export interface Preferences {
   theme: Theme;
   /** The coverage lens this reader last chose; the URL (?lens=) overrides it for one view. */
   lens: Lens | null;
+  /** The interface language; Albanian unless this reader chose English. */
+  lang: Lang;
   setTheme: (theme: Theme) => void;
   setLens: (lens: Lens) => void;
+  setLang: (lang: Lang) => void;
 }
 
 /**
@@ -45,14 +49,16 @@ export const usePreferences = create<Preferences>()(
     (set) => ({
       theme: legacyTheme(),
       lens: legacyLens(),
+      lang: DEFAULT_LANG,
       setTheme: (theme) => set({ theme }),
       setLens: (lens) => set({ lens }),
+      setLang: (lang) => set({ lang }),
     }),
     {
       name: PREFERENCES_KEY,
       version: 1,
       storage: createJSONStorage(() => safeStorage),
-      partialize: (s) => ({ theme: s.theme, lens: s.lens }),
+      partialize: (s) => ({ theme: s.theme, lens: s.lens, lang: s.lang }),
       // never trust stored values: a corrupted or hand-edited entry falls back to the defaults
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<Preferences>;
@@ -60,6 +66,7 @@ export const usePreferences = create<Preferences>()(
           ...current,
           theme: isTheme(p.theme) ? p.theme : current.theme,
           lens: isLens(p.lens) ? p.lens : current.lens,
+          lang: isLang(p.lang) ? p.lang : current.lang,
         };
       },
     },

@@ -273,13 +273,15 @@ sequenceDiagram
 
 | Budget (gzip) | Before | Built | CI limit (`budgets.json`) |
 |---|---:|---:|---:|
-| Entry, JS + CSS, every page | 99.3 KB | 103.3 KB | 106 KB |
-| Home page total | ≈108 KB | 113.3 KB | 118 KB |
-| Any non-chart route | 5–9 KB | 3–10 KB | 15 KB |
-| Chart route | 109–112 KB | 110–113 KB | 115 KB |
+| Entry, JS + CSS, every page | 99.3 KB | 107.8 KB | 110 KB |
+| Home page total | ≈108 KB | 118.8 KB | 122 KB |
+| Any non-chart route | 5–9 KB | 3–11 KB | 15 KB |
+| Chart route | 109–112 KB | 111–117 KB | 119 KB |
 | Fonts (all files, all subsets) | 0 | 38 KB, none preloaded | 48 KB |
 | LCP, slow phone | 1.7–1.8 s | 1.8–2.0 s | ≤ 2.5 s (measured, not in CI) |
 | Layout shift | 0.23–0.33 | 0.002 | ≤ 0.05 (measured, not in CI) |
+
+The Albanian interface (default) raised the entry by 2.8 KB and chart routes by up to 1.9 KB, and the limits by 4 KB each: the build hands every module only the Albanian of the strings it uses (`vite.config.ts`, `translations`), so a page carries its own text rather than the whole 12 KB catalog.
 
 `frontend/scripts/budget.mjs` walks Vite's build manifest from the entry and from each route, gzips what a visit downloads and fails CI above a limit. Raising a limit is a reviewed change to `budgets.json`. The manifest is not shipped (the Dockerfile deletes it).
 

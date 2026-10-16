@@ -1,22 +1,24 @@
 import { Link } from "react-router-dom";
 
 import { useTitle } from "@/shared/hooks/useTitle";
+import { getLang, labels, t } from "@/shared/i18n";
 import { formatDateTime, formatInt, formatRelative } from "@/shared/lib/format";
 import { Card } from "@/ui/Card";
 import { NotFoundState } from "@/ui/States";
 import { useStatus, useTaxonomy } from "../api";
+import { type AboutProps, CONTACT_IS_EMAIL, CONTACT_URL } from "./about";
+import { AboutSq } from "./AboutSq";
 
-// Where correction and removal requests go. Set VITE_CONTACT_URL at build time (e.g. a mailto:
-// address) so people do not have to post removal requests publicly; GitHub issues are public.
-const CONTACT_URL = /^(mailto:|https:\/\/)/.test(import.meta.env.VITE_CONTACT_URL ?? "")
-  ? (import.meta.env.VITE_CONTACT_URL as string)
-  : "https://github.com/FlorentLatifi/Gjurm-/issues";
-const CONTACT_IS_EMAIL = CONTACT_URL.startsWith("mailto:");
 
 export function AboutPage() {
-  useTitle("Methodology", "How GJURMË collects, analyses and presents news data, and its limitations.");
+  useTitle(t("Methodology"), t("How GJURMË collects, analyses and presents news data, and its limitations."));
   const taxonomy = useTaxonomy();
   const status = useStatus();
+  const props = { topics: taxonomy.data?.length ?? 19, status: status.data };
+  return getLang() === "sq" ? <AboutSq {...props} /> : <AboutEn {...props} />;
+}
+
+function AboutEn({ topics, status }: AboutProps) {
   return (
     <div className="prose">
       <h1>Methodology, sources &amp; limitations</h1>
@@ -41,10 +43,10 @@ export function AboutPage() {
       </ul>
 
       <h2 id="analysis">2. AI analysis</h2>
-      {status.data && status.data.analysis.mode !== "ai" && status.data.analysis.mode !== "none" && (
+      {status && status.analysis.mode !== "ai" && status.analysis.mode !== "none" && (
         <p className="banner" role="note">
           <strong>Current mode:</strong>{" "}
-          {status.data.analysis.mode === "rules" ? "all" : `${Math.round((status.data.analysis.rule_based_share ?? 0) * 100)}% of`}{" "}
+          {status.analysis.mode === "rules" ? "all" : `${Math.round((status.analysis.rule_based_share ?? 0) * 100)}% of`}{" "}
           recent articles were analysed by <em>keyword rules</em> instead of the language model described
           below: topics and tone come from lists of Albanian keywords, names from capitalised words,
           and there is no summary. This is much less accurate. Every article page says which method was used.
@@ -52,7 +54,7 @@ export function AboutPage() {
       )}
       <ul>
         <li>Each headline + excerpt is analysed by a large language model (each article page names the model) that returns
-          a structured record: primary topic (from a fixed list of {taxonomy.data?.length ?? 19} topics),
+          a structured record: primary topic (from a fixed list of {topics} topics),
           up to three secondary topics, tone, event type, people/organisations/places, countries, a
           one-sentence English summary and a confidence score.</li>
         <li>The output is validated against a strict schema. Names that do not appear in the headline or
@@ -133,9 +135,9 @@ export function AboutPage() {
       </ul>
 
       <h2>8. Sources</h2>
-      {status.data ? (
+      {status ? (
         <ul>
-          {status.data.sources.map((s) => (
+          {status.sources.map((s) => (
             <li key={s.slug}>{s.name} — {s.is_active ? "active" : "not collected"}
               {s.last_success_at && <>, last read {formatRelative(s.last_success_at)}</>}</li>
           ))}
@@ -166,40 +168,55 @@ export function AboutPage() {
   );
 }
 
+const STATUS_LABEL: Readonly<Record<string, string>> = labels({ ok: "ok", degraded: "degraded", stale: "stale" });
+const RUN_LABEL: Readonly<Record<string, string>> = labels({
+  succeeded: "succeeded",
+  partial: "partial",
+  failed: "failed",
+  running: "running",
+  skipped_locked: "skipped (another run was busy)",
+  abandoned: "abandoned",
+});
+const FEED_LABEL: Readonly<Record<string, string>> = labels({
+  verified: "verified",
+  failing: "failing",
+  unverified: "unverified",
+});
+
 export function StatusPage() {
-  useTitle("Status", "Pipeline freshness and source health.");
+  useTitle(t("Status"), t("Pipeline freshness and source health."));
   const status = useStatus();
   const s = status.data;
   return (
     <>
       <div className="page-head">
         <div>
-          <h1>System status</h1>
-          <p>Live health of the collection pipeline. It runs automatically every 15 minutes.</p>
+          <h1>{t("System status")}</h1>
+          <p>{t("Live health of the collection pipeline. It runs automatically every 15 minutes.")}</p>
         </div>
       </div>
       <div className="stack">
-        <Card title="Pipeline" query={status}>
+        <Card title={t("Pipeline")} query={status}>
           {() => (
             <dl className="facts">
-              <dt>Status</dt><dd><strong>{s!.status}</strong></dd>
-              <dt>Last successful run</dt><dd>{formatDateTime(s!.last_success_at)} ({formatRelative(s!.last_success_at)})</dd>
-              <dt>Last run result</dt><dd>{s!.last_run_status ?? "—"}</dd>
-              <dt>Scheduler heartbeat</dt><dd>{formatRelative(s!.scheduler_heartbeat_at)}</dd>
-              <dt>Articles, last 24 h</dt><dd>{formatInt(s!.articles_last_24h)}</dd>
-              <dt>Waiting for analysis</dt><dd>{formatInt(s!.enrichment_backlog)}</dd>
-              <dt>Version</dt><dd>{s!.version}</dd>
+              <dt>{t("Status")}</dt><dd><strong>{STATUS_LABEL[s!.status] ?? s!.status}</strong></dd>
+              <dt>{t("Last successful run")}</dt><dd>{formatDateTime(s!.last_success_at)} ({formatRelative(s!.last_success_at)})</dd>
+              <dt>{t("Last run result")}</dt><dd>{s!.last_run_status ? (RUN_LABEL[s!.last_run_status] ?? s!.last_run_status) : "—"}</dd>
+              <dt>{t("Scheduler heartbeat")}</dt><dd>{formatRelative(s!.scheduler_heartbeat_at)}</dd>
+              <dt>{t("Articles, last 24 h")}</dt><dd>{formatInt(s!.articles_last_24h)}</dd>
+              <dt>{t("Waiting for analysis")}</dt><dd>{formatInt(s!.enrichment_backlog)}</dd>
+              <dt>{t("Version")}</dt><dd>{s!.version}</dd>
             </dl>
           )}
         </Card>
-        <Card title="Sources" query={status} empty={!s?.sources.length}>
+        <Card title={t("Sources")} query={status} empty={!s?.sources.length}>
           {() => (
             <table>
-              <thead><tr><th scope="col">Source</th><th scope="col">State</th><th scope="col">Feed</th>
-                <th scope="col">Last successful read</th><th className="num" scope="col">Failures in a row</th></tr></thead>
+              <thead><tr><th scope="col">{t("Source")}</th><th scope="col">{t("State")}</th><th scope="col">{t("Feed")}</th>
+                <th scope="col">{t("Last successful read")}</th><th className="num" scope="col">{t("Failures in a row")}</th></tr></thead>
               <tbody>{s!.sources.map((src) => (
-                <tr key={src.slug}><td>{src.name}</td><td>{src.is_active ? "active" : "not collected"}</td>
-                  <td>{src.verification_status}</td><td>{formatDateTime(src.last_success_at)}</td>
+                <tr key={src.slug}><td>{src.name}</td><td>{src.is_active ? t("active") : t("not collected")}</td>
+                  <td>{FEED_LABEL[src.verification_status] ?? src.verification_status}</td><td>{formatDateTime(src.last_success_at)}</td>
                   <td className="num">{src.consecutive_failures}</td></tr>))}</tbody>
             </table>
           )}
@@ -210,6 +227,6 @@ export function StatusPage() {
 }
 
 export function NotFoundPage() {
-  useTitle("Not found", undefined, { index: false });
-  return <NotFoundState title="Page not found" />;
+  useTitle(t("Not found"), undefined, { index: false });
+  return <NotFoundState title={t("Page not found")} />;
 }

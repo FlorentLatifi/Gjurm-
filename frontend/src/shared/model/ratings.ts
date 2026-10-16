@@ -1,4 +1,5 @@
 import type { BiasGroup, BiasRating, Coverage, FactualityRating, OwnershipType } from "@/shared/api/types";
+import { labels, t } from "@/shared/i18n";
 
 /**
  * Labels and colours for the coverage dimensions (mirrors backend gjurme/sources/ratings.py).
@@ -6,21 +7,21 @@ import type { BiasGroup, BiasRating, Coverage, FactualityRating, OwnershipType }
  * categorical slots assigned to a fixed entity, never by rank; "unrated"/"unknown" is a hatched
  * neutral so it can never be mistaken for the center.
  */
-export const BIAS_LABEL: Record<BiasRating, string> = {
+export const BIAS_LABEL: Readonly<Record<BiasRating, string>> = labels({
   left: "Left",
   lean_left: "Lean left",
   center: "Center",
   lean_right: "Lean right",
   right: "Right",
   unrated: "Unrated",
-};
+});
 
-export const BIAS_GROUP_LABEL: Record<BiasGroup, string> = {
+export const BIAS_GROUP_LABEL: Readonly<Record<BiasGroup, string>> = labels({
   left: "Left",
   center: "Center",
   right: "Right",
   unrated: "Unrated",
-};
+});
 
 export const BIAS_GROUP_COLOR: Record<BiasGroup, string> = {
   left: "var(--bias-left)",
@@ -35,16 +36,23 @@ export function biasGroup(bias: BiasRating): BiasGroup {
   return bias === "center" ? "center" : "unrated";
 }
 
-export const FACTUALITY_LABEL: Record<FactualityRating, string> = {
+export const FACTUALITY_LABEL: Readonly<Record<FactualityRating, string>> = labels({
   very_high: "Very high",
   high: "High",
   mixed: "Mixed",
   low: "Low",
   very_low: "Very low",
   unrated: "Unrated",
-};
+});
 
-export const FACTUALITY_GROUP_LABEL = { high: "High", mixed: "Mixed", low: "Low", unrated: "Unrated" };
+export const FACTUALITY_GROUP_LABEL = labels({ high: "High", mixed: "Mixed", low: "Low", unrated: "Unrated" });
+/** A factuality group named on its own, as in a legend. */
+const FACTUALITY_SEGMENT_LABEL = labels({
+  high: "High factuality",
+  mixed: "Mixed factuality",
+  low: "Low factuality",
+  unrated: "Unrated factuality",
+});
 export const FACTUALITY_GROUP_COLOR = {
   high: "var(--fact-high)",
   mixed: "var(--fact-mixed)",
@@ -52,7 +60,7 @@ export const FACTUALITY_GROUP_COLOR = {
   unrated: "var(--unrated)",
 };
 
-export const OWNERSHIP_LABEL: Record<OwnershipType, string> = {
+export const OWNERSHIP_LABEL: Readonly<Record<OwnershipType, string>> = labels({
   private: "Private company",
   media_group: "Media group",
   public: "Public broadcaster",
@@ -60,7 +68,7 @@ export const OWNERSHIP_LABEL: Record<OwnershipType, string> = {
   public_international: "International public media",
   nonprofit: "Non-profit",
   unknown: "Unknown",
-};
+});
 
 /** Fixed slot per ownership type (categorical slots 1–6 in order; unknown is hatched). */
 export const OWNERSHIP_ORDER: OwnershipType[] = [
@@ -82,14 +90,14 @@ const OWNERSHIP_COLOR: Record<OwnershipType, string> = {
   unknown: "var(--unrated)",
 };
 
-export const COUNTRY_LABEL: Record<string, string> = {
+export const COUNTRY_LABEL: Readonly<Record<string, string>> = labels({
   XK: "Kosovo",
   AL: "Albania",
   MK: "North Macedonia",
   ME: "Montenegro",
   RS: "Serbia",
   REG: "Regional / international",
-};
+});
 /** The countries GJURMË follows outlets in, each with its own fixed slot; others fold together. */
 export const REGION_ORDER = ["XK", "AL", "MK", "REG"];
 const REGION_COLOR: Record<string, string> = {
@@ -113,12 +121,12 @@ export interface Segment {
 }
 
 export type Lens = "perspective" | "region" | "ownership" | "factuality";
-export const LENS_LABEL: Record<Lens, string> = {
+export const LENS_LABEL: Readonly<Record<Lens, string>> = labels({
   perspective: "Perspective",
   region: "Region",
   ownership: "Ownership",
   factuality: "Factuality",
-};
+});
 
 /** The segments of one coverage dimension, in the dimension's fixed order. */
 export function segments(coverage: Coverage, lens: Lens): Segment[] {
@@ -134,7 +142,7 @@ export function segments(coverage: Coverage, lens: Lens): Segment[] {
   if (lens === "factuality") {
     return (["high", "mixed", "low", "unrated"] as const).map((g) => ({
       key: g,
-      label: `${FACTUALITY_GROUP_LABEL[g]} factuality`,
+      label: FACTUALITY_SEGMENT_LABEL[g],
       value: coverage.factuality[g] ?? 0,
       color: FACTUALITY_GROUP_COLOR[g],
       hatched: g === "unrated",
@@ -159,7 +167,7 @@ export function segments(coverage: Coverage, lens: Lens): Segment[] {
       value: coverage.region[code] ?? 0,
       color: REGION_COLOR[code]!,
     })),
-    { key: "other", label: "Other", value: other, color: "var(--unrated)", hatched: true },
+    { key: "other", label: t("Other"), value: other, color: "var(--unrated)", hatched: true },
   ];
 }
 
@@ -186,7 +194,9 @@ export function availableLenses(coverages: Coverage[]): Lens[] {
 
 export function blindspotLabel(b: { kind: string; missing: string }): string {
   if (b.kind === "perspective") {
-    return `Blindspot: few ${b.missing === "left" ? "left-leaning" : "right-leaning"} outlets covered this`;
+    return b.missing === "left"
+      ? t("Blindspot: few left-leaning outlets covered this")
+      : t("Blindspot: few right-leaning outlets covered this");
   }
-  return `Blindspot: no outlet from ${countryLabel(b.missing)} covered this`;
+  return t("Blindspot: no outlet from {country} covered this", { country: countryLabel(b.missing) });
 }

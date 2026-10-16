@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 
 import { installPreloadRecovery } from "./chunkReload";
+import { LanguageRoot } from "./LanguageRoot";
 import { installPreferences } from "./preferences";
 import { queryClient } from "./queryClient";
 import { RouteError } from "./RouteError";
@@ -21,7 +22,9 @@ if (root) {
       <RouteError>
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
-            <AppRoutes />
+            <LanguageRoot>
+              <AppRoutes />
+            </LanguageRoot>
           </BrowserRouter>
         </QueryClientProvider>
       </RouteError>

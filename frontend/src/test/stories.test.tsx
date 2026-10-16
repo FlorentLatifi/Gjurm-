@@ -48,6 +48,7 @@ const story: StorySummary = {
   source_count: 4,
   topic_slug: "economy",
   topic_name: "Economy & Business",
+  topic_name_sq: "Ekonomi & Biznes",
   first_source_slug: "koha",
   first_source_name: "KOHA",
   coverage: coverage(),
@@ -153,7 +154,7 @@ describe("reading log (My news bias)", () => {
       id: 1, title: "Titulli", url: "https://koha.example/1", published_at: "2026-10-10T08:00:00Z",
       published_at_estimated: false, language: "sq", summary_en: null, sentiment_label: null,
       sentiment_score: null, event_type: null, enrichment_status: "succeeded", duplicate_of_id: null,
-      story_id: 7, source_slug: "koha", source_name: "KOHA", topic_slug: null, topic_name: null,
+      story_id: 7, source_slug: "koha", source_name: "KOHA", topic_slug: null, topic_name: null, topic_name_sq: null,
     }]} filters={NO_FILTERS} />);
     expect(screen.getByRole("link", { name: "All coverage of: Titulli" })).toHaveAttribute("href", "/stories/7");
     const link = screen.getByRole("link", { name: /^Titulli/ });

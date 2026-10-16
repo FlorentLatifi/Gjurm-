@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test.describe("GJURMË stories", () => {
   test("home lists stories with coverage bars and opens a story", async ({ page }) => {
@@ -218,7 +218,7 @@ test.describe("GJURMË dashboard", () => {
         body: JSON.stringify({ error: { code: "unavailable", message: "Service temporarily unavailable" } }) }));
     await page.goto("/dashboard");
     const card = page.getByRole("region", { name: "Publishing volume" });
-    await expect(card.getByRole("alert")).toContainText("Service temporarily unavailable");
+    await expect(card.getByRole("alert")).toContainText("The server could not answer just now");
     await expect(card.getByRole("button", { name: "Try again" })).toBeVisible();
   });
 
@@ -281,7 +281,7 @@ test.describe("GJURMË dashboard", () => {
     const crawler = await request.get(`/stories/${story.id}`, { headers: { "User-Agent": "facebookexternalhit/1.1" } });
     const card = await crawler.text();
     expect(card).toContain(`<meta property="og:title" content="${escaped} · GJURMË">`);
-    expect(card).toMatch(/og:description" content="\d+ outlets covered this story/);
+    expect(card).toMatch(/og:description" content="\d+ media e raportuan këtë lajm/);
     const reader = await request.get(`/stories/${story.id}`, { headers: { "User-Agent": "Mozilla/5.0 (iPhone)" } });
     expect(await reader.text()).toContain('<div id="root">');
   });
@@ -376,6 +376,46 @@ test.describe("GJURMË dashboard", () => {
       const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
       const serious = results.violations.filter((v) => ["serious", "critical"].includes(v.impact ?? ""));
       expect(serious.map((v) => `${v.id}: ${v.nodes.length} nodes — ${v.help}`)).toEqual([]);
+    });
+  }
+});
+
+test.describe("GJURMË in Albanian", () => {
+  test.use({ albanian: true });
+
+  test("speaks Albanian by default; English is one click away and remembered", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("html")).toHaveAttribute("lang", "sq");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Lajmet kryesore");
+    await expect(page.getByRole("navigation", { name: "Kryesore" }).getByRole("link", { name: "Pikat e verbra" })).toBeVisible();
+    await expect(page.locator(".story-card__foot strong").first()).toHaveText(/^\d+ (medium|media)$/);
+    // Albanian dates are written by the app: Chromium has no Albanian locale data
+    await expect(page.locator(".story-card__top time").first()).toHaveText(/^Përditësuar (tani|dje|\d+ (minutë|minuta|orë|ditë) më parë)$/);
+    await page.getByRole("button", { name: "English" }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Top stories");
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await page.reload();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Top stories");
+    await page.getByRole("button", { name: "Shqip" }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Lajmet kryesore");
+  });
+
+  test("topics, methods and the methodology are in Albanian too", async ({ page }) => {
+    await page.goto("/topics/politics");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Politikë & Qeverisje");
+    await expect(page.getByText(/^Politika e brendshme/)).toBeVisible();
+    await page.goto("/trends");
+    await expect(page.getByRole("region", { name: "Momenti i temave" }).locator(".card__foot")).toContainText("rritja =");
+    await page.goto("/about");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Metodologjia, burimet dhe kufizimet");
+  });
+
+  for (const path of ["/", "/about"]) {
+    test(`no serious accessibility violations in Albanian on ${path}`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+      expect(results.violations.filter((v) => v.impact === "serious" || v.impact === "critical")).toEqual([]);
     });
   }
 });

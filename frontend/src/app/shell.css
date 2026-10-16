@@ -68,6 +68,10 @@
   align-items: center;
   gap: var(--space-2);
 }
+.site-header__short {
+  display: none;
+}
+
 /* Opens under the masthead, the full width of the page. */
 .site-search {
   position: absolute;
@@ -128,6 +132,9 @@ main {
   .nav {
     order: 3;
     flex-basis: 100%;
+  }
+  .site-header__short {
+    display: inline;
   }
   /* phones: the header buttons show their icons; the words stay for screen readers */
   .site-header__label {

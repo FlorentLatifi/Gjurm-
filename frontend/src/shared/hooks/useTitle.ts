@@ -1,13 +1,14 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
+import { t } from "@/shared/i18n";
 import { publicUrl } from "@/shared/lib/publicUrl";
 
-const SITE_TITLE = "GJURMË — every side of the Albanian-language news";
-// index.html's description, for pages that have none of their own (the previous page's would
-// otherwise stay in place after client-side navigation).
-const DEFAULT_DESCRIPTION =
-  document.querySelector('meta[name="description"]')?.getAttribute("content") ?? "";
+// The site's own title and description (index.html carries the Albanian ones), for pages that
+// have none of their own: the previous page's would otherwise stay after client-side navigation.
+const siteTitle = () => t("GJURMË — every side of the Albanian-language news");
+const siteDescription = () =>
+  t("Albanian-language news grouped into stories: which outlets covered each one, by perspective, region and ownership, who reported first, and what one side missed — always linking to the original articles.");
 
 function headElement(selector: string, create: () => HTMLElement): HTMLElement {
   let el = document.head.querySelector<HTMLElement>(selector);
@@ -40,8 +41,8 @@ function setMeta(attr: "name" | "property", key: string, content: string | null)
 export function useTitle(title: string, description?: string, { index = true }: { index?: boolean } = {}) {
   const { pathname } = useLocation();
   useEffect(() => {
-    const fullTitle = title ? `${title} · GJURMË` : SITE_TITLE;
-    const text = description ?? DEFAULT_DESCRIPTION;
+    const fullTitle = title ? `${title} · GJURMË` : siteTitle();
+    const text = description ?? siteDescription();
     const url = publicUrl(pathname);
     document.title = fullTitle;
     setMeta("name", "description", text);

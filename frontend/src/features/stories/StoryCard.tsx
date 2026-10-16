@@ -15,6 +15,7 @@ import {
 import { storyQuery } from "./api";
 import { StoryCoverage } from "./StoryCoverage";
 import "./stories.css";
+import { localName, t, tn } from "@/shared/i18n";
 
 function initials(name: string): string {
   const words = name.replace(/[^\p{L}\p{N} ]/gu, "").split(/\s+/).filter(Boolean);
@@ -98,24 +99,24 @@ export function StoryCard({
       aria-labelledby={titleId}
     >
       <div className="story-card__top">
-        {story.topic_name && <span className="kicker">{story.topic_name}</span>}
-        <span>· <time dateTime={story.last_published_at}>Updated {formatRelative(story.last_published_at)}</time></span>
+        {story.topic_name && <span className="kicker">{localName(story.topic_name, story.topic_name_sq)}</span>}
+        <span>· <time dateTime={story.last_published_at}>{t("Updated {when}", { when: formatRelative(story.last_published_at) })}</time></span>
         <BlindspotBadges story={story} />
       </div>
       <h3 className="story-card__title" id={titleId} lang={story.language}>
         <Link to={`/stories/${story.id}`} {...prefetch}>{story.title}</Link>
       </h3>
       {!compact && realSummary(story.summary_en) && (
-        <p className="story-card__summary">{realSummary(story.summary_en)}</p>
+        <p className="story-card__summary" lang="en">{realSummary(story.summary_en)}</p>
       )}
       <StoryCoverage coverage={story.coverage} lens={lens} size={compact ? "sm" : "md"} />
       <div className="story-card__foot">
         <SourceDots sources={story.sources} />
         <span>
-          <strong>{story.source_count} {story.source_count === 1 ? "outlet" : "outlets"}</strong>
-          {story.article_count > story.source_count && <> · {story.article_count} articles</>}
+          <strong>{tn(story.source_count, "{n} outlet", "{n} outlets")}</strong>
+          {story.article_count > story.source_count && <> · {tn(story.article_count, "{n} article", "{n} articles")}</>}
         </span>
-        {story.source_count > 1 && <span>First: {story.first_source_name}</span>}
+        {story.source_count > 1 && <span>{t("First: {outlet}", { outlet: story.first_source_name })}</span>}
       </div>
     </article>
   );
