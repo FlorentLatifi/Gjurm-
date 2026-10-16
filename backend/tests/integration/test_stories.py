@@ -595,7 +595,8 @@ def test_link_preview_carries_the_story_and_escapes_it(
     assert (
         f'<meta property="og:url" content="http://localhost:5173/stories/{story_id}">' in resp.text
     )
-    assert "outlets covered this story" in resp.text
+    assert f'content="{detail["source_count"]} media e raportuan këtë lajm: ' in resp.text
+    assert '<html lang="sq">' in resp.text
     assert "kritikoi" not in resp.text  # metadata only: never excerpt text
     assert "og:title" in resp.text and escape_attr(detail["title"]) in resp.text
 

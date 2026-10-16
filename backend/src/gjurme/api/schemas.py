@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+from gjurme import taxonomy
 
 T = TypeVar("T")
 
@@ -48,6 +50,19 @@ class Page(Model, Generic[T]):
 
 class WithMethod(Model):
     method: str = Field(description="Plain-language description of how the numbers are computed")
+    method_sq: str = Field(description="The same description in Albanian")
+
+
+class TopicName(Model):
+    """A topic reference; its Albanian name comes from the taxonomy."""
+
+    slug: str
+    name_en: str
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def name_sq(self) -> str:
+        return taxonomy.name_sq(self.slug) or self.name_en
 
 
 # ------------------------------------------------------------------------------------------
@@ -60,9 +75,7 @@ class SentimentBreakdown(Model):
     average: float | None
 
 
-class TopTopic(Model):
-    slug: str
-    name_en: str
+class TopTopic(TopicName):
     articles: int
     share: float | None
 
@@ -149,9 +162,7 @@ class SentimentGroups(Model):
     groups: list[SentimentGroup]
 
 
-class SentimentShiftItem(Model):
-    slug: str
-    name_en: str
+class SentimentShiftItem(TopicName):
     current: float | None
     previous: float | None
     n_current: int
@@ -180,9 +191,7 @@ class TopicStat(Model):
     positive: int
 
 
-class TopicMomentumItem(Model):
-    slug: str
-    name_en: str
+class TopicMomentumItem(TopicName):
     current: int
     previous: int
     growth: float | None
@@ -199,6 +208,11 @@ class TopicInfo(Model):
     name_en: str
     name_sq: str
     description: str
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def description_sq(self) -> str:
+        return taxonomy.DESCRIPTION_SQ.get(self.slug, self.description)
 
 
 class TopicSeriesPoint(Model):
@@ -255,9 +269,7 @@ class CoMention(EntityRef):
     together: int
 
 
-class TopicSlice(Model):
-    slug: str
-    name_en: str
+class TopicSlice(TopicName):
     articles: int
 
 
@@ -287,6 +299,17 @@ class CoOccurrence(Model):
 class TopicCount(Model):
     slug: str
     articles: int
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def name_en(self) -> str:
+        topic = taxonomy.TOPIC_BY_SLUG.get(self.slug)
+        return topic.name_en if topic else self.slug
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def name_sq(self) -> str:
+        return taxonomy.name_sq(self.slug) or self.slug
 
 
 BiasRating = Literal["left", "lean_left", "center", "lean_right", "right", "unrated"]
@@ -393,6 +416,11 @@ class StorySummary(Model):
     sources: list[StorySource]
     blindspots: list[Blindspot]
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def topic_name_sq(self) -> str | None:
+        return taxonomy.name_sq(self.topic_slug, self.topic_name)
+
 
 class StoryArticle(Model):
     id: int
@@ -415,9 +443,7 @@ class EntityArticles(EntityRef):
     articles: int
 
 
-class TopicArticles(Model):
-    slug: str
-    name_en: str
+class TopicArticles(TopicName):
     articles: int
 
 
@@ -490,10 +516,13 @@ class ArticleSummary(Model):
     topic_slug: str | None
     topic_name: str | None
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def topic_name_sq(self) -> str | None:
+        return taxonomy.name_sq(self.topic_slug, self.topic_name)
 
-class ArticleTopicRef(Model):
-    slug: str
-    name_en: str
+
+class ArticleTopicRef(TopicName):
     is_primary: bool
 
 
@@ -537,6 +566,11 @@ class ArticleDetail(Model):
     topics: list[ArticleTopicRef]
     entities: list[EntityRef]
     related: list[RelatedArticle]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def topic_name_sq(self) -> str | None:
+        return taxonomy.name_sq(self.topic_slug, self.topic_name)
 
 
 # ------------------------------------------------------------------------------------------
