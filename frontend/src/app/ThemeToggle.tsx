@@ -39,7 +39,7 @@ export function ThemeToggle() {
       onClick={() => setTheme(next)}
       aria-label={`Colour theme: ${LABEL[theme]}. Switch to ${next}.`}
     >
-      <Icon theme={theme} /> {LABEL[theme]}
+      <Icon theme={theme} /> <span className="site-header__label">{LABEL[theme]}</span>
     </button>
   );
 }
