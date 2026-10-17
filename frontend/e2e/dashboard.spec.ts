@@ -345,6 +345,8 @@ test.describe("GJURMË dashboard", () => {
     await page.goto("/blindspot");
     await expect(page.getByRole("heading", { name: "Left and right blindspots" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /^For the left/ })).toHaveCount(0);
+    // a prefetch still in its handler when the test ends finds its response disposed
+    await page.unrouteAll({ behavior: "ignoreErrors" });
   });
 
   test("unknown routes show a 404 page that search engines do not list", async ({ page }) => {
@@ -429,6 +431,7 @@ test.describe("GJURMË in Albanian", () => {
     await expect(summary).toHaveAttribute("lang", "sq");
     await page.getByRole("button", { name: "English" }).click();
     await expect(page.locator(".story-card__summary").first()).toHaveText("Parliament passed the budget.");
+    await page.unrouteAll({ behavior: "ignoreErrors" });
   });
 
   test("topics, methods and the methodology are in Albanian too", async ({ page }) => {
