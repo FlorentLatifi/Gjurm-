@@ -345,6 +345,8 @@ test.describe("GJURMË dashboard", () => {
     await page.goto("/blindspot");
     await expect(page.getByRole("heading", { name: "Left and right blindspots" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /^For the left/ })).toHaveCount(0);
+    // a prefetch still in its handler when the test ends finds its response disposed
+    await page.unrouteAll({ behavior: "ignoreErrors" });
   });
 
   test("unknown routes show a 404 page that search engines do not list", async ({ page }) => {
@@ -356,6 +358,17 @@ test.describe("GJURMË dashboard", () => {
       await expect(page.getByRole("heading", { name: "Story not found" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Go to the top stories" })).toBeVisible();
     }
+  });
+
+  test("a merged story's old link opens the story it joined", async ({ page, request }) => {
+    const list = await (await request.get("/api/v1/stories?days=30&min_sources=2&page_size=1")).json();
+    const id = (list.items[0] as { id: number }).id;
+    const detail = await (await request.get(`/api/v1/stories/${id}`)).json();
+    // the API answers a merged story's id with the story that took its articles
+    await page.route("**/api/v1/stories/987654", (route) => route.fulfill({ json: detail }));
+    await page.goto("/stories/987654");
+    await expect(page).toHaveURL(new RegExp(`/stories/${id}$`));
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(detail.title);
   });
 
   test("each page names its own canonical URL; the sitemap lists the stories", async ({ page, request }) => {
@@ -418,6 +431,7 @@ test.describe("GJURMË in Albanian", () => {
     await expect(summary).toHaveAttribute("lang", "sq");
     await page.getByRole("button", { name: "English" }).click();
     await expect(page.locator(".story-card__summary").first()).toHaveText("Parliament passed the budget.");
+    await page.unrouteAll({ behavior: "ignoreErrors" });
   });
 
   test("topics, methods and the methodology are in Albanian too", async ({ page }) => {

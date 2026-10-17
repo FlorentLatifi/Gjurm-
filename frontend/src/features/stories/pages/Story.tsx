@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 
 import { isNotFound } from "@/shared/api/client";
 import type { StoryArticle, StoryDetail } from "@/shared/api/types";
@@ -91,6 +91,8 @@ export function StoryPage() {
   }
   if (query.isPending) return <LoadingBlock height={320} />;
   if (query.isError || !s) return <ErrorState error={query.error} />;
+  // A story merged into another one answers with that story: show it under its own URL.
+  if (s.id !== id) return <Navigate to={`/stories/${s.id}`} replace />;
   const first = s.articles.find((a) => a.is_first) ?? s.articles[0]!;
   const summary = summaryFor(s);
 

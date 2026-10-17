@@ -339,6 +339,13 @@ def blindspots(
 
 
 def story_detail(session: Session, story_id: int) -> dict[str, Any] | None:
+    """One story with its articles; a merged story's id gives the story it was merged into
+    (its ``id`` then differs from the one asked for)."""
+    target = session.execute(
+        text("SELECT merged_into_id FROM core.stories WHERE id = :id"), {"id": story_id}
+    ).scalar()
+    if target is not None:  # rows that pointed at a merged story are re-pointed: one hop
+        story_id = target
     agg_rows = _rows(
         session,
         """
