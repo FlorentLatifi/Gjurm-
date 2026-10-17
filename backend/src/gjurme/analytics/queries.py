@@ -817,7 +817,7 @@ def search_articles(
         session,
         f"""
         SELECT a.id, a.title, a.url, a.published_at, a.published_at_estimated, a.language,
-               a.summary_en, a.sentiment_label, a.sentiment_score, a.event_type,
+               a.summary_en, a.summary_sq, a.sentiment_label, a.sentiment_score, a.event_type,
                a.enrichment_status, a.duplicate_of_id, a.story_id,
                s.slug AS source_slug, s.name AS source_name,
                t.slug AS topic_slug, t.name_en AS topic_name
@@ -836,7 +836,8 @@ def article_detail(session: Session, article_id: int) -> dict[str, Any] | None:
         session,
         """
         SELECT a.id, a.title, a.url, a.published_at, a.published_at_estimated, a.language,
-               a.summary_en, a.sentiment_label, a.sentiment_score, a.event_type, a.countries,
+               a.summary_en, a.summary_sq, a.sentiment_label, a.sentiment_score, a.event_type,
+               a.countries,
                a.enrichment_status, a.enrichment_confidence, a.feed_categories, a.author,
                a.duplicate_of_id, a.story_id, a.enriched_at,
                s.slug AS source_slug, s.name AS source_name, s.homepage_url AS source_url,

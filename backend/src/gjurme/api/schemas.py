@@ -401,6 +401,7 @@ class StorySummary(Model):
     url: str = Field(description="Link to that article at its publisher")
     language: str
     summary_en: str | None
+    summary_sq: str | None = Field(None, description="The summary in Albanian (prompt v1.2+)")
     source_slug: str
     source_name: str
     first_published_at: datetime
@@ -429,6 +430,7 @@ class StoryArticle(Model):
     published_at: datetime
     language: str
     summary_en: str | None
+    summary_sq: str | None = Field(None, description="The summary in Albanian (prompt v1.2+)")
     sentiment_label: SentimentLabel | None
     source_slug: str
     source_name: str
@@ -505,6 +507,7 @@ class ArticleSummary(Model):
     published_at_estimated: bool
     language: str
     summary_en: str | None
+    summary_sq: str | None = Field(None, description="The summary in Albanian (prompt v1.2+)")
     sentiment_label: SentimentLabel | None
     sentiment_score: float | None
     event_type: str | None
@@ -543,6 +546,7 @@ class ArticleDetail(Model):
     published_at_estimated: bool
     language: str
     summary_en: str | None
+    summary_sq: str | None = Field(None, description="The summary in Albanian (prompt v1.2+)")
     sentiment_label: SentimentLabel | None
     sentiment_score: float | None
     event_type: str | None

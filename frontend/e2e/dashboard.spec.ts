@@ -80,6 +80,10 @@ test.describe("GJURMË stories", () => {
   });
 
   test("the masthead search opens the story feed's keyword search from any page", async ({ page }) => {
+    // Search for a word of a story that is in today's feed: the demo data follows the date.
+    await page.goto("/");
+    const story = (await page.locator(".story-list .story-card__title").first().textContent())!.trim();
+    const word = story.split(/[^\p{L}]+/u).sort((a, b) => b.length - a.length)[0]!;
     await page.goto("/sources");
     const toggle = page.getByRole("button", { name: "Search", expanded: false });
     await toggle.click();
@@ -89,11 +93,11 @@ test.describe("GJURMË stories", () => {
     await expect(box).toBeHidden();
     await expect(toggle).toBeFocused();
     await toggle.click();
-    await box.fill("autostrada");
+    await box.fill(word);
     await box.press("Enter");
-    await expect(page).toHaveURL(/\/\?q=autostrada$/);
+    await expect(page).toHaveURL(new RegExp(`/\\?q=${encodeURIComponent(word)}$`));
     await expect(box).toBeHidden();
-    await expect(page.locator(".story-card__title").first()).toContainText(/autostrad/i);
+    await expect(page.locator(".story-list .story-card__title", { hasText: story })).toBeVisible();
   });
 
   test("blindspot page groups stories by the side that missed them", async ({ page }) => {
@@ -398,6 +402,22 @@ test.describe("GJURMË in Albanian", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Top stories");
     await page.getByRole("button", { name: "Shqip" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Lajmet kryesore");
+  });
+
+  test("AI summaries show in Albanian when the analysis wrote one", async ({ page }) => {
+    // The demo is analysed by keyword rules, which write no summary: give the first story both.
+    await page.route(/\/api\/v1\/stories\?/, async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      body.items[0] = { ...body.items[0], summary_en: "Parliament passed the budget.", summary_sq: "Kuvendi miratoi buxhetin." };
+      await route.fulfill({ response, json: body });
+    });
+    await page.goto("/");
+    const summary = page.locator(".story-card__summary").first();
+    await expect(summary).toHaveText("Kuvendi miratoi buxhetin.");
+    await expect(summary).toHaveAttribute("lang", "sq");
+    await page.getByRole("button", { name: "English" }).click();
+    await expect(page.locator(".story-card__summary").first()).toHaveText("Parliament passed the budget.");
   });
 
   test("topics, methods and the methodology are in Albanian too", async ({ page }) => {

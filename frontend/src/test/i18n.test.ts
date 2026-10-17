@@ -10,6 +10,7 @@ import {
   formatInt,
   formatPercent,
   formatRelative,
+  summaryFor,
 } from "@/shared/lib/format";
 
 // Every source file's text (Vite reads them; tests and generated files are left out below).
@@ -90,5 +91,17 @@ describe("Albanian interface", () => {
     expect(ago(30 * 3600)).toBe("dje");
     expect(ago(3 * 86400)).toBe("3 ditë më parë");
     expect(ago(-3600)).toBe("për 1 orë");
+  });
+
+  it("shows the AI summary in Albanian when the analysis wrote one, else the English one", () => {
+    const both = { summary_en: "Parliament passed the budget.", summary_sq: "Kuvendi miratoi buxhetin." };
+    const older = { summary_en: "Parliament passed the budget.", summary_sq: null };
+    const rules = { summary_en: "[headline, no AI summary] x", summary_sq: "[headline, no AI summary] x" };
+    setLang("sq");
+    expect(summaryFor(both)).toEqual({ text: "Kuvendi miratoi buxhetin.", lang: "sq" });
+    expect(summaryFor(older)).toEqual({ text: "Parliament passed the budget.", lang: "en" });
+    expect(summaryFor(rules)).toBeNull();
+    setLang("en");
+    expect(summaryFor(both)).toEqual({ text: "Parliament passed the budget.", lang: "en" });
   });
 });

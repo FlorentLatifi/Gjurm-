@@ -202,6 +202,7 @@ export interface ArticleSummary {
   published_at_estimated: boolean;
   language: string;
   summary_en: string | null;
+  summary_sq: string | null;
   sentiment_label: SentimentLabel | null;
   sentiment_score: number | null;
   event_type: string | null;
@@ -239,6 +240,7 @@ export interface StorySummary {
   url: string;
   language: string;
   summary_en: string | null;
+  summary_sq: string | null;
   source_slug: string;
   source_name: string;
   first_published_at: string;
@@ -263,6 +265,7 @@ export interface StoryArticle {
   published_at: string;
   language: string;
   summary_en: string | null;
+  summary_sq: string | null;
   sentiment_label: SentimentLabel | null;
   source_slug: string;
   source_name: string;

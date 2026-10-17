@@ -14,7 +14,8 @@ Code: `backend/src/gjurme/enrichment/`: `prompt.py`, `schema.py`, `providers.py`
 | `sentiment` | `negative` \| `neutral` \| `positive` | Tone mix |
 | `sentiment_score` | −1.0 … 1.0, consistent with the label | Average tone, tone shift |
 | `event_type` | controlled list (`EVENT_TYPES`) | Article metadata |
-| `summary_en` | one neutral English sentence, ≤ 35 words | Article lists (our own text, not the publisher's) |
+| `summary_en` | one neutral English sentence, ≤ 35 words | The English interface (our own text, not the publisher's) |
+| `summary_sq` | the same sentence in standard Albanian, ≤ 35 words (v1.2+) | The Albanian interface and link previews |
 | `entities` | ≤ 12 × `{name, type: person\|organization\|location}` | Entity rankings, spikes, co-occurrence |
 | `countries` | ≤ 6 ISO 3166-1 alpha-2 codes (Kosovo = `XK`) | Article metadata |
 | `confidence` | 0.0 … 1.0, self-reported | Low-confidence data-quality check |
@@ -137,7 +138,7 @@ Switching models is configuration only (`LLM_MODEL`). The model is part of `inpu
 
 ## Versioning and reprocessing
 
-- `PROMPT_VERSION = "v1.1"` (prompt.py) and `SCHEMA_VERSION = "2026-09-24.1"` (schema.py) are stored on every enrichment row, next to model, tokens, cost, latency, attempt number and the provider's request id.
+- `PROMPT_VERSION = "v1.2"` (prompt.py) and `SCHEMA_VERSION = "2026-10-16.1"` (schema.py) are stored on every enrichment row, next to model, tokens, cost, latency, attempt number and the provider's request id.
 - Bump `PROMPT_VERSION` whenever the prompt text, the taxonomy or the schema changes.
 - v1.1 (2026-10-05) tightened the rules where the free model `gemma3:4b` failed on live headlines: Albanian names in base form ("Gjermaninë" → "Gjermania", "Policisë së Kosovës" → "Policia e Kosovës"); no common nouns, amounts or titles of works as entities; parliaments and courts are organizations and countries locations; quoted speakers ("Gjini: …") are listed; mixed headlines and "concerns" get a matching tone; summaries add no days, numbers or roles. The output schema is unchanged.
 - Measured with `gemma3:4b` on three sets of 15 live headlines (each run sees that day's feeds, so the articles differ):
@@ -153,9 +154,10 @@ Switching models is configuration only (`LLM_MODEL`). The model is part of `inpu
   | Summary adds or distorts facts (articles) | 3–4 | 1 + 2 not in English | 5 (1 partly not in English) |
 
   The capital-letter filter (`entities_not_proper`) works reliably. The prompt alone does not make a 4B model consistent: name forms improved on one set of headlines and not on the next, which had long protest stories full of institution names. Treat a small local model as a rough first pass. For per-outlet comparisons and the bias analysis, use Claude or a larger model.
+- v1.2 (2026-10-16) adds `summary_sq`, the same one-sentence summary in standard Albanian, because the site's interface is Albanian by default ([ADR-026](DECISIONS.md#adr-026-an-albanian-interface-by-default-english-on-request)). Both summaries are required in the output schema. Articles analysed before v1.2 keep only the English summary, which the Albanian interface labels as English, until they are analysed again. The extra sentence is about 50 output tokens (≈ 10 % more per article than the cost estimates above, which predate it).
 - Reprocess:
   ```bash
-  gjurme enrich-requeue --older-than-version v1.1   # mark analyses made before v1.1 for re-enrichment
+  gjurme enrich-requeue --older-than-version v1.2   # mark analyses made before v1.2 for re-enrichment
   gjurme enrich --limit 500                          # or let the scheduler work through it
   gjurme enrich-requeue --failed                     # retry failed/skipped articles
   gjurme enrich-requeue --article-id 123             # one article (also: POST /admin/articles/123/reenrich)

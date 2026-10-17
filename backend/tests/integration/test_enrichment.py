@@ -31,6 +31,7 @@ GOOD = {
     "sentiment_score": -0.6,
     "event_type": "investigation_arrest",
     "summary_en": "Police in Prizren arrested two people suspected of smuggling.",
+    "summary_sq": "Policia në Prizren arrestoi dy persona të dyshuar për kontrabandë.",
     "entities": [
         {"name": "Policia e Kosovës", "type": "organization"},
         {"name": "Prizren", "type": "location"},
@@ -104,6 +105,7 @@ def test_successful_enrichment_persists_everything(db, settings: Settings) -> No
         assert art.enrichment_status == "succeeded" and art.sentiment_label == "negative"
         assert art.primary_topic is not None and art.primary_topic.slug == "crime_justice"
         assert art.countries == ["XK"] and art.summary_en.startswith("Police in Prizren")
+        assert art.summary_sq is not None and art.summary_sq.startswith("Policia në Prizren")
         topics = s.execute(select(ArticleTopic.topic_id, ArticleTopic.is_primary)).all()
         assert len(topics) == 2 and sum(p for _, p in topics) == 1
         names = set(s.scalars(select(Entity.name)))
