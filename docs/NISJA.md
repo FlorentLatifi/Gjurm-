@@ -243,7 +243,7 @@ Grupimi bëhet automatikisht çdo 15 minuta. Për të parë si po punon me lajme
 gj stories-review --hours 48        # historitë me disa media, anëtarët më të dobët, "gati-bashkimet"
 ```
 
-Workflow-i *Source validation* në GitHub e publikon të njëjtin raport për feed-et reale. Nëse historitë bashkojnë ngjarje të ndryshme, rrite `STORY_SIMILARITY_THRESHOLD` te `.env` (p.sh. 0.5); nëse i ndajnë shumë, ule (p.sh. 0.4). Pastaj `gj cluster --rebuild-days 3`.
+Workflow-i *Source validation* në GitHub e publikon të njëjtin raport për feed-et reale. Nëse historitë bashkojnë ngjarje të ndryshme, rrite `STORY_SIMILARITY_THRESHOLD` te `.env` (p.sh. 0.5) dhe `STORY_MEMBER_SIMILARITY_THRESHOLD` (p.sh. 0.6); nëse i ndajnë shumë, uli (p.sh. 0.4 dhe 0.45). Pastaj `gj cluster --rebuild-days 3`.
 
 ---
 

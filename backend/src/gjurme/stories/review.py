@@ -10,7 +10,8 @@ Three lists, headlines only (never excerpts, ADR-003):
   paraphrases show up here).
 
 The thresholds of ADR-020 were hand-calibrated; this report is how they are checked on live
-data before being changed with ``STORY_SIMILARITY_THRESHOLD`` + ``gjurme cluster --rebuild-days``.
+data before being changed with ``STORY_SIMILARITY_THRESHOLD`` or
+``STORY_MEMBER_SIMILARITY_THRESHOLD`` + ``gjurme cluster --rebuild-days``.
 """
 
 from __future__ import annotations
@@ -79,9 +80,9 @@ def review_report(session: Session, settings: Settings, *, hours: int = 48, top:
     out = [
         f"## Story clustering review — last {hours} h",
         "",
-        f"{len(rows)} articles, {len(by_story)} stories, threshold "
-        f"{threshold:g}. Similarities are article-to-article cosines (the clustering compares an "
-        "article with the whole story, so they differ slightly).",
+        f"{len(rows)} articles, {len(by_story)} stories, thresholds {threshold:g} (to the whole "
+        f"story) and {settings.story_member_similarity_threshold:g} (to its closest report). "
+        "Similarities are article-to-article cosines.",
         "",
         "### Multi-outlet stories",
         "",

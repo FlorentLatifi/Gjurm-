@@ -12,12 +12,20 @@ analyses typed as places.
 
 1. a near-verbatim copy (``duplicate_of_id``, dedup layer L4) joins its original's story;
 2. otherwise it joins the most similar story whose centroid has cosine similarity ≥
-   ``settings.story_similarity_threshold``, with which its headline shares a word that is not a
-   person's name (``similarity.shares_event_term``), and whose names do not conflict
+   ``settings.story_similarity_threshold``, or one of whose articles has cosine similarity ≥
+   ``settings.story_member_similarity_threshold`` (a large story's centroid is diluted by its
+   other reports), with which its headline shares a word that is not a person's name
+   (``similarity.shares_event_term``), and whose names do not conflict
    (``similarity.names_conflict``);
 3. otherwise it starts a new story.
 
-Assignments are never revisited by later runs, so story ids (and URLs) are stable;
+An article that passes rule 2 for a second story with the member threshold reports both: the
+two stories merge, if their names do not conflict and together they still span at most
+``STORY_WINDOW``. Single-pass clustering depends on the order: a report that happens to come
+first can start a story of its own that later, closer reports would have joined.
+
+Articles never leave their story except when it merges, and a merged story's row stays,
+pointing at the story that took its articles (``merged_into_id``), so story URLs stay valid.
 ``rebuild`` re-clusters a period from scratch after a threshold change. The IDF weights come
 from all articles loaded for the batch (the batch ± the story window), i.e. the news of the
 same few days. See docs/DECISIONS.md (ADR-020).
@@ -67,6 +75,7 @@ class ClusterStats:
     joined_existing: int = 0
     new_stories: int = 0
     via_duplicate: int = 0
+    stories_merged: int = 0
     stories_refreshed: int = 0
 
     def as_dict(self) -> dict[str, Any]:
@@ -75,6 +84,7 @@ class ClusterStats:
             "joined_existing": self.joined_existing,
             "new_stories": self.new_stories,
             "via_duplicate": self.via_duplicate,
+            "stories_merged": self.stories_merged,
             "stories_refreshed": self.stories_refreshed,
         }
 
@@ -107,6 +117,30 @@ class _Cluster:
 
     def extend(self, at: datetime) -> None:
         self.first_at, self.last_at = min(self.first_at, at), max(self.last_at, at)
+
+    def can_merge(self, other: _Cluster) -> bool:
+        """The two stories together span at most ``STORY_WINDOW`` and their names agree."""
+        span = max(self.last_at, other.last_at) - min(self.first_at, other.first_at)
+        return span <= STORY_WINDOW and not names_conflict(self.names, other.names)
+
+    def absorb(self, other: _Cluster) -> None:
+        for term, weight in other.centroid.items():
+            self.centroid[term] = self.centroid.get(term, 0.0) + weight
+        self.norm = sum(x * x for x in self.centroid.values()) ** 0.5
+        self.names = self.names | other.names
+        self.people_all = self.people_all | other.people_all
+        self.members.extend(other.members)
+        self.extend(other.first_at)
+        self.extend(other.last_at)
+
+    def outranks(self, other: _Cluster) -> bool:
+        """Which of two merging stories keeps its id: a stored story over one created in this
+        batch (no link to it exists yet), then the larger, then the older."""
+        return (self.key >= 0, len(self.members), -abs(self.key)) > (
+            other.key >= 0,
+            len(other.members),
+            -abs(other.key),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,6 +259,7 @@ def _cluster_batch(
     clusters: dict[int, _Cluster] = {}
     story_of: dict[int, int] = {}  # article id -> cluster key
     index: dict[str, set[int]] = defaultdict(set)  # term -> cluster keys
+    member_index: dict[str, set[int]] = defaultdict(set)  # term -> clustered article ids
     for r in rows:
         if r.story_id is None:
             continue
@@ -235,10 +270,11 @@ def _cluster_batch(
         c.add(r.id, vectors[r.id], r.doc)
         story_of[r.id] = r.story_id
         _index_terms(index, r.story_id, vectors[r.id])
+        _index_terms(member_index, r.id, vectors[r.id])
 
-    threshold = settings.story_similarity_threshold
     by_id = {r.id: r for r in rows}
     wanted = set(batch_ids)
+    merged_into: dict[int, int] = {}  # stored story id -> the stored story that took its articles
     next_key = -1
     for r in rows:
         if r.id not in wanted:
@@ -251,9 +287,20 @@ def _cluster_batch(
             key = original
             stats.via_duplicate += 1
         else:
-            key = _best_cluster(r, vec, clusters, index, threshold)
-            if key is not None:
+            found = _candidates(
+                r, vec, clusters, index, member_index, story_of, by_id, vectors, settings
+            )
+            if found:
+                key = found[0][1]
                 stats.joined_existing += 1
+            # An article that closely matches a second story reports both: merge them.
+            for sim, other in found[1:]:
+                assert key is not None
+                if sim < settings.story_member_similarity_threshold:
+                    break
+                if clusters[key].can_merge(clusters[other]):
+                    key = _merge(clusters, key, other, story_of, index, merged_into)
+                    stats.stories_merged += 1
         if key is None:
             key = next_key
             next_key -= 1
@@ -264,6 +311,7 @@ def _cluster_batch(
         cluster.extend(r.published_at)
         story_of[r.id] = key
         _index_terms(index, key, vec)
+        _index_terms(member_index, r.id, vec)
 
     # Insert new stories, then point the batch's articles at their story.
     real: dict[int, int] = {}
@@ -287,8 +335,21 @@ def _cluster_batch(
         session.execute(
             update(Article).where(Article.id.in_(article_ids)).values(story_id=story_id)
         )
-    # Representative headline: the member closest to the centroid (earliest on ties).
+    # A merged stored story hands over all its articles (also those outside the loaded days);
+    # its row stays and points at the story that took them, as do rows that pointed at it.
     touched = set(assignments)
+    for gone in merged_into:
+        keep = gone
+        while keep in merged_into:
+            keep = merged_into[keep]
+        session.execute(update(Article).where(Article.story_id == gone).values(story_id=keep))
+        session.execute(
+            update(Story)
+            .where(or_(Story.id == gone, Story.merged_into_id == gone))
+            .values(merged_into_id=keep, representative_article_id=None)
+        )
+        touched.add(keep)
+    # Representative headline: the member closest to the centroid (earliest on ties).
     for key, c in clusters.items():
         if real[key] not in touched:
             continue
@@ -308,31 +369,79 @@ def _index_terms(index: dict[str, set[int]], key: int, vec: dict[str, float]) ->
         index[term].add(key)
 
 
-def _best_cluster(
+def _candidates(
     row: _Row,
     vec: dict[str, float],
     clusters: dict[int, _Cluster],
     index: dict[str, set[int]],
-    threshold: float,
-) -> int | None:
-    """Most similar story in the time window that passes the threshold and the guards."""
-    # Sparse dot products through the inverted index: cost ~ postings, not stories × terms.
+    member_index: dict[str, set[int]],
+    story_of: dict[int, int],
+    by_id: dict[int, _Row],
+    vectors: dict[int, dict[str, float]],
+    settings: Settings,
+) -> list[tuple[float, int]]:
+    """The stories the article may join, most similar first: (similarity, cluster key).
+
+    The similarity is the cosine to the story's centroid when it reaches the threshold, or to
+    the story's closest member when that reaches the member threshold and is higher.
+    """
+    threshold = settings.story_similarity_threshold
+    member_threshold = settings.story_member_similarity_threshold
+    # Sparse dot products through the inverted indexes: cost ~ postings, not stories × terms.
     dots: dict[int, float] = defaultdict(float)
+    member_dots: dict[int, float] = defaultdict(float)
     for term, weight in vec.items():
         for key in index.get(term, ()):
             dots[key] += weight * clusters[key].centroid[term]
-    best_key, best = None, threshold
-    for key in sorted(dots):
+        for m in member_index.get(term, ()):
+            member_dots[m] += weight * vectors[m][term]
+    closest: dict[int, float] = {}  # cluster key -> similarity of its closest matching member
+    for m, sim in member_dots.items():
+        key = story_of[m]
+        if sim < member_threshold or sim <= closest.get(key, 0.0):
+            continue
+        doc = by_id[m].doc
+        if names_conflict(row.doc.names, doc.names) or not shares_event_term(
+            row.doc.headline, vectors[m], row.doc.people_all | doc.people_all
+        ):
+            continue
+        closest[key] = sim
+    found: list[tuple[float, int]] = []
+    for key, dot in dots.items():
         c = clusters[key]
-        sim = dots[key] / c.norm if c.norm else 0.0
-        if sim < best or (sim == best and best_key is not None):
+        sim = dot / c.norm if c.norm else 0.0
+        sim = max(sim if sim >= threshold else 0.0, closest.get(key, 0.0))
+        if not sim:
             continue
         if not c.fits(row.published_at) or names_conflict(row.doc.names, c.names):
             continue
         if not shares_event_term(row.doc.headline, c.centroid, row.doc.people_all | c.people_all):
             continue  # only a person in common: not the same event
-        best_key, best = key, sim
-    return best_key
+        found.append((sim, key))
+    found.sort(key=lambda f: (-f[0], f[1]))
+    return found
+
+
+def _merge(
+    clusters: dict[int, _Cluster],
+    a: int,
+    b: int,
+    story_of: dict[int, int],
+    index: dict[str, set[int]],
+    merged_into: dict[int, int],
+) -> int:
+    """Merge stories ``a`` and ``b``; returns the key of the one that keeps its id."""
+    keep, gone = (a, b) if clusters[a].outranks(clusters[b]) else (b, a)
+    absorbed = clusters.pop(gone)
+    clusters[keep].absorb(absorbed)
+    for m in absorbed.members:
+        story_of[m] = keep
+    for term in absorbed.centroid:
+        index[term].discard(gone)
+        index[term].add(keep)
+    if gone >= 0:  # a stored story (it only ever merges into another stored story)
+        merged_into[gone] = keep
+    return keep
 
 
 _REFRESH_SQL = text("""
@@ -366,7 +475,8 @@ def refresh_stories(session: Session, tz: ZoneInfo, story_ids: set[int]) -> int:
 def rebuild(session: Session, settings: Settings, since: date) -> dict[str, Any]:
     """Re-cluster every article published on or after ``since`` (local date) from scratch.
 
-    Use after changing ``STORY_SIMILARITY_THRESHOLD``. Story ids in the period change.
+    Use after changing ``STORY_SIMILARITY_THRESHOLD`` or ``STORY_MEMBER_SIMILARITY_THRESHOLD``.
+    Story ids in the period change.
     """
     released = session.execute(
         update(Article).where(Article.published_date >= since).values(story_id=None)
