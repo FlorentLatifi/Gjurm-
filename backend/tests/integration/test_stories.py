@@ -327,13 +327,201 @@ def test_rebuild_reclusters_with_a_new_threshold(
     with db() as s:
         cluster_pending(s, settings)
     since = (NOW - timedelta(days=2)).astimezone(TZ).date()
-    strict = settings.model_copy(update={"story_similarity_threshold": 0.99})
+    strict = settings.model_copy(
+        update={"story_similarity_threshold": 0.99, "story_member_similarity_threshold": 0.99}
+    )
     with db() as s:
         result = rebuild(s, strict, since)
     assert result["articles_released"] == 11  # everything but the article four days earlier
     assert result["stories_deleted"] >= 1
     # With an (absurdly) strict threshold, only the near-verbatim copy still joins a story.
     assert len({story_of(db, i) for i in newsroom["budget"]}) == 4
+
+
+ARSIM = ("Ministria e Arsimit", "organization")
+TIRANE = ("Tiranë", "location")
+# Other news of the same days: the IDF weights come from everything loaded with the batch.
+BACKGROUND = [
+    ("Kuvendi miraton buxhetin për vitin 2027", "Me 61 vota për, Kuvendi miratoi buxhetin."),
+    ("Mourinho tregon a do të ketë transferime te Real Madridi", "Trajneri foli për merkaton."),
+    ("Sekuestrohen mbi 50 kilogramë marihuanë në Gjilan", "Policia arrestoi dy persona."),
+    ("SHBA-ja pezullon sanksionet ndaj Rusisë", "Uashingtoni njoftoi pezullimin e sanksioneve."),
+]
+
+
+def background(s: Session, source: Source, at: datetime) -> None:
+    for i, (title, excerpt) in enumerate(BACKGROUND):
+        article(s, source, title, at + timedelta(minutes=i), excerpt=excerpt)
+
+
+def test_an_article_joins_the_story_of_its_closest_report(
+    db: sessionmaker[Session], settings: Settings
+) -> None:
+    """A story's centroid is diluted by its other reports: the closest one is enough."""
+    t = NOW - timedelta(hours=6)
+    with db() as s, s.begin():
+        a, b, c = (rated_source(s, slug) for slug in ("majtas", "qendra", "djathtas"))
+        background(s, add_source(s, "arkiv"), t - timedelta(hours=2))
+        bins = article(
+            s,
+            a,
+            "Protestuesit u vënë flakën koshave të mbeturinave para Ministrisë së Arsimit",
+            t,
+            excerpt="Protestuesit dogjën koshat e mbeturinave para Ministrisë së Arsimit në "
+            "Tiranë.",
+            entities=[ARSIM, TIRANE],
+        )
+        clashes = article(
+            s,
+            b,
+            "Përshkallëzohet protesta te Ministria e Arsimit, përplasje mes protestuesve dhe "
+            "policëve",
+            t + timedelta(minutes=20),
+            excerpt="Protesta u përshkallëzua dhe protestuesit u përplasën me policët para "
+            "Ministrisë së Arsimit.",
+            entities=[ARSIM],
+        )
+        # 0.55 to the clashes report, 0.38 to the story's centroid, 0.11 to the bins report
+        water = article(
+            s,
+            c,
+            "Përshkallëzohet protesta, përplasje mes protestuesve dhe policëve, policia reagon me "
+            "autobotin e ujit",
+            t + timedelta(minutes=40),
+            excerpt="Protesta u përshkallëzua: pas përplasjeve mes protestuesve dhe policëve, "
+            "policia përdori autobotin e ujit.",
+            entities=[("Policia", "organization")],
+        )
+    with db() as s:
+        cluster_pending(s, settings)
+    assert story_of(db, bins) == story_of(db, clashes) == story_of(db, water)
+
+    centroid_only = settings.model_copy(update={"story_member_similarity_threshold": 0.99})
+    with db() as s:
+        rebuild(s, centroid_only, (t - timedelta(days=1)).astimezone(TZ).date())
+    assert story_of(db, bins) == story_of(db, clashes) != story_of(db, water)
+
+
+PROTEST = [  # (outlet, headline, excerpt): a first report, a later one, one that reports both
+    (
+        "majtas",
+        "Studentët protestojnë para Ministrisë së Arsimit në Tiranë",
+        "Qindra studentë u mblodhën para Ministrisë së Arsimit, duke kërkuar dorëheqjen e "
+        "ministres.",
+        [ARSIM, TIRANE],
+    ),
+    (
+        "qendra",
+        "Policia hedh gaz lotsjellës, protestuesit shpërndahen në Tiranë",
+        "Policia hodhi gaz lotsjellës ndaj protestuesve dhe i shpërndau nga sheshi.",
+        [TIRANE],
+    ),
+    (
+        "djathtas",
+        "Gaz lotsjellës ndaj studentëve që protestojnë para Ministrisë së Arsimit",
+        "Policia hodhi gaz lotsjellës ndaj studentëve para Ministrisë së Arsimit në Tiranë.",
+        [ARSIM, TIRANE],
+    ),
+]
+
+
+def test_a_report_of_two_stories_merges_them_and_the_old_link_follows(
+    db: sessionmaker[Session], settings: Settings, client: TestClient
+) -> None:
+    """The first two reports share too little (0.17) and start two stories; the third matches
+    both (0.71, 0.52), so the stories merge. The merged story's link opens the one it joined."""
+    t = NOW - timedelta(hours=6)
+    ids = []
+    with db() as s, s.begin():
+        background(s, add_source(s, "arkiv"), t - timedelta(hours=2))
+        for i, (slug, title, excerpt, entities) in enumerate(PROTEST[:2]):
+            src = rated_source(s, slug)
+            at = t + timedelta(minutes=20 * i)
+            ids.append(article(s, src, title, at, excerpt=excerpt, entities=entities))
+    with db() as s:
+        cluster_pending(s, settings)
+    first, second = story_of(db, ids[0]), story_of(db, ids[1])
+    assert first is not None and second is not None and first != second
+
+    slug, title, excerpt, entities = PROTEST[2]
+    with db() as s, s.begin():
+        ids.append(
+            article(
+                s,
+                rated_source(s, slug),
+                title,
+                t + timedelta(minutes=40),
+                excerpt=excerpt,
+                entities=entities,
+            )
+        )
+    with db() as s:
+        stats = cluster_pending(s, settings)
+    assert stats.stories_merged == 1
+    # equal size: the older story keeps its id, the other one points at it
+    assert {story_of(db, i) for i in ids} == {first}
+    with db() as s:
+        gone = s.get(Story, second)
+        assert gone is not None and gone.merged_into_id == first
+        assert gone.representative_article_id is None
+
+    merged = client.get(f"/api/v1/stories/{second}").json()
+    assert merged["id"] == first and merged["article_count"] == 3
+    preview = client.get(f"/api/share/stories/{second}")
+    assert preview.status_code == 200
+    assert f'content="http://localhost:5173/stories/{first}"' in preview.text
+    feed = client.get("/api/v1/stories", params={"days": 3, "min_sources": 1}).json()
+    assert second not in {item["id"] for item in feed["items"]}
+
+    # a later merge re-points the old link too: no chains
+    with db() as s, s.begin():
+        s.execute(update(Story).where(Story.id == first).values(merged_into_id=None))
+        third = Story(
+            first_published_at=t, last_published_at=t, published_date=t.astimezone(TZ).date()
+        )
+        s.add(third)
+        s.flush()
+        s.execute(update(Article).where(Article.story_id == first).values(story_id=third.id))
+        s.execute(update(Story).where(Story.id == first).values(merged_into_id=third.id))
+        s.execute(
+            update(Story).where(Story.merged_into_id == first).values(merged_into_id=third.id)
+        )
+        third_id = third.id
+    assert client.get(f"/api/v1/stories/{second}").json()["id"] == third_id
+
+
+def test_a_report_of_two_lookalike_stories_does_not_merge_them(
+    db: sessionmaker[Session], settings: Settings
+) -> None:
+    """A round-up of the Prizren and Gjakovë fires matches both (0.87); the stories name
+    different towns, so they stay apart and the round-up joins one of them."""
+    t = NOW - timedelta(hours=6)
+    with db() as s, s.begin():
+        background(s, add_source(s, "arkiv"), t - timedelta(hours=2))
+        fires = [
+            article(
+                s,
+                rated_source(s, slug),
+                f"Zjarr në një ndërtesë banimi në {town}",
+                t + timedelta(minutes=20 * i),
+                excerpt=f"Zjarrfikësit e {town} shuan zjarrin në ndërtesën e banimit.",
+                entities=[(town, "location")],
+            )
+            for i, (slug, town) in enumerate((("majtas", "Prizren"), ("qendra", "Gjakovë")))
+        ]
+        roundup = article(
+            s,
+            rated_source(s, "djathtas"),
+            "Dy zjarre në ndërtesa banimi, në Prizren dhe në Gjakovë",
+            t + timedelta(minutes=40),
+            excerpt="Zjarrfikësit shuan zjarret në ndërtesat e banimit në Prizren dhe Gjakovë.",
+            entities=[("Prizren", "location"), ("Gjakovë", "location")],
+        )
+    with db() as s:
+        stats = cluster_pending(s, settings)
+    assert stats.stories_merged == 0
+    assert story_of(db, fires[0]) != story_of(db, fires[1])
+    assert story_of(db, roundup) in {story_of(db, fires[0]), story_of(db, fires[1])}
 
 
 def test_review_report_lists_stories_weak_members_and_near_misses(

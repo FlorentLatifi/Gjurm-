@@ -96,7 +96,7 @@ def story_preview(
     return _page(
         title=f"{story['title']} · GJURMË",
         description=_description(story),
-        url=f"{base}/stories/{story_id}",
+        url=f"{base}/stories/{story['id']}",  # a merged story's link names the story it joined
         image=image,
         lang=story.get("language") or "sq",
         status=200,

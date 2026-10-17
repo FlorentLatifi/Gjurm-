@@ -358,6 +358,17 @@ test.describe("GJURMË dashboard", () => {
     }
   });
 
+  test("a merged story's old link opens the story it joined", async ({ page, request }) => {
+    const list = await (await request.get("/api/v1/stories?days=30&min_sources=2&page_size=1")).json();
+    const id = (list.items[0] as { id: number }).id;
+    const detail = await (await request.get(`/api/v1/stories/${id}`)).json();
+    // the API answers a merged story's id with the story that took its articles
+    await page.route("**/api/v1/stories/987654", (route) => route.fulfill({ json: detail }));
+    await page.goto("/stories/987654");
+    await expect(page).toHaveURL(new RegExp(`/stories/${id}$`));
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(detail.title);
+  });
+
   test("each page names its own canonical URL; the sitemap lists the stories", async ({ page, request }) => {
     const list = await (await request.get("/api/v1/stories?days=30&min_sources=2&page_size=1")).json();
     const id = (list.items[0] as { id: number }).id;
