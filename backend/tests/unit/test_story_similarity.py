@@ -175,6 +175,23 @@ def test_headline_guards_ignore_excerpt_names_and_compare_numbers() -> None:
     assert conflict_reason(e.names, f.names) is None
 
 
+def test_a_name_counts_for_every_headline_that_contains_it() -> None:
+    # Live feeds, 2026-10-17: keyword rules found a different man in each of two copies of one
+    # story, and the person guard kept them apart although both headlines name both men.
+    a = Doc(1, "Nga Maroviq te Radoiçiq: Të kërkuarit që nuk ekstradohen", people=["Maroviq"])
+    b = Doc(
+        2, "Nga Maroviq te Milan Radoiçiq: Të kërkuarit që nuk ekstradohen", people=["Radoiçiq"]
+    )
+    assert a.names.people.isdisjoint(b.names.people)
+    assert conflict_reason(a.names, b.names) is None
+    # a name the other headline does not contain still separates: different towns
+    c = Doc(3, "Zjarr në një ndërtesë banimi në Prizren", places=["Prizren"])
+    d = Doc(4, "Zjarr në një ndërtesë banimi në Gjakovë", places=["Gjakovë"])
+    assert conflict_reason(c.names, d.names) == "places"
+    # and the union of a story's names keeps its headlines' words
+    assert (a.names | b.names).words == a.headline | b.headline
+
+
 def test_place_lexicon_finds_places_inside_other_names() -> None:
     # Keyword rules type "Spitali i Tiranës" as an organisation; Tirana is a place elsewhere.
     a = Doc(1, "Spitali i Tiranës merr pajisje", other_entities=["Spitali i Tiranës"])
