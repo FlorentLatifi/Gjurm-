@@ -180,6 +180,11 @@ class Story(Base):
     last_published_at: Mapped[datetime] = mapped_column(TZ)
     published_date: Mapped[date] = mapped_column(Date)  # local date of the first article
     primary_topic_id: Mapped[int | None] = mapped_column(ForeignKey("core.topics.id"))
+    # Set when the story was merged into another one: it has no articles left, and its links
+    # open that story instead.
+    merged_into_id: Mapped[int | None] = mapped_column(
+        ForeignKey("core.stories.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now(), onupdate=func.now())
 

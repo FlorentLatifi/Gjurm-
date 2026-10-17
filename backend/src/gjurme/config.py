@@ -98,6 +98,10 @@ class Settings(BaseSettings):
     # Cosine similarity of an article to a story's TF-IDF centroid needed to join it. Hand
     # calibrated (ADR-020): lower merges more paraphrases but also more different events.
     story_similarity_threshold: float = Field(default=0.45, gt=0, lt=1)
+    # Cosine similarity to a single member that also lets an article join a story (a large
+    # story's centroid is diluted by its other reports), and that an article needs to a second
+    # story to merge the two. Higher than the centroid threshold: one report is weaker evidence.
+    story_member_similarity_threshold: float = Field(default=0.5, gt=0, lt=1)
     # How long an article waits for its analysis before it is clustered without one. The guards
     # that keep look-alike events apart read the analysis' place and person names.
     story_enrichment_wait_minutes: int = Field(default=360, ge=0)

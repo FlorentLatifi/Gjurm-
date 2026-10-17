@@ -54,6 +54,7 @@ erDiagram
         timestamptz last_published_at
         date published_date "local date of the first article"
         smallint primary_topic_id FK "majority of members"
+        bigint merged_into_id FK "set when merged: its links open that story"
     }
     FEED_FETCHES {
         bigint id PK
@@ -160,7 +161,7 @@ erDiagram
 | `core.entities` | one real-world entity | `UNIQUE (type, normalized_key)` | `normalized_key` is lower-cased, accent-folded and whitespace-collapsed, so "Kurti" and "KURTI" merge but a person and a place with the same name do not. |
 | `core.article_entities` | article × entity | `PK (article_id, entity_id)` | Bridge. |
 | `core.article_topics` | article × topic | `PK (article_id, topic_id)` | Bridge. `is_primary` marks the primary topic. |
-| `core.stories` | one event as covered by one or more outlets | — | Built by the CLUSTER stage; `core.articles.story_id` points at it. Only the time span, representative headline and majority topic are stored: outlet counts and coverage are computed from the *visible* members at query time, so a takedown or a changed rating applies at once ([ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings)). |
+| `core.stories` | one event as covered by one or more outlets | — | Built by the CLUSTER stage; `core.articles.story_id` points at it. Only the time span, representative headline and majority topic are stored: outlet counts and coverage are computed from the *visible* members at query time, so a takedown or a changed rating applies at once. When two stories merge, the absorbed one keeps its row without articles and `merged_into_id` points at the story that took them, so `/stories/{old id}` opens that story (migration 0005) ([ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings)). |
 
 **Enumerations are `text` with CHECK constraints, not PostgreSQL ENUM types.** Adding a value to a CHECK constraint is one transactional migration, while `ALTER TYPE … ADD VALUE` cannot run inside a transaction on older servers and is awkward to roll back ([ADR-009](DECISIONS.md#adr-009-text--check-constraints-instead-of-enum-types)).
 
