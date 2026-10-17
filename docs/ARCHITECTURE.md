@@ -160,6 +160,8 @@ Base path `/api/v1`. OpenAPI UI at `/api/docs` (disable with `EXPOSE_DOCS=false`
 
 ### Public (rate-limited, cached for `API_CACHE_TTL_SECONDS`, `Cache-Control: public`)
 
+Every public answer carries a weak `ETag` (a hash of its body). A browser that sends it back in `If-None-Match` after `max-age` gets `304 Not Modified` with no body when nothing changed, so returning readers revalidate instead of downloading the same JSON again.
+
 | Method | Path | Returns |
 |---|---|---|
 | GET | `/stories` | Stories that started in the range, with coverage by perspective, factuality, ownership and region, tone, first reporter, outlets and blindspots. `topic`, `country` (an outlet from there covered it), `q`, `min_sources`, `sort=top\|latest`, `page`, `page_size` (≤ 50) |

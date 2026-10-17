@@ -31,6 +31,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - **Limits on the API's work:** `API_MAX_CONCURRENT_COMPUTATIONS` (6) cache misses computed at once per process, then `503` with `Retry-After`; `DB_POOL_TIMEOUT_SECONDS` (3 s); `ENRICH_MAX_SECONDS` (600) per ENRICH stage.
 
 ### Changed
+- **Unchanged API answers revalidate with `304 Not Modified`:** every public answer carries a weak `ETag`, so a returning reader's browser downloads only what changed.
 - **Stories wait for the analysis:** an article is clustered once its analysis succeeded or was given up, or after `STORY_ENRICHMENT_WAIT_MINUTES` (6 h); the name guards that keep look-alike events apart read the analysis.
 - **Before any outlet is rated** (the launch state), coverage is split by region: lenses with nothing to show leave the pickers, story pages say no outlet is rated yet, the Blindspot page explains the missing left/right lists and My News counts regions.
 - **Faster story pages:** story queries read only the days a story can span (home feed 182 → 57 ms, story page 130 → 20 ms, source profile 656 → 172 ms at 365k articles), and blindspots are found in SQL over every story of the range, not the 2,000 biggest.

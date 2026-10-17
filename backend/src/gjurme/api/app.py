@@ -119,6 +119,29 @@ def create_app(
                 500, "internal_error", "Unexpected error. The request id identifies it in the logs."
             )
 
+    async def _with_etag(request: Request, response: Response) -> Response:
+        """A weak ETag on a cacheable API answer, and 304 Not Modified when the browser already
+        holds this exact body: once max-age has passed, a returning reader revalidates instead
+        of downloading the same JSON again."""
+        iterator = getattr(response, "body_iterator", None)
+        if iterator is None:
+            body = bytes(response.body)
+        else:
+            body = b"".join([bytes(chunk) async for chunk in iterator])
+        tag = hashlib.blake2b(body, digest_size=12).hexdigest()
+        headers = dict(response.headers)
+        headers["ETag"] = f'W/"{tag}"'
+        # weak comparison (RFC 9110 13.1.2): the W/ prefix does not matter
+        seen = {
+            t.strip().removeprefix("W/").strip('"')
+            for t in request.headers.get("if-none-match", "").split(",")
+        }
+        if tag in seen or "*" in seen:
+            for name in ("content-length", "content-type"):
+                headers.pop(name, None)
+            return Response(status_code=304, headers=headers)
+        return Response(content=body, status_code=response.status_code, headers=headers)
+
     @app.middleware("http")
     async def observe(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
@@ -174,6 +197,13 @@ def create_app(
             )
         else:
             response.headers.setdefault("Cache-Control", "no-store")
+        if (
+            request.method == "GET"
+            and response.status_code == 200
+            and path.startswith("/api/v1/")
+            and not path.startswith("/api/v1/admin")
+        ):
+            response = await _with_etag(request, response)
         if response.status_code >= 500 or elapsed > 2.0:
             log.warning(
                 "slow or failed request",
