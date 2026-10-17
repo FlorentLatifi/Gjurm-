@@ -272,7 +272,7 @@ GitHub → **Actions → Free model quality → Run workflow**:
 
 | Fusha | Vlera |
 |---|---|
-| `model` | `gemma3:4b` (provo edhe `qwen3:4b`) |
+| `model` | `gemma3:4b`, ose `gemma3:12b`: shqipja e përmbledhjeve të tij është shumë më e mirë, por është rreth 3 herë më i ngadaltë. `qwen3:4b` nuk funksionon: e harxhon gjithë hapësirën e përgjigjes duke “menduar” |
 | `enrich_limit` | `15` |
 
 Pas 10–20 minutash, te **Summary** e sheh për çdo lajm temën, tonin, emrat dhe përmbledhjen, si dhe sa sekonda iu desh modelit për një lajm. Krahasoje me raportin e Claude-it (Pjesa A) dhe me rregullat.
