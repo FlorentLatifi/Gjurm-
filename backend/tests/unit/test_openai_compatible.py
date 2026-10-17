@@ -37,6 +37,7 @@ OUTPUT = {
     "sentiment_score": 0.0,
     "event_type": "statement",
     "summary_en": "The government announced a new budget proposal.",
+    "summary_sq": "Qeveria njoftoi një propozim të ri për buxhetin.",
     "entities": [{"name": "Qeveria e Kosovës", "type": "organization"}],
     "countries": ["XK"],
     "confidence": 0.8,
