@@ -123,12 +123,14 @@ def name_stems(names: Iterable[str]) -> frozenset[str]:
 @dataclass(frozen=True, slots=True)
 class Names:
     """Stems of the people, specific places and organisations a headline (or story) names, and
-    its numbers of two or more digits."""
+    its numbers of two or more digits. ``words`` are all the headline's terms: a name the
+    analysis found in one headline counts for another headline that contains it too."""
 
     people: frozenset[str] = frozenset()
     places: frozenset[str] = frozenset()
     orgs: frozenset[str] = frozenset()
     numbers: frozenset[str] = frozenset()
+    words: frozenset[str] = frozenset()
 
     def __or__(self, other: Names) -> Names:
         return Names(
@@ -136,6 +138,22 @@ class Names:
             self.places | other.places,
             self.orgs | other.orgs,
             self.numbers | other.numbers,
+            self.words | other.words,
+        )
+
+    def seen_in(self, other: Names) -> Names:
+        """These names plus those of ``other`` that this headline also contains.
+
+        Keyword rules (and models) miss names: one analysis of "Nga Maroviq te Radoiçiq" finds
+        only Maroviq, another of "Nga Maroviq te Milan Radoiçiq" only Radoiçiq, and the person
+        guard would keep the two headlines apart although both name both men.
+        """
+        return Names(
+            self.people | (other.people & self.words),
+            self.places | (other.places & self.words),
+            self.orgs | (other.orgs & self.words),
+            self.numbers,
+            self.words,
         )
 
 
@@ -181,6 +199,7 @@ class Doc:
             (name_stems(self.places) - BROAD_PLACES) & headline,
             (name_stems(self.other_entities) - BROAD_PLACES) & headline,
             frozenset(t for t in headline if t.isdigit()),
+            self.headline,
         )
 
 
@@ -199,7 +218,9 @@ def apply_place_lexicon(names: Names, lexicon: frozenset[str]) -> Names:
     moved = (names.people | names.orgs) & lexicon
     if not moved:
         return names
-    return Names(names.people - moved, names.places | moved, names.orgs - moved, names.numbers)
+    return Names(
+        names.people - moved, names.places | moved, names.orgs - moved, names.numbers, names.words
+    )
 
 
 def headline_places(doc: Doc, known_places: frozenset[str]) -> Names:
@@ -208,7 +229,7 @@ def headline_places(doc: Doc, known_places: frozenset[str]) -> Names:
     Without it the place guard has nothing to compare, and "Zjarr në Prizren" joins "Zjarr në
     Gjakovë". Numbers come from the headline itself and need no analysis.
     """
-    return Names(places=doc.headline & known_places, numbers=doc.names.numbers)
+    return Names(places=doc.headline & known_places, numbers=doc.names.numbers, words=doc.headline)
 
 
 def idf_table(docs: Iterable[Doc]) -> dict[str, float]:
@@ -254,6 +275,7 @@ def _disjoint(a: frozenset[str], b: frozenset[str]) -> bool:
 
 def conflict_reason(a: Names, b: Names) -> str | None:
     """Which guard separates ``a`` and ``b`` ("places", "numbers", "people", "names") or None."""
+    a, b = a.seen_in(b), b.seen_in(a)
     if _weak_overlap(a.places, b.places):
         return "places"
     if _weak_overlap(a.numbers, b.numbers):
@@ -275,6 +297,7 @@ def names_conflict(a: Names, b: Names) -> bool:
     Prishtinë" (two accidents on two roads) conflicts. People need only one in common: outlets
     quote different people on one event, and keyword-rule entities type phrases such as
     "Mësuesit e Ferizajt" as people. Entity types are noisy (a person typed as a place), so
-    headlines that both name two or more name words of any type must share at least one.
+    headlines that both name two or more name words of any type must share at least one. A
+    name found in one headline counts for the other when that headline contains it too.
     """
     return conflict_reason(a, b) is not None
