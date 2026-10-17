@@ -330,6 +330,32 @@ def test_security_and_cache_headers(client: TestClient) -> None:
     assert rid.headers["x-request-id"] == "trace-12345678"
 
 
+def test_unchanged_answers_revalidate_with_304(client: TestClient, dataset: dict[str, Any]) -> None:
+    first = client.get("/api/v1/topics", params={"days": 7})
+    etag = first.headers["etag"]
+    assert etag.startswith('W/"') and first.json()
+    again = client.get("/api/v1/topics", params={"days": 7}, headers={"If-None-Match": etag})
+    assert again.status_code == 304 and again.content == b""
+    assert again.headers["etag"] == etag
+    assert again.headers["cache-control"].startswith("public, max-age=60")
+    assert again.headers["x-content-type-options"] == "nosniff"
+    # a strong form of the same tag, or one of several, matches too (weak comparison)
+    strong = etag.removeprefix("W/")
+    assert (
+        client.get(
+            "/api/v1/topics", params={"days": 7}, headers={"If-None-Match": f'"x", {strong}'}
+        ).status_code
+        == 304
+    )
+    # another answer, or a stale tag, gets the full body
+    other = client.get("/api/v1/topics", params={"days": 30}, headers={"If-None-Match": etag})
+    assert other.status_code == 200 and other.headers["etag"] != etag
+    stale = client.get("/api/v1/topics", params={"days": 7}, headers={"If-None-Match": 'W/"0"'})
+    assert stale.status_code == 200 and stale.json() == first.json()
+    # private answers are never tagged
+    assert "etag" not in client.get("/api/v1/admin/runs", headers=AUTH).headers
+
+
 def test_cors(client: TestClient) -> None:
     ok = client.options(
         "/api/v1/topics",
