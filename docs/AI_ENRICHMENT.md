@@ -204,6 +204,16 @@ Settings (all in `.env`, see `deploy/.env.example`):
 
 **Measure before switching.** *Actions → Free model quality → Run workflow* runs the live pipeline on GitHub's runner with Ollama and a model of your choice (default `gemma3:4b`, 1–40 articles, $0) and publishes the same review report as the Claude test, plus the time per article. A push that changes the provider or the workflow compares `gemma3:4b`, `qwen3:4b` and `gemma3:12b` in parallel jobs.
 
+Measured with prompt v1.2 on 2026-10-17 (live headlines, GitHub's 4-core CPU runner, 10-minute stage limit):
+
+| Model | Analysed | Seconds per article | Albanian summary (`summary_sq`) |
+|---|---|---:|---|
+| `gemma3:4b` | 15 of 15, no invalid JSON | 24 | Often ungrammatical ("Një kamioni zjarër pas një aksidenti ruti…"), and once a changed fact: a hammer became an axe in English and a lid ("kapak") in Albanian |
+| `gemma3:12b` | 8 of 8 (the time limit stopped the rest) | 78 | Fluent and faithful to the headline on all 8 |
+| `qwen3:4b` | 0 of 3 | — | Every answer cut off at `LLM_MAX_OUTPUT_TOKENS` (1,500): the model spends the budget on its reasoning before the JSON. The same happened with v1.1, so it is not usable as configured |
+
+For text readers see in Albanian, use Claude or `gemma3:12b`; `gemma3:4b` is a rough first pass only.
+
 **One model at a time for comparisons.** Outlet comparisons are only fair when every article in the window was analysed by the same model and prompt. After a switch, re-analyse the window (`gjurme enrich-requeue --provider <old provider>`).
 
 ## Testing without a key
