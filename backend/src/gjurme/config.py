@@ -11,7 +11,7 @@ from enum import StrEnum
 from functools import lru_cache
 from typing import Annotated, Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -44,13 +44,23 @@ class Settings(BaseSettings):
     timezone: str = "Europe/Tirane"
 
     # --- database --------------------------------------------------------------------------
-    database_url: str = "postgresql+psycopg://gjurme:gjurme@localhost:5432/gjurme"
+    # DATABASE_URL_UNPOOLED wins when both are set: the Neon integration on Vercel sets both,
+    # and its pooled one (PgBouncer, transaction mode) loses the session settings below and the
+    # pipeline's advisory lock. postgres:// and postgresql:// URLs (as hosting dashboards give
+    # them) are read as postgresql+psycopg://.
+    database_url: str = Field(
+        default="postgresql+psycopg://gjurme:gjurme@localhost:5432/gjurme",
+        validation_alias=AliasChoices("database_url_unpooled", "database_url"),
+    )
     db_pool_size: int = Field(default=5, ge=1, le=50)
     db_max_overflow: int = Field(default=5, ge=0, le=50)
     db_statement_timeout_ms: int = Field(default=15_000, ge=100)
     # Wait this long for a free pooled connection, then fail: requests queued behind a slow
     # burst should not all hang for SQLAlchemy's default 30 s.
     db_pool_timeout_seconds: float = Field(default=3.0, gt=0)
+    # Storage the database may use, in MB (0 = no limit). Free hosted Postgres caps it (Neon's
+    # free plan: 1 GB); the database_size quality check warns at 80 % and fails at 95 %.
+    db_size_limit_mb: int = Field(default=0, ge=0)
 
     # --- ingestion -------------------------------------------------------------------------
     http_timeout_seconds: float = Field(default=15.0, gt=0)
@@ -122,6 +132,10 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = Field(default=300, ge=1)
     rate_limit_search_per_minute: int = Field(default=90, ge=1)
     api_cache_ttl_seconds: int = Field(default=120, ge=0)
+    # Behind a CDN that caches by CDN-Cache-Control (Vercel, Cloudflare): public answers are
+    # kept at the edge this long (0 = do not send the header). Each answer served from the CDN
+    # is one function call and one database wake-up less on free serverless hosting.
+    cdn_cache_seconds: int = Field(default=0, ge=0)
     # Responses computed at once (cache misses) per API process; the rest wait briefly, then
     # get 503. Keep it below the DB pool (DB_POOL_SIZE + DB_MAX_OVERFLOW) so cheap requests
     # always find a connection.
@@ -137,6 +151,14 @@ class Settings(BaseSettings):
     # Dead-man check (e.g. healthchecks.io): GET after every run, "/fail" appended when it
     # failed. The external service alerts when the pings stop, e.g. the whole server is down.
     healthcheck_ping_url: str | None = None
+
+    @field_validator("database_url")
+    @classmethod
+    def _psycopg_driver(cls, value: str) -> str:
+        for prefix in ("postgres://", "postgresql://"):
+            if value.startswith(prefix):
+                return "postgresql+psycopg://" + value.removeprefix(prefix)
+        return value
 
     @field_validator("cors_origins", mode="before")
     @classmethod

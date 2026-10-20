@@ -6,7 +6,9 @@ name: Uptime monitor
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # A few minutes after the free-hosting pipeline (11 and 41, ADR-027): a database that sleeps
+    # when idle (Neon) is then usually still awake, so the check does not wake it once more.
+    - cron: "15,45 * * * *"
   workflow_dispatch:
 
 permissions:

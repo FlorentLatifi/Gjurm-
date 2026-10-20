@@ -14,17 +14,18 @@ import signal
 import threading
 from datetime import UTC, datetime, timedelta
 from types import FrameType
+from typing import Any
 
 from sqlalchemy.orm import Session, sessionmaker
 
 from gjurme.config import Settings
 from gjurme.pipeline.retention import apply_retention
 from gjurme.pipeline.runner import run_pipeline
-from gjurme.runtime_settings import RUN_REQUEST, get_setting, put_setting
+from gjurme.runtime_settings import RUN_REQUEST, SCHEDULER_HEARTBEAT, get_setting, put_setting
 
 log = logging.getLogger(__name__)
 
-HEARTBEAT_KEY = "scheduler_heartbeat"
+HEARTBEAT_KEY = SCHEDULER_HEARTBEAT
 RETENTION_KEY = "retention_last_run"
 POLL_SECONDS = 20
 
@@ -36,6 +37,9 @@ class Scheduler:
         self.interval = timedelta(minutes=settings.scheduler_interval_minutes)
         self._stop = threading.Event()
         self.next_run = datetime.now(UTC)  # run immediately on start
+        # The last pipeline run this process started: its status and its stage stats.
+        self.last_status: str | None = None
+        self.last_stats: dict[str, Any] = {}
 
     def install_signal_handlers(self) -> None:
         def _handler(signum: int, _frame: FrameType | None) -> None:
@@ -71,9 +75,11 @@ class Scheduler:
         if manual or now >= self.next_run:
             trigger = "admin" if manual else "schedule"
             try:
-                run_pipeline(self.settings, self.session_factory, trigger=trigger)
+                result = run_pipeline(self.settings, self.session_factory, trigger=trigger)
+                self.last_status, self.last_stats = result.status, result.stats
             except Exception:
                 log.exception("pipeline run crashed")
+                self.last_status = "crashed"
             self.next_run = datetime.now(UTC) + self.interval
             started = True
         self._maybe_retention(now)

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -438,12 +439,35 @@ def retention(dry_run: Annotated[bool, typer.Option()] = True) -> None:
 
 
 @app.command()
-def scheduler() -> None:
+def scheduler(
+    once: Annotated[
+        bool,
+        typer.Option(
+            "--once",
+            help="One tick, then exit: for hosting without a long-running process, where an "
+            "external timer (the free-hosting GitHub workflow) starts it. Exits 1 if the run "
+            "failed.",
+        ),
+    ] = False,
+) -> None:
     """Run forever: pipeline every SCHEDULER_INTERVAL_MINUTES, retention daily."""
     settings = _settings()
     from gjurme.pipeline.scheduler import Scheduler
 
     sched = Scheduler(settings, _session_factory())
+    if once:
+        sched.tick()
+        typer.echo(f"pipeline run: {sched.last_status}")
+        quality = sched.last_stats.get("quality") or {}
+        in_github = os.environ.get("GITHUB_ACTIONS") == "true"
+        for level, key in (("warning", "warnings"), ("error", "failures")):
+            for name in quality.get(key) or []:
+                typer.echo(f"data quality {level}: {name}")
+                if in_github:  # an annotation on the run's summary page
+                    typer.echo(f"::{level} title=Data quality::{name} (docs/OPERATIONS.md)")
+        if sched.last_status in ("failed", "crashed"):
+            raise typer.Exit(1)
+        return
     sched.install_signal_handlers()
     sched.run_forever()
 

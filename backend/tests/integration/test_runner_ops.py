@@ -8,7 +8,7 @@ from pydantic import SecretStr
 from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session, sessionmaker
 
-from gjurme.alerts.engine import Alert, AlertDispatcher
+from gjurme.alerts.engine import Alert, AlertDispatcher, evaluate_run
 from gjurme.config import Settings
 from gjurme.db.models import (
     AlertEvent,
@@ -297,6 +297,45 @@ def test_scheduler_tick_runs_when_due_and_on_request(
         assert get_setting(s, HEARTBEAT_KEY) is not None
         assert get_setting(s, RUN_REQUEST)["pending"] is False  # type: ignore[index]
         assert get_setting(s, "retention_last_run") is not None
+
+
+def test_database_size_check_warns_before_a_free_tier_is_full(
+    db, settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from gjurme.quality.checks import check_database_size
+
+    def with_limit(mb: int) -> None:
+        cfg = settings.model_copy(update={"db_size_limit_mb": mb})
+        monkeypatch.setattr("gjurme.quality.checks.get_settings", lambda: cfg)
+
+    with db() as s:
+        with_limit(0)
+        unlimited = check_database_size(s)
+        size = unlimited.observed
+        assert unlimited.status == "pass" and size and size > 0  # without a limit: recorded only
+        with_limit(int(size * 10))
+        assert check_database_size(s).status == "pass"
+        with_limit(int(size / 0.85) + 1)  # ~85 % used
+        result = check_database_size(s)
+        assert result.status == "warn" and result.details["limit_mb"] == int(size / 0.85) + 1
+        with_limit(max(1, int(size) - 1))
+        assert check_database_size(s).status == "fail"
+    alerts = evaluate_run(
+        "succeeded",
+        {
+            "quality": {
+                "results": [
+                    {
+                        "name": "database_size",
+                        "status": "warn",
+                        "observed": 850.0,
+                        "threshold": 819.2,
+                    }
+                ]
+            }
+        },
+    )
+    assert [a.key for a in alerts] == ["dq:database_size"]  # the warning is the time to act
 
 
 def test_dispatcher_records_delivery_failure(db, settings) -> None:
