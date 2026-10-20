@@ -10,6 +10,8 @@ GJURMË is a **modular monolith**: one Python package (`gjurme`), one container 
 
 The SPA is built into static files and served by **Caddy**, which also terminates TLS and reverse-proxies `/api` and `/health` to the API. Why this shape and not microservices, a queue or an orchestrator: [ADR-001](DECISIONS.md#adr-001-modular-monolith-one-image-two-processes), [ADR-004](DECISIONS.md#adr-004-no-queue-no-orchestrator).
 
+The same roles also run without a server ([ADR-027](DECISIONS.md#adr-027-a-0-path-without-a-server-vercel--neon--github-actions)): `api` as a Vercel Python function (`api/index.py`) behind Vercel's CDN, which takes Caddy's place (`vercel.json`); `migrate` and `scheduler` as a GitHub Actions workflow every 30 minutes (`gjurme db upgrade`, then `gjurme scheduler --once`: one tick of the same loop); the database on Neon.
+
 ## System
 
 ```mermaid
@@ -71,7 +73,7 @@ sequenceDiagram
         M-->>S: structured output
         S->>C: validate, ground entities, enrichments + bridges
         S->>C: cluster new articles into stories (TF-IDF, name guards, 48 h span)
-        S->>O: 14 data-quality checks → data_quality_results
+        S->>O: 15 data-quality checks → data_quality_results
         S->>O: alert evaluation → alert_events (+ webhook)
         S->>O: pipeline_runs(status, per-stage stats)
     end
@@ -133,7 +135,7 @@ backend/src/gjurme/
   analytics/queries.py every analytical query (parameterized SQL)
   analytics/stories.py story feed, story detail, blindspots, source profiles
   stories/             similarity (tokens, TF-IDF, name guards), clustering stage, review report
-  quality/checks.py    14 data-quality checks
+  quality/checks.py    15 data-quality checks
   alerts/engine.py     alert rules, dedup, webhook delivery
   pipeline/            runner, advisory locking, scheduler loop, retention
   api/                 FastAPI app, routers (public, ops/admin), schemas, security, metrics
@@ -231,5 +233,7 @@ flowchart LR
     HC -- yes --> OK[record .deploy-state]
     HC -- no --> RB[automatic rollback<br/>to previous sha]
 ```
+
+Without a server, Vercel builds and deploys every push to the default branch itself (and a preview for every pull request). Migrations run at the start of every *Free hosting* workflow run, and a push that brings a new migration to the default branch starts one at once, so the migration usually finishes before Vercel's build of the code that needs it goes live. Migrations are expand-only, so the release still serving meanwhile keeps working against the migrated database ([OPERATIONS.md](OPERATIONS.md#deploy-and-rollback)).
 
 Step-by-step instructions, secrets and costs: [DEPLOYMENT.md](DEPLOYMENT.md). Day-2 operations: [OPERATIONS.md](OPERATIONS.md).

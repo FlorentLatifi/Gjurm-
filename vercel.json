@@ -1,0 +1,99 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci --prefix frontend --no-audit --no-fund",
+  "buildCommand": "npm run build --prefix frontend",
+  "outputDirectory": "frontend/dist",
+  "regions": [
+    "iad1"
+  ],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 30,
+      "includeFiles": "backend/src/gjurme/**",
+      "excludeFiles": "{frontend/**,docs/**,deploy/**,backend/tests/**,**/__pycache__/**}"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/stories/:id(\\d+)",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*([fF][aA][cC][eE][bB][oO][oO][kK][eE][xX][tT][eE][rR][nN][aA][lL][hH][iI][tT]|[tT][wW][iI][tT][tT][eE][rR][bB][oO][tT]|[sS][lL][aA][cC][kK][bB][oO][tT]|[lL][iI][nN][kK][eE][dD][iI][nN][bB][oO][tT]|[wW][hH][aA][tT][sS][aA][pP][pP]|[tT][eE][lL][eE][gG][rR][aA][mM][bB][oO][tT]|[dD][iI][sS][cC][oO][rR][dD][bB][oO][tT]|[sS][kK][yY][pP][eE][uU][rR][iI][pP][rR][eE][vV][iI][eE][wW]|[rR][eE][dD][dD][iI][tT][bB][oO][tT]|[vV][iI][bB][eE][rR]|[pP][iI][nN][tT][eE][rR][eE][sS][tT][bB][oO][tT]|[eE][mM][bB][eE][dD][lL][yY]|[iI][fF][rR][aA][mM][eE][lL][yY]|[mM][aA][sS][tT][oO][dD][oO][nN]|[bB][lL][uU][eE][sS][kK][yY]).*"
+        }
+      ],
+      "destination": "/api/index?__path=stories/:id"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/index?__path=sitemap.xml"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "/api/index?__path=api/:path*"
+    },
+    {
+      "source": "/health/:path*",
+      "destination": "/api/index?__path=health/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/index?__path=health"
+    },
+    {
+      "source": "/:path((?!api/|assets/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(), microphone=(), camera=(), interest-cohort=()"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
+        }
+      ]
+    },
+    {
+      "source": "/:path((?!api/|health).*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}

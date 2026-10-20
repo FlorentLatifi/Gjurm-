@@ -46,6 +46,11 @@ jobs:
           python-version: "3.12"
           enable-cache: true
       - run: uv sync --frozen
+      # Vercel installs the API function's dependencies from the root requirements.txt (ADR-027)
+      - name: requirements.txt matches uv.lock
+        run: |
+          uv export --frozen --no-dev --no-hashes --no-emit-project --output-file ../requirements.txt
+          git diff --exit-code -- ../requirements.txt
       - name: Lint (ruff, incl. bandit security rules)
         run: uv run ruff check src tests
       - name: Format

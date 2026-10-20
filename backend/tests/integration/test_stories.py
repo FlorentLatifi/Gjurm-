@@ -805,6 +805,25 @@ def test_link_preview_carries_the_story_and_escapes_it(
     assert missing.status_code == 404 and 'content="http://localhost:5173/"' in missing.text
 
 
+def test_story_previews_never_reach_a_cdn_cache(
+    db: sessionmaker[Session], settings: Settings, clustered: dict[str, Any]
+) -> None:
+    """Behind a CDN (free hosting, ADR-027) a crawler's preview and a reader's app share one URL,
+    /stories/{id}: an edge cache keyed by URL must never hold the preview."""
+    app_settings = settings.model_copy(
+        update={
+            "cdn_cache_seconds": 300,
+            "api_cache_ttl_seconds": 0,
+            "rate_limit_per_minute": 10_000,
+        }
+    )
+    client = TestClient(create_app(app_settings, db))
+    story = clustered["budget_story"]
+    preview = client.get(f"/api/share/stories/{story}")
+    assert preview.status_code == 200 and "cdn-cache-control" not in preview.headers
+    assert "cdn-cache-control" in client.get(f"/api/v1/stories/{story}").headers
+
+
 def test_sitemap_lists_pages_outlets_topics_and_multi_outlet_stories(
     client: TestClient, db: sessionmaker[Session], clustered: dict[str, Any]
 ) -> None:
