@@ -21,9 +21,13 @@ from gjurme.api.security import client_ip, require_admin
 from gjurme.config import Settings
 from gjurme.db.models import AlertEvent, Article, PipelineRun, Source
 from gjurme.enrichment.budget import spent_today
-from gjurme.enrichment.service import requeue
-from gjurme.pipeline.scheduler import HEARTBEAT_KEY
-from gjurme.runtime_settings import ENRICHMENT_PAUSE, RUN_REQUEST, get_setting, put_setting
+from gjurme.runtime_settings import (
+    ENRICHMENT_PAUSE,
+    RUN_REQUEST,
+    SCHEDULER_HEARTBEAT,
+    get_setting,
+    put_setting,
+)
 
 log = logging.getLogger(__name__)
 health_router = APIRouter(tags=["health"])
@@ -115,7 +119,7 @@ def _public_status(db: Session, settings: Settings) -> dict[str, Any]:
             text("SELECT EXISTS (SELECT 1 FROM core.sources WHERE slug LIKE 'demo-%')")
         ).scalar()
     )
-    heartbeat = (get_setting(db, HEARTBEAT_KEY) or {}).get("at")
+    heartbeat = (get_setting(db, SCHEDULER_HEARTBEAT) or {}).get("at")
     minutes = ((datetime.now(UTC) - last_success).total_seconds() / 60) if last_success else None
     collecting = demo or any(s["is_active"] for s in sources)
     if minutes is None or minutes > settings.alert_stale_pipeline_minutes or not collecting:
@@ -347,6 +351,10 @@ def admin_unhide(request: Request, db: DB, article_id: Annotated[int, Path(ge=1)
 
 @admin_router.post("/articles/{article_id}/reenrich", status_code=202)
 def admin_reenrich(db: DB, article_id: Annotated[int, Path(ge=1)]) -> Any:
+    # Imported here: the enrichment service pulls in the LLM SDKs, half the API's start-up
+    # time, for an admin call that is rare (and on serverless hosting, start-up is billed CPU).
+    from gjurme.enrichment.service import requeue
+
     n = requeue(db, article_ids=[article_id])
     db.commit()
     if not n:
