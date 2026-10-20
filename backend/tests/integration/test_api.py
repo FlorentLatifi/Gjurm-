@@ -330,6 +330,23 @@ def test_security_and_cache_headers(client: TestClient) -> None:
     assert rid.headers["x-request-id"] == "trace-12345678"
 
 
+def test_cdn_cache_header_only_when_configured(
+    db: sessionmaker[Session], api_settings: Settings, client: TestClient
+) -> None:
+    assert "cdn-cache-control" not in client.get("/api/v1/topics").headers
+    behind_cdn = TestClient(
+        create_app(api_settings.model_copy(update={"cdn_cache_seconds": 300}), db)
+    )
+    public = behind_cdn.get("/api/v1/topics")
+    assert public.headers["cdn-cache-control"] == "public, max-age=300, stale-while-revalidate=300"
+    assert public.headers["cache-control"].startswith("public, max-age=60")  # browsers: as before
+    assert "cdn-cache-control" in behind_cdn.get("/api/share/sitemap.xml").headers
+    # private, failed and uncacheable answers never reach the CDN's cache
+    assert "cdn-cache-control" not in behind_cdn.get("/api/v1/admin/runs", headers=AUTH).headers
+    assert "cdn-cache-control" not in behind_cdn.get("/api/v1/stories/999999").headers
+    assert "cdn-cache-control" not in behind_cdn.get("/health").headers
+
+
 def test_unchanged_answers_revalidate_with_304(client: TestClient, dataset: dict[str, Any]) -> None:
     first = client.get("/api/v1/topics", params={"days": 7})
     etag = first.headers["etag"]

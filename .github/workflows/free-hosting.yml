@@ -1,0 +1,156 @@
+# Free hosting without a server (ADR-027): the site and API run on Vercel, the database on Neon,
+# and this workflow does what the scheduler container does on a server. Every 30 minutes, and
+# when a new migration reaches the default branch, it migrates the database and runs one
+# scheduler tick (fetch feeds, analyse, cluster, quality checks, daily retention); once a week
+# it saves an encrypted backup as a workflow artifact.
+#
+# It does nothing until the repository variable FREE_HOSTING is "true" and the DATABASE_URL
+# secret is set (docs/NISJA.md, part B). On a server, leave FREE_HOSTING unset: the server's
+# scheduler does this work.
+name: Free hosting
+
+on:
+  # A new migration runs as soon as it reaches the default branch, while Vercel is still
+  # building the code that needs it, not up to 30 minutes later.
+  push:
+    paths:
+      - "backend/src/gjurme/migrations/**"
+  schedule:
+    - cron: "11,41 * * * *" # pipeline: every 30 minutes, off the busy top of the hour
+    - cron: "23 2 * * 0" # backup: Sundays 02:23 UTC
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "pipeline: one run now. reanalyse: queue what the keyword rules analysed for
+          Claude (after adding ANTHROPIC_API_KEY), then one run. backup: a backup now."
+        type: choice
+        options: [pipeline, reanalyse, backup]
+        default: pipeline
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline:
+    if: >-
+      vars.FREE_HOSTING == 'true' &&
+      (github.event.schedule == '11,41 * * * *' || inputs.task == 'pipeline' ||
+      inputs.task == 'reanalyse' ||
+      (github.event_name == 'push' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    concurrency:
+      group: free-hosting-pipeline
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash # pipefail, ${!name}
+        working-directory: backend
+    env:
+      GJURME_ENV: production
+      LOG_FORMAT: text
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # Claude when a key is set, otherwise the disclosed keyword-rule analysis (ADR-018).
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      LLM_PROVIDER: ${{ secrets.ANTHROPIC_API_KEY != '' && 'anthropic' || 'fake' }}
+      ALLOW_FAKE_LLM_IN_PRODUCTION: "true"
+      HEALTHCHECK_PING_URL: ${{ secrets.HEALTHCHECK_PING_URL }}
+      ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+      ALERT_WEBHOOK_FORMAT: ${{ vars.ALERT_WEBHOOK_FORMAT || 'generic' }}
+      PUBLIC_BASE_URL: ${{ vars.PUBLIC_URL }}
+      # Neon's free plan: 1 GB of storage. Shorter retention keeps the database inside it for
+      # longer; the database_size check warns at 80 %.
+      DB_SIZE_LIMIT_MB: ${{ vars.DB_SIZE_LIMIT_MB || '1024' }}
+      RETENTION_RAW_PAYLOAD_DAYS: "7"
+      RETENTION_EXCERPT_DAYS: "30"
+      SCHEDULER_INTERVAL_MINUTES: "30"
+      # GitHub may start a scheduled run late; "stale" only after two missed runs and more.
+      ALERT_STALE_PIPELINE_MINUTES: "150"
+      DB_POOL_SIZE: "3"
+      DB_MAX_OVERFLOW: "2"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Check the configuration
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Add the DATABASE_URL secret (Settings → Secrets and variables → Actions). docs/NISJA.md, part B."
+            exit 1
+          fi
+      - run: uv sync --frozen --no-dev
+      - name: Migrate, then one scheduler tick
+        env:
+          TASK: ${{ inputs.task }}
+        run: |
+          # Unset the optional secrets that are empty: an empty value is not "not configured".
+          for name in ANTHROPIC_API_KEY HEALTHCHECK_PING_URL ALERT_WEBHOOK_URL PUBLIC_BASE_URL; do
+            [ -n "${!name}" ] || unset "$name"
+          done
+          # A deployed configuration must carry an admin token; nothing here serves the admin
+          # API, so a throwaway one will do.
+          export ADMIN_API_TOKEN="$(openssl rand -hex 32)"
+          uv run gjurme db upgrade
+          if [ "$TASK" = reanalyse ]; then
+            # within LLM_DAILY_BUDGET_USD: what one day's budget does not cover, later runs do
+            uv run gjurme enrich-requeue --provider fake
+          fi
+          uv run gjurme scheduler --once
+
+  backup:
+    if: >-
+      vars.FREE_HOSTING == 'true' &&
+      (github.event.schedule == '23 2 * * 0' || inputs.task == 'backup')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: free-hosting-backup
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash # pipefail, <(...)
+    steps:
+      - name: Dump the database and encrypt it
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::Add the DATABASE_URL and BACKUP_PASSPHRASE secrets. docs/NISJA.md, part B."
+            exit 1
+          fi
+          url="postgresql://${DATABASE_URL#*://}"  # libpq does not know postgresql+psycopg://
+          # pg_dump must be at least the server's major version: use the server's own.
+          major=$(docker run --rm -e URL="$url" postgres:17-alpine \
+            sh -c 'psql "$URL" -Atc "SHOW server_version_num"' | cut -c1-2)
+          echo "server: PostgreSQL $major"
+          docker run --rm -e URL="$url" "postgres:${major}-alpine" \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges "$URL"' > gjurme.dump
+          name="gjurme-$(date -u +%Y-%m-%d).dump.gpg"
+          gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 \
+            --passphrase-file <(printf '%s' "$BACKUP_PASSPHRASE") --output "$name" gjurme.dump
+          rm gjurme.dump
+          echo "NAME=$name" >> "$GITHUB_ENV"
+          ls -lh "$name"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ env.NAME }}
+          retention-days: 35
+          compression-level: 0 # already compressed and encrypted
+
+  # In a public repository GitHub turns scheduled workflows off after 60 days without activity.
+  # Re-enabling the workflow resets that clock, so do it every week.
+  keepalive:
+    if: vars.FREE_HOSTING == 'true' && github.event.schedule == '23 2 * * 0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - run: gh api --method PUT "repos/${{ github.repository }}/actions/workflows/free-hosting.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}

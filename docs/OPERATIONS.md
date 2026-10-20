@@ -1,6 +1,8 @@
 # Operations runbook
 
-Commands assume you are on the server as the `deploy` user in `/opt/gjurme`, with:
+**Without a server** (Vercel + Neon + GitHub Actions, [ADR-027](DECISIONS.md#adr-027-a-0-path-without-a-server-vercel--neon--github-actions)) there is nothing to log in to. The pipeline's logs are the *Free hosting* workflow runs in GitHub Actions, the API's are in Vercel (*Project → Logs*), and *Run workflow* there does what the commands below do on a server: `pipeline` runs now, `reanalyse` queues the keyword-rule results for Claude, `backup` saves a backup now. Watch the usage pages of Neon and Vercel against the free caps ([DEPLOYMENT.md](DEPLOYMENT.md#limits-and-what-to-watch)); the signals, alerts and quality checks below apply unchanged, except Docker healthchecks and `/metrics`.
+
+On a server, commands assume you are the `deploy` user in `/opt/gjurme`, with:
 
 ```bash
 # The compose file requires IMAGE_TAG; deploy.sh records the tag that is up in .deploy-state/running.
@@ -14,7 +16,7 @@ admin() { curl -fsS -H "Authorization: Bearer $TOKEN" "https://$DOMAIN/api/v1/ad
 
 | Signal | Where | Detects |
 |---|---|---|
-| **Uptime monitor** (GitHub Actions, every 30 min) | Failed workflow run → GitHub e-mail to the owner | Site or API down, DB unreachable, **pipeline stale** (`/api/v1/status` = `stale`: no successful run for 120 min), TLS certificate < 14 days. Works when the whole server is down, but GitHub disables scheduled workflows after 60 days without repository activity, so also set up the dead-man checks below. |
+| **Uptime monitor** (GitHub Actions, every 30 min, a few minutes after the free-hosting pipeline) | Failed workflow run → GitHub e-mail to the owner | Site or API down, DB unreachable, **pipeline stale** (`/api/v1/status` = `stale`: no successful run for 120 min), TLS certificate < 14 days. Works when the whole server is down, but GitHub disables scheduled workflows after 60 days without repository activity, so also set up the dead-man checks below. |
 | **Dead-man checks** (optional: `HEALTHCHECK_PING_URL`, `BACKUP_HEALTHCHECK_URL`) | The external service's e-mail/app | Every pipeline run and every backup pings (`/fail` on failure); the service alerts when pings stop: server down, scheduler stuck, backups not running ([DEPLOYMENT.md](DEPLOYMENT.md#8-verify)). |
 | **Alert webhook** (from the scheduler) | Slack / Discord / ntfy / generic JSON | Run failed, all sources down, source auto-disabled, LLM budget exhausted, LLM fatal error, circuit breaker open, data-quality failures, abnormal article volume. Deduplicated per key for 6 h; every alert (including suppressed ones) is in `ops.alert_events`. |
 | `GET /api/v1/status` (public) | Browser / curl / the dashboard's Status page | `ok` / `degraded` / `stale`, last run, scheduler heartbeat, backlog, per-source health |
@@ -66,6 +68,7 @@ Run after every pipeline run (and on demand: `gj quality`). Results are in `ops.
 | `article_volume_anomaly` | 24 h vs 14-day baseline | \|z\| > 3, or 0 articles with a baseline ≥ 10 | Sources silently broken, or a real news surge |
 | `foreign_domain_links_24h` | 24 h | > 5% (info) | Feed links pointing off-site (syndication, tracking redirects) |
 | `low_confidence_rate_24h` | 24 h | > 30% (info) | Unusual content mix, or the model struggling |
+| `database_size` | now | ≥ 80% / ≥ 95% of `DB_SIZE_LIMIT_MB` (critical; the warning already alerts). Without a limit it only records the size | A capped free database filling up: shorten `RETENTION_EXCERPT_DAYS` / `RETENTION_RAW_PAYLOAD_DAYS`, upgrade the plan, or move to a server |
 
 ## Runbooks
 

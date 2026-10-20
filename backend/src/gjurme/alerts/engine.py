@@ -104,7 +104,8 @@ def evaluate_run(run_status: str, stats: dict[str, Any]) -> list[Alert]:
         )
     for check in (stats.get("quality") or {}).get("results", []):
         if check["status"] == "fail" or (
-            check["name"] == "article_volume_anomaly" and check["status"] == "warn"
+            check["name"] in ("article_volume_anomaly", "database_size")
+            and check["status"] == "warn"
         ):
             alerts.append(
                 Alert(

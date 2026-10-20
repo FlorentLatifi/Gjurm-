@@ -61,7 +61,20 @@ function translations(): Plugin {
   };
 }
 
+/**
+ * On Vercel, a production build knows its address without configuration: the production domain
+ * (the custom one once added, else <project>.vercel.app). Set before Vite reads the environment,
+ * so the app's canonical and shared links (shared/lib/publicUrl) get it too.
+ */
+function vercelPublicUrl(): void {
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (!process.env.VITE_PUBLIC_URL && process.env.VERCEL_ENV === "production" && host) {
+    process.env.VITE_PUBLIC_URL = `https://${host}`;
+  }
+}
+
 export default defineConfig(({ mode }) => {
+  vercelPublicUrl();
   const env = loadEnv(mode, process.cwd(), "VITE_");
   return {
     plugins: [translations(), react(), seoFiles(env.VITE_PUBLIC_URL)],
