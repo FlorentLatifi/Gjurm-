@@ -1,8 +1,8 @@
 # GJURMË
 
-**See every side of the Albanian-language news.** GJURMË (*"trace, footprint"*) reads Kosovo, Albanian and North Macedonian news feeds every 15 minutes and, like [Ground News](https://ground.news/), groups the articles that report the same event into **stories**: for each story you see which outlets covered it, how their coverage splits by perspective, region, ownership and factuality, who reported it first, and how each outlet headlined it. **Blindspots** show what one side, or one country's media, barely covered, and **My news bias** shows the balance of your own reading. Underneath, Claude (or keyword rules at $0) classifies every article — topic, tone, people, organizations, places, a one-line summary — for a dashboard of what dominates coverage and who is suddenly in the news.
+**See every side of the Albanian-language news.** GJURMË (*"trace, footprint"*) reads Kosovo, Albanian and North Macedonian news feeds every 15–30 minutes and, like [Ground News](https://ground.news/), groups the articles that report the same event into **stories**: for each story you see which outlets covered it, how their coverage splits by perspective, region, ownership and factuality, who reported it first, and how each outlet headlined it. **Blindspots** show what one side, or one country's media, barely covered, and **My news bias** shows the balance of your own reading. Underneath, Claude (or keyword rules at $0) classifies every article — topic, tone, people, organizations, places, a one-line summary — for a dashboard of what dominates coverage and who is suddenly in the news.
 
-> **Status:** V1 is complete and tested (CI green on GitHub: lint, strict types, 300 backend tests on PostgreSQL, 53 frontend tests, 72 end-to-end browser tests, bundle budgets, security scans). **It is not deployed yet.** Deployment is scripted and rehearsed locally. It can run for **$0**: on an Oracle Cloud Always Free ARM server with a free subdomain, with keyword-rule analysis that the site discloses until a Claude API key or a [free model](docs/AI_ENRICHMENT.md#free-models) is added ([DEPLOYMENT.md](docs/DEPLOYMENT.md#oracle-cloud), [LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md)).
+> **Status:** V1 is complete and tested (CI green on GitHub: lint, strict types, 366 backend tests on PostgreSQL, 67 frontend tests, 92 end-to-end browser tests, bundle budgets, security scans). **It is not deployed yet.** It can run for **$0** in two ways: **without a server**, on Vercel + Neon + GitHub Actions, with no card needed ([ADR-027](docs/DECISIONS.md#adr-027-a-0-path-without-a-server-vercel--neon--github-actions)); or on an Oracle Cloud Always Free ARM server with a free subdomain. Until a Claude API key or a [free model](docs/AI_ENRICHMENT.md#free-models) is added, articles are analysed by keyword rules, and the site says so ([DEPLOYMENT.md](docs/DEPLOYMENT.md), [LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md)).
 
 ## What it does
 
@@ -12,13 +12,13 @@
 - **My news bias.** The balance of the outlets you read here, kept only in your browser ([ADR-022](docs/DECISIONS.md#adr-022-my-news-bias-without-accounts)).
 - **Made to be shared.** A story link shows its own headline and who covered it in WhatsApp, Facebook, X or Telegram, and `?lens=` keeps the chosen split ([ADR-025](docs/DECISIONS.md#adr-025-story-link-previews-for-crawlers-only)).
 
-- **Ingests** RSS feeds from 5 verified outlets (Telegrafi, KOHA, Gazeta Express, Kallxo, Radio Evropa e Lirë) politely: robots.txt, conditional GET, per-source isolation, auto-disable on repeated failure.
+- **Ingests** RSS feeds from 10 verified outlets in Kosovo, Albania and North Macedonia (Telegrafi, KOHA, Gazeta Express, Kallxo, Radio Evropa e Lirë, Reporteri, Reporter.al, Euronews Albania, BalkanWeb, Portalb) politely: robots.txt, conditional GET, per-source isolation, auto-disable on repeated failure.
 - **Cleans and deduplicates** in four layers: feed entry, canonical URL, same-source headline, and cross-outlet near-verbatim copies.
 - **Enriches** each headline and excerpt with Claude, using structured JSON output that is validated, repaired, and checked against the source text so the model cannot invent names. It runs under a hard daily budget with a kill switch.
 - **Clusters** articles from different outlets into stories: TF-IDF over headline, excerpt and names with Albanian word folding, guards against look-alike events in different places, a 48 h span; reviewable on live data with `gjurme stories-review`.
 - **Analyses:** volume with a moving average, topic momentum, entity spikes (z-scores), tone shifts, co-occurrence, source profiles, first reports, blindspots. Every method is stated next to the chart.
 - **Serves** a typed FastAPI (OpenAPI docs) and an accessible, fast React site: Stories, Story, Blindspot, My news bias, Source profiles, Dashboard, Trends, Topics, Entities, Sources, Articles, About/Methodology, Status. Its architecture and every performance trade-off are measured and documented ([frontend_system.md](docs/architecture/frontend_system.md)).
-- **Operates itself:** scheduler with overlap protection, 14 data-quality checks per run, webhook alerts, an external uptime monitor, nightly backups with weekly restore tests, and deploy with automatic rollback.
+- **Operates itself:** scheduler with overlap protection, 15 data-quality checks per run, webhook alerts, an external uptime monitor, nightly backups with weekly restore tests, and deploy with automatic rollback.
 
 It stores metadata and its own analysis only. It never republishes article text, and every item links to the original ([why](docs/DECISIONS.md#adr-003-store-metadata-and-derived-data-only)).
 
@@ -75,6 +75,7 @@ Useful commands: `gjurme sources validate`, `gjurme run --stages ingest,process`
 ```
 backend/    gjurme package (ingestion, enrichment, stories, analytics, api, pipeline), tests, migrations
 frontend/   React site (stories, blindspot, dashboard), Vitest + Playwright tests, Caddy config
+api/        the API as a Vercel function (free hosting without a server; vercel.json routes it)
 deploy/     production compose, deploy/rollback script, backups, server bootstrap
 docs/       blueprint, architecture, data model, AI, sources, deployment, operations,
             security, testing, decisions, launch checklist, portfolio
@@ -92,7 +93,7 @@ docs/       blueprint, architecture, data model, AI, sources, deployment, operat
 | [AI_ENRICHMENT](docs/AI_ENRICHMENT.md) | Prompt, schema, validation, reliability, cost model |
 | [SOURCES](docs/SOURCES.md) | Verified sources with evidence; how to add one |
 | [DEPLOYMENT](docs/DEPLOYMENT.md) | Hosting, costs, step-by-step deploy |
-| [NISJA](docs/NISJA.md) | Launch guide in Albanian: Claude quality test, then the free Oracle deploy |
+| [NISJA](docs/NISJA.md) | Launch guide in Albanian: Claude quality test, the free deploy without a server (Vercel + Neon + GitHub), or on Oracle |
 | [OPERATIONS](docs/OPERATIONS.md) | Runbook: alerts, checks, incidents, backups, secrets |
 | [SECURITY](docs/SECURITY.md) | Threats, controls, accepted risks |
 | [TESTING](docs/TESTING.md) | Test strategy, failure tests, performance measurements |

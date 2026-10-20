@@ -198,6 +198,21 @@ def create_app(
         else:
             response.headers.setdefault("Cache-Control", "no-store")
         if (
+            settings.cdn_cache_seconds
+            and request.method == "GET"
+            and response.status_code == 200
+            and response.headers["Cache-Control"].startswith("public")
+            # Not the link-preview pages: behind a CDN a crawler's preview and a reader's app
+            # share one URL (/stories/{id}), and a cache keyed by URL must never hold the preview.
+            and (path.startswith("/api/v1/") or path == "/api/share/sitemap.xml")
+        ):
+            # Browsers keep Cache-Control's short max-age; the CDN keeps the answer longer and
+            # refreshes it in the background (RFC 9213).
+            ttl = settings.cdn_cache_seconds
+            response.headers["CDN-Cache-Control"] = (
+                f"public, max-age={ttl}, stale-while-revalidate={ttl}"
+            )
+        if (
             request.method == "GET"
             and response.status_code == 200
             and path.startswith("/api/v1/")

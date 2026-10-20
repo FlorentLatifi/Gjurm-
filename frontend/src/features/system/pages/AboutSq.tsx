@@ -154,9 +154,10 @@ export function AboutSq({ topics, status }: AboutProps) {
             artikullit (kërkesat janë publike).
           </>
         )}{" "}
-        GJURMË nuk përdor cookies, gjurmues apo analitikë; regjistrat e serverit nuk mbajnë adresa IP të
-        plota (ato shkurtohen para se të shkruhen). Shënimi i leximit për “Anshmëria ime” mbetet në
-        shfletuesin tuaj.
+        GJURMË nuk përdor cookies, gjurmues apo analitikë; regjistrat e vetë GJURMË-s nuk mbajnë adresa
+        IP të plota (ato shkurtohen ose kthehen në kod para se të shkruhen), ndonëse ofruesi i hostimit
+        mund t’i mbajë regjistrat e vet të qasjes për pak kohë. Shënimi i leximit për “Anshmëria ime”
+        mbetet në shfletuesin tuaj.
       </p>
       <p>
         Për zhvilluesit: të gjitha të dhënat janë të qasshme përmes{" "}

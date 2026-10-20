@@ -23,7 +23,20 @@ Legend: ✅ done and verified (evidence linked) · 👤 needs the owner (account
 
 ## 2. Owner actions (cannot be done from the codebase) 👤
 
-### The $0 path (chosen): Oracle Always Free + DuckDNS + keyword-rule analysis ([ADR-018](DECISIONS.md#adr-018-a-0-launch-path-oracle-always-free--keyword-rule-analysis))
+### The $0 path without a server (recommended): Vercel + Neon + GitHub Actions ([ADR-027](DECISIONS.md#adr-027-a-0-path-without-a-server-vercel--neon--github-actions))
+
+Step by step in Albanian: [NISJA.md, part B](NISJA.md#pjesa-b-faqja-online-falas-pa-server-e-rekomanduar). No card is needed.
+
+| | Action | Where |
+|---|---|---|
+| 👤 | Neon project in *AWS US East 1*; copy the direct connection string (no `-pooler`) | neon.com |
+| 👤 | Repository secrets `DATABASE_URL` and `BACKUP_PASSPHRASE` (keep the passphrase somewhere safe); variable `FREE_HOSTING=true` | GitHub → Settings → Secrets and variables → Actions |
+| 👤 | First run: *Actions → Free hosting → Run workflow* | GitHub |
+| 👤 | Vercel project from the repository with the environment variable `DATABASE_URL` | vercel.com (Hobby: non-commercial use) |
+| 👤 | Variable `PUBLIC_URL=https://<project>.vercel.app` (uptime monitor); optional: alerts to a phone through ntfy (`ALERT_WEBHOOK_URL`, `ALERT_WEBHOOK_FORMAT=ntfy`), secrets `HEALTHCHECK_PING_URL` and `ANTHROPIC_API_KEY`, Vercel variable `VITE_CONTACT_URL` | GitHub, Vercel |
+| 👤 | Watch the usage pages of Neon and Vercel in the first weeks | [DEPLOYMENT.md](DEPLOYMENT.md#limits-and-what-to-watch) |
+
+### The $0 path with a server: Oracle Always Free + DuckDNS + keyword-rule analysis ([ADR-018](DECISIONS.md#adr-018-a-0-launch-path-oracle-always-free--keyword-rule-analysis))
 
 | | Action | Where |
 |---|---|---|
@@ -34,7 +47,7 @@ Legend: ✅ done and verified (evidence linked) · 👤 needs the owner (account
 | 👤 | Make the GHCR packages `gjurme-api` and `gjurme-web` public (no token needed on the server) | step 6 |
 | 👤 | Decide: stay free-only (a VM stopped as idle gets restarted by hand) or convert to Pay-As-You-Go with a $1 budget alert | step 8 |
 
-The rows below apply to both paths. Skip the VPS/domain rows on the free path, and keep the Anthropic key off the server until you want to pay for AI analysis.
+The rows below apply to the server paths (Oracle or a paid VPS). Skip the VPS/domain rows on Oracle, and keep the Anthropic key off the server until you want to pay for AI analysis. Without a server, only the outlet ratings, the contact address and the legal review below still apply.
 
 | | Action | Where | Notes |
 |---|---|---|---|

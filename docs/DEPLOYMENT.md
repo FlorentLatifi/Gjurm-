@@ -4,17 +4,17 @@
 
 ## Target and cost
 
-Two ways to host the same stack:
+Three ways to host the same application:
 
-| | **Free: Oracle Cloud Always Free** ([guide below](#oracle-cloud)) | **Paid VPS** (any provider) |
-|---|---|---|
-| Cost | $0 (card needed only for identity verification) | ≈ $12–24/month |
-| Server | ARM (Ampere A1), up to 2 OCPU / 12 GB free | x86 or ARM, 2 vCPU / 2–4 GB |
-| Domain | free subdomain, e.g. `gjurme.duckdns.org` | your own domain (≈ $1/month) |
-| Analysis | keyword rules ($0), labelled on the site; Claude when you add a key | Claude (budget-capped) |
-| Caveats | Oracle may **stop** a VM that looks idle; capacity is sometimes unavailable | none specific |
+| | **Free, no server: Vercel + Neon + GitHub Actions** ([below](#free-hosting-without-a-server)) | **Free: Oracle Cloud Always Free** ([below](#oracle-cloud)) | **Paid VPS** (any provider) |
+|---|---|---|---|
+| Cost | $0, no card | $0 (card needed only for identity verification) | ≈ $12–24/month |
+| Runs on | Vercel (site + API function), Neon (PostgreSQL), GitHub Actions (pipeline every 30 min, weekly backup) | ARM VM (Ampere A1), up to 2 OCPU / 12 GB free | x86 or ARM VM, 2 vCPU / 2–4 GB |
+| Domain | `<project>.vercel.app`, or your own | free subdomain, e.g. `gjurme.duckdns.org` | your own domain (≈ $1/month) |
+| Analysis | keyword rules ($0), labelled on the site; Claude when you add a key | same | Claude (budget-capped) |
+| Caveats | 1 GB database; monthly CPU, compute-hour and transfer caps ([limits](#limits-and-what-to-watch)); Vercel Hobby is for non-commercial use | Oracle may **stop** a VM that looks idle; capacity is sometimes unavailable | none specific |
 
-The images are published for both `amd64` and `arm64`, so either works without changes.
+The server images are published for both `amd64` and `arm64`, so either VM works without changes.
 
 One VPS running Docker Compose: `db` (PostgreSQL 16), `migrate` (one-shot), `api`, `scheduler`, `web` (Caddy with automatic HTTPS) and `backup` (nightly dumps, weekly restore test), plus an optional `offsite` sync. Why a single VPS and not a PaaS or Kubernetes: [ADR-007](DECISIONS.md#adr-007-single-vps--docker-compose--caddy).
 
@@ -37,9 +37,55 @@ One VPS running Docker Compose: `db` (PostgreSQL 16), `migrate` (one-shot), `api
 
 In staging and production the app **refuses to start** with an admin token under 32 characters, a wildcard CORS origin, the FakeProvider (unless explicitly allowed) or the default development database password (`Settings.validate_for_env`), and refuses demo seeding.
 
+## Free hosting without a server
+
+Added in October 2026 for owners who cannot open an Oracle account ([ADR-027](DECISIONS.md#adr-027-a-0-path-without-a-server-vercel--neon--github-actions)). The step-by-step guide for the owner is in Albanian: [NISJA.md, part B](NISJA.md#pjesa-b-faqja-online-falas-pa-server-e-rekomanduar). All three services sign in with GitHub and need no card.
+
+| Server component | Without a server |
+|---|---|
+| `web` (Caddy: static site, HTTPS, security headers, crawler previews, sitemap) | Vercel's CDN and `vercel.json` (the same headers and routing; a test keeps them equal to the Caddyfile) |
+| `api` | one Vercel Python function, `api/index.py` → `gjurme.api.serverless` |
+| `db` | Neon, free plan, region AWS us-east-1 (next to Vercel's `iad1` and GitHub's runners) |
+| `migrate`, `scheduler` | `.github/workflows/free-hosting.yml`: every 30 minutes `gjurme db upgrade` + `gjurme scheduler --once` (one tick: feeds, analysis, stories, quality checks, daily retention) |
+| `backup` | the same workflow, Sundays: `pg_dump` (the server's own major version), encrypted with `BACKUP_PASSPHRASE`, kept 35 days as an artifact |
+
+**Setup, in short 👤 owner.**
+
+1. Neon: project in *AWS US East 1*; copy the **direct** connection string (connection pooling off: no `-pooler` in the host).
+2. GitHub repository secrets `DATABASE_URL` (that string) and `BACKUP_PASSPHRASE`; repository variable `FREE_HOSTING=true`; run *Actions → Free hosting → Run workflow* once.
+3. Vercel (Hobby): import the repository; keep the framework preset *Other* and the root `./` (`vercel.json` holds the build); add the environment variable `DATABASE_URL`; deploy.
+4. Variable `PUBLIC_URL=https://<project>.vercel.app` turns on the uptime monitor. Optional: secrets `HEALTHCHECK_PING_URL`, `ANTHROPIC_API_KEY`, `ALERT_WEBHOOK_URL`; Vercel variable `VITE_CONTACT_URL`.
+
+**What the function does differently.** `gjurme.api.serverless.serverless_defaults` sets what the dashboard need not: `GJURME_ENV=production`, the production domain (`VERCEL_PROJECT_PRODUCTION_URL`) as `PUBLIC_BASE_URL` and CORS origin, `TRUST_PROXY_HEADERS=true` (Vercel overwrites `X-Forwarded-For`), a pool of 1 + 2 connections per instance, and `CDN_CACHE_SECONDS=300`: public API answers and the sitemap carry `CDN-Cache-Control`, so Vercel's CDN serves repeat requests for five minutes without calling the function or waking the database. Link-preview pages never do: a crawler's preview and a reader's app share the URL `/stories/{id}`, and a cache keyed by URL must never hold the preview. Without `ADMIN_API_TOKEN` in Vercel's environment the admin API is closed (a random token nobody knows). `vercel.json` sends the requested path along as `?__path=`, so the app sees the original path whichever path Vercel hands the function. If `DATABASE_URL_UNPOOLED` is set (the Neon integration sets it next to a pooled `DATABASE_URL`), it wins: the pipeline's advisory lock and the session settings need a direct connection. The front end takes its public URL from the same Vercel variable at build time (robots.txt, og:image, canonical and shared links).
+
+**Not available without a server:** Prometheus `/metrics`, the weekly restore test of the backup, and the scheduler's 15-minute cadence (30 minutes here; GitHub may start a scheduled run some minutes late).
+
+### Limits and what to watch
+
+Free-plan figures as published in October 2026; GJURMË's figures are estimates for the first months, at about 600–1,000 articles a day.
+
+| Service | Free plan | GJURMË (estimate) | At the cap |
+|---|---|---|---|
+| Neon storage | 1 GB per project | grows ≈ 150–250 MB/month at first; retention is shortened to 7 days (raw feed payloads) and 30 days (excerpts) | writes fail |
+| Neon compute | 100 CU-hours/month, scale to zero after 5 min idle | ≈ 45 CU-hours for the pipeline (48 wake-ups a day), plus readers' cache misses | compute suspended until the next month |
+| Neon transfer | 5 GB/month | ≈ 2–3 GB (mostly the clustering stage reloading two days of articles per run) | compute suspended until the next month |
+| Vercel Hobby | 4 h active CPU, 1 M invocations, 100 GB transfer per month; non-commercial use only | a cold start costs ≈ 0.8 s CPU (the API no longer imports the LLM SDKs at start-up); answers served from the CDN cost nothing | project paused until the next month |
+| GitHub Actions | unlimited for a public repository | 48 runs a day, ≈ 1–3 minutes each | — |
+
+The `database_size` quality check measures the database against `DB_SIZE_LIMIT_MB` (1024 in the workflow) and warns at 80 %, which also raises an alert. The uptime monitor runs a few minutes after each pipeline run, while Neon is still awake. When a cap comes close: Neon's *Launch* plan is pay-as-you-go (no minimum), or move to a server: restore the latest weekly backup there with `pg_restore` (below), then follow the Oracle or VPS path.
+
+**Backups and restore.** *Actions → Free hosting* → a Sunday run → *Artifacts*; or *Run workflow → task: backup* at any time. Neon also keeps 6 hours of history (instant restore).
+
+```bash
+gpg -d gjurme-YYYY-MM-DD.dump.gpg > gjurme.dump     # asks for BACKUP_PASSPHRASE
+pg_restore --clean --if-exists --no-owner --dbname "postgresql://…" gjurme.dump
+```
+
+**Scheduled runs and the 60-day rule.** GitHub disables scheduled workflows in a public repository after 60 days without activity. The workflow re-enables itself every Sunday (`keepalive` job); if it is ever disabled anyway, *Actions → Free hosting → Enable workflow*.
+
 ## Oracle Cloud
 
-The free path, as of September 2026. Oracle changes this tier: in June 2026 it halved the free Ampere allowance to **2 OCPU / 12 GB RAM**, 1,500 OCPU-hours and 9,000 GB-hours a month. Re-check the current limits on Oracle's Free Tier page before you start.
+The free path with a server, as of September 2026. Oracle changes this tier: in June 2026 it halved the free Ampere allowance to **2 OCPU / 12 GB RAM**, 1,500 OCPU-hours and 9,000 GB-hours a month. Re-check the current limits on Oracle's Free Tier page before you start.
 
 **1. Account 👤 owner.** Sign up at oracle.com/cloud/free. Oracle requires a phone number and a **credit or debit card for identity verification only**: a temporary $1 authorization, no charge unless you upgrade. Prepaid, virtual and PIN-debit cards are refused. Choose your **home region** carefully, because Always Free VMs can only be created there. Frankfurt or another European region is close to the audience.
 

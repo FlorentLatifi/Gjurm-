@@ -217,6 +217,35 @@ def test_cli_run_with_no_active_sources(cli_env: CliRunner) -> None:
     assert '"status": "succeeded"' in result.output
 
 
+@pytest.mark.parametrize(("status", "exit_code"), [("succeeded", 0), ("partial", 0), ("failed", 1)])
+def test_cli_scheduler_once_is_one_tick(
+    cli_env: CliRunner, monkeypatch: pytest.MonkeyPatch, status: str, exit_code: int
+) -> None:
+    """Hosting without a long-running process (the free-hosting workflow) runs one tick per
+    timer: heartbeat, pipeline, daily retention; a failed run fails the job."""
+    from types import SimpleNamespace
+
+    from gjurme.runtime_settings import SCHEDULER_HEARTBEAT, get_setting
+
+    calls: list[str] = []
+
+    def fake_run(_settings: object, _factory: object, trigger: str) -> SimpleNamespace:
+        calls.append(trigger)
+        quality = {"warnings": ["database_size"], "failures": []}
+        return SimpleNamespace(status=status, stats={"quality": quality})
+
+    monkeypatch.setattr("gjurme.pipeline.scheduler.run_pipeline", fake_run)
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    result = cli_env.invoke(app, ["scheduler", "--once"])
+    assert result.exit_code == exit_code, result.output
+    assert f"pipeline run: {status}" in result.output and calls == ["schedule"]
+    # a warning shows on the workflow run's page; it does not fail the job
+    assert "::warning title=Data quality::database_size" in result.output
+    with get_sessionmaker()() as s:
+        assert get_setting(s, SCHEDULER_HEARTBEAT) is not None
+        assert get_setting(s, "retention_last_run") is not None
+
+
 def test_cli_validate_writes_reports(
     cli_env: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

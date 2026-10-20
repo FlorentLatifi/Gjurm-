@@ -382,6 +382,28 @@ def check_low_confidence(s: Session) -> CheckResult:
     )
 
 
+def check_database_size(s: Session) -> CheckResult:
+    """The database against DB_SIZE_LIMIT_MB. Free hosted Postgres stops accepting writes at
+    its cap (Neon's free plan: 1 GB), so this warns at 80 % and fails at 95 %, while there is
+    time to shorten retention or upgrade. Without a limit it only records the size."""
+    limit = get_settings().db_size_limit_mb
+    size_mb = round(
+        s.execute(text("SELECT pg_database_size(current_database())")).scalar_one() / 1_048_576,
+        1,
+    )
+    if not limit:
+        return CheckResult("database_size", "info", "pass", size_mb, None, {"limit_mb": None})
+    used = size_mb / limit
+    return CheckResult(
+        "database_size",
+        "critical",
+        "fail" if used >= 0.95 else "warn" if used >= 0.8 else "pass",
+        size_mb,
+        round(limit * 0.8, 1),
+        {"limit_mb": limit, "used": round(used, 3)},
+    )
+
+
 CHECKS: tuple[Callable[[Session], CheckResult], ...] = (
     check_rejection_rate,
     check_duplicate_rate,
@@ -397,6 +419,7 @@ CHECKS: tuple[Callable[[Session], CheckResult], ...] = (
     check_volume_anomaly,
     check_foreign_domains,
     check_low_confidence,
+    check_database_size,
 )
 
 
