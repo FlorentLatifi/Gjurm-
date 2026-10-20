@@ -11,6 +11,7 @@ from gjurme.db.models import Setting
 
 ENRICHMENT_PAUSE = "enrichment_pause"
 RUN_REQUEST = "run_request"
+SCHEDULER_HEARTBEAT = "scheduler_heartbeat"
 
 
 def get_setting(session: Session, key: str) -> dict[str, Any] | None:
