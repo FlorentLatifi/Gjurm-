@@ -3,7 +3,8 @@
 Produces evidence rather than assumptions: for every registered source it fetches the declared
 feed and reports format, item count, field coverage, timestamp range, duplicate GUIDs and whether
 Albanian characters survive decoding. When the declared feed fails (or is not declared), it scans
-the source's discovery pages for ``<link rel="alternate">`` feeds and validates each candidate.
+the source's discovery pages for ``<link rel="alternate">`` feeds and validates each candidate;
+when none of those works either, it tries the paths where publishing systems usually put a feed.
 
 Run it from a network with open egress — the GitHub Actions workflow
 ``.github/workflows/sources.yml`` does this weekly and publishes the report as an artifact.
@@ -15,6 +16,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urljoin
 
 from gjurme.ingestion.feed_parser import discover_feeds, parse_feed
 from gjurme.ingestion.fetcher import FeedFetcher
@@ -23,6 +25,8 @@ from gjurme.sources.registry import SourceConfig
 
 FIELDS = ("title", "link", "id", "published_iso", "summary", "author", "tags")
 MAX_CANDIDATES = 6
+# WordPress, Drupal, Joomla and most news CMSs serve their feed at one of these paths.
+WELL_KNOWN_FEED_PATHS = ("/feed/", "/rss", "/rss/", "/rss.xml", "/feed.xml", "/feed/rss")
 
 
 @dataclass(slots=True)
@@ -137,6 +141,17 @@ def validate_source(fetcher: FeedFetcher, cfg: SourceConfig) -> SourceReport:
             continue
         report.discovered.append(validate_feed(fetcher, url))
     working = [d for d in report.discovered if d.ok]
+    if not working:
+        tried = {cfg.feed_url, *(d.url for d in report.discovered)}
+        for path in WELL_KNOWN_FEED_PATHS:
+            url = urljoin(cfg.homepage_url, path)
+            if url not in tried:
+                tried.add(url)
+                result = validate_feed(fetcher, url)
+                if result.ok:  # the misses are expected: only a hit is worth reporting
+                    report.discovered.append(result)
+                    break
+        working = [d for d in report.discovered if d.ok]
     if working:
         best = max(working, key=lambda d: d.items)
         report.recommendation = f"replace feed_url with discovered feed {best.url}"
