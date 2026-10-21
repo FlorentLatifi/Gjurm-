@@ -152,6 +152,31 @@ def test_validator_reports_and_autodiscovers(make_fetcher) -> None:  # type: ign
     assert "| Portali |" in md and "Discovered feeds for Portali" in md
 
 
+def test_validator_tries_the_usual_feed_paths(make_fetcher) -> None:  # type: ignore[no-untyped-def]
+    cfg = SourceConfig(
+        slug="tv",
+        name="Televizioni",
+        homepage_url="https://tv.example.com/",
+        feed_url="https://tv.example.com/feed/",
+        language="sq",
+        country="AL",
+    )
+    # the homepage links no feed, the declared one is gone, but the CMS serves /rss
+    fetcher = make_fetcher(
+        feed_server(
+            {
+                "https://tv.example.com/": (200, b"<html><body>Lajme</body></html>", {}),
+                "https://tv.example.com/rss": (200, fixture_bytes("wordpress_sq.xml"), {}),
+            }
+        )
+    )
+    report = validate_source(fetcher, cfg)
+    assert [d.url for d in report.discovered] == ["https://tv.example.com/rss"]
+    assert (
+        report.recommendation == "replace feed_url with discovered feed https://tv.example.com/rss"
+    )
+
+
 def test_validator_ok_source(make_fetcher) -> None:  # type: ignore[no-untyped-def]
     cfg = SourceConfig(
         slug="rr",

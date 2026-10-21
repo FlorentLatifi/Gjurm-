@@ -195,13 +195,13 @@ sources:
   - slug: zeri
     name: Zëri
     homepage_url: https://zeri.info/
-    feed_url: https://zeri.info/feed/
+    feed_url: https://zeri.info/rss/
     discovery_urls: [https://zeri.info/]
     language: sq
     country: XK
-    enabled: false
+    enabled: true
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Kosovo daily: politics, current affairs."
+    notes: "Verified 2026-10-21 — 10 items via the autodiscovered feed, title/link/date 100%. Kosovo daily: politics, current affairs."
 
   - slug: rtk
     name: RTK
@@ -221,9 +221,9 @@ sources:
     discovery_urls: [https://dukagjini.com/]
     language: sq
     country: XK
-    enabled: false
+    enabled: true
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Kosovo broadcaster and portal."
+    notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo broadcaster and portal."
 
   - slug: indeksonline
     name: Indeksonline
@@ -232,9 +232,9 @@ sources:
     discovery_urls: [https://indeksonline.net/]
     language: sq
     country: XK
-    enabled: false
+    enabled: true
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Kosovo news portal."
+    notes: "Verified 2026-10-21 — 11 items, title/link/date 100%. Kosovo news portal."
 
   - slug: lajmi-net
     name: Lajmi.net
@@ -243,9 +243,9 @@ sources:
     discovery_urls: [https://lajmi.net/]
     language: sq
     country: XK
-    enabled: false
+    enabled: true
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Kosovo news portal."
+    notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo news portal."
 
   - slug: sinjali
     name: Sinjali
@@ -254,9 +254,9 @@ sources:
     discovery_urls: [https://sinjali.com/]
     language: sq
     country: XK
-    enabled: false
+    enabled: true
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Kosovo news portal."
+    notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo news portal."
 
   - slug: insajderi
     name: Insajderi
@@ -298,9 +298,9 @@ sources:
     discovery_urls: [https://hibrid.info/]
     language: sq
     country: XK
-    enabled: false
+    enabled: true
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Kosovo fact-checking."
+    notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo fact-checking."
 
   - slug: ekonomia-online
     name: Ekonomia Online
@@ -309,9 +309,9 @@ sources:
     discovery_urls: [https://ekonomiaonline.com/]
     language: sq
     country: XK
-    enabled: false
+    enabled: true
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Kosovo business and economy."
+    notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo business and economy."
 
   - slug: shqiptarja
     name: Shqiptarja.com
@@ -353,9 +353,9 @@ sources:
     discovery_urls: [https://rtsh.al/, https://lajme.rtsh.al/]
     language: sq
     country: AL
-    enabled: false
+    enabled: true
     ownership: public
-    notes: "Candidate 2026-10-21 — Albanian public broadcaster."
+    notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Albanian public broadcaster."
 
   - slug: syri
     name: Syri.net
@@ -430,6 +430,6 @@ sources:
     discovery_urls: [https://faktoje.al/]
     language: sq
     country: AL
-    enabled: false
+    enabled: true
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Albanian fact-checking."
+    notes: "Verified 2026-10-21 — 9 items, title/link/date 100%. Albanian fact-checking."
