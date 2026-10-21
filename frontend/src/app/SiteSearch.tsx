@@ -3,9 +3,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { t } from "@/shared/i18n";
 
 /**
- * The masthead's story search: a button that opens a search box under the header. Searching
- * goes to the story feed's own keyword filter, so results, paging and the shareable URL are the
- * feed's. The box closes on search, on Escape and when the reader goes to another page.
+ * The masthead's story search: a button drawn as Ground News' search box, which opens the
+ * search form under the header. Searching goes to the story feed's own keyword filter, so
+ * results, paging and the shareable URL are the feed's. The box closes on search, on Escape and
+ * when the reader goes to another page.
  */
 export function SiteSearch() {
   const [open, setOpen] = useState(false);
@@ -35,7 +36,7 @@ export function SiteSearch() {
       <button
         ref={button}
         type="button"
-        className="btn btn--ghost btn--sm"
+        className="search-box"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => (open ? close() : setOpen(true))}
@@ -44,7 +45,7 @@ export function SiteSearch() {
           <circle cx="7" cy="7" r="4.5" />
           <path d="m10.5 10.5 3.5 3.5" />
         </svg>
-        <span className="site-header__label">{t("Search")}</span>
+        <span className="search-box__text">{t("Search")}</span>
       </button>
       <div id={panelId} className="site-search" hidden={!open}>
         <form

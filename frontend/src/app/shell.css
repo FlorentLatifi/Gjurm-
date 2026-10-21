@@ -1,75 +1,268 @@
-/* The masthead, navigation and footer. */
+/* The chrome, after Ground News: a tan promo strip, a dark top strip (theme, language, date,
+   edition), the masthead (menu, the word mark, the sections, search) and the trending row. */
+.promo {
+  background: var(--promo);
+  color: var(--promo-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--gutter);
+  text-align: center;
+}
+.promo p {
+  font-size: var(--text-md);
+  font-weight: var(--weight-strong);
+}
+.promo__button {
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: var(--radius);
+  padding: 6px var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-heavy);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.promo__button:hover {
+  text-decoration: underline;
+}
+
+.strip {
+  background: var(--strip);
+  color: var(--strip-ink);
+  font-size: var(--text-sm);
+}
+.strip__inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 6px var(--gutter);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-5);
+  flex-wrap: wrap;
+}
+.strip__group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  flex-wrap: wrap;
+}
+.strip a,
+.strip-link,
+.strip-choice button {
+  color: var(--strip-ink);
+}
+.strip-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.strip-choice__label {
+  margin-right: var(--space-1);
+}
+.strip-choice button,
+.strip-link {
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  font: inherit;
+  cursor: pointer;
+}
+.strip-choice button {
+  color: var(--strip-ink-2);
+}
+.strip-choice button:hover,
+.strip-link:hover {
+  color: var(--strip-ink);
+  text-decoration: underline;
+}
+.strip-choice button[aria-pressed="true"] {
+  color: var(--strip-ink);
+  font-weight: var(--weight-strong);
+}
+.strip :focus-visible {
+  outline-color: var(--strip-ink);
+}
+.strip__date {
+  color: var(--strip-ink-2);
+}
+.strip-select {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.strip-select select {
+  background: transparent;
+  color: var(--strip-ink);
+  border: 1px solid var(--strip-ink-2);
+  border-radius: var(--radius);
+  padding: 2px var(--space-2);
+  font: inherit;
+}
+.strip-select option {
+  color: var(--ink);
+  background: var(--surface);
+}
+.strip .status-pill {
+  border-color: var(--strip-ink-2);
+  color: var(--strip-ink);
+}
+.strip__narrow {
+  display: none;
+}
+
 .site-header {
   position: sticky;
   top: 0;
   z-index: 20;
   background: var(--paper);
-  border-top: 3px solid var(--ink);
   border-bottom: var(--hairline);
 }
 .site-header__inner {
+  position: relative;
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: var(--space-2) var(--gutter);
+  padding: var(--space-3) var(--gutter);
   display: flex;
   align-items: center;
   gap: var(--space-5);
 }
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+.menu-button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-left: -8px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.menu-button:hover {
+  background: var(--hover-wash);
+}
+.menu-button svg {
+  width: 24px;
+  height: 24px;
+}
+.sections-menu {
+  position: absolute;
+  top: 100%;
+  left: var(--gutter);
+  z-index: 30;
+  min-width: 240px;
+  background: var(--surface);
+  border: var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-float);
+  padding: var(--space-2) 0;
+}
+.sections-menu[hidden] {
+  display: none;
+}
+.sections-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sections-menu a {
+  display: block;
+  padding: var(--space-2) var(--space-4);
   color: var(--ink);
   text-decoration: none;
+  font-weight: var(--weight-strong);
+}
+.sections-menu a:hover {
+  background: var(--hover-wash);
+}
+.sections-menu a[aria-current="page"] {
+  box-shadow: inset 3px 0 0 var(--ink);
+}
+
+/* the word mark: one heavy condensed word, the edition word under it, as Ground News' logo */
+.brand {
+  display: inline-grid;
+  justify-items: end;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 0.9;
   white-space: nowrap;
 }
 .brand__name {
-  font-family: var(--font-serif);
-  font-size: var(--text-lg);
-  font-weight: var(--weight-strong);
-  letter-spacing: 0.04em;
-  line-height: 1;
+  font-family: var(--font-mast);
+  font-stretch: condensed;
+  font-size: 2.125rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
 }
-.brand small {
-  display: block;
-  font-family: var(--font-sans);
+.brand__sub {
   font-size: var(--text-xs);
-  letter-spacing: 0;
-  color: var(--ink-muted);
-  line-height: var(--leading-snug);
-  margin-top: 2px;
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.02em;
 }
 .nav {
   display: flex;
-  gap: var(--space-1);
+  gap: var(--space-5);
   overflow-x: auto;
   scrollbar-width: none;
   flex: 1;
+  align-self: stretch;
 }
 .nav a {
-  padding: var(--space-2) var(--space-2) 6px;
-  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) 0;
+  margin-bottom: calc(-1 * var(--space-3) - 1px);
+  color: var(--ink);
   text-decoration: none;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
+  font-weight: var(--weight-strong);
   white-space: nowrap;
-  border-bottom: 2px solid transparent;
+  border-bottom: 4px solid transparent;
 }
 .nav a:hover {
-  color: var(--ink);
   border-bottom-color: var(--rule-strong);
 }
 .nav a[aria-current="page"] {
-  color: var(--ink);
-  font-weight: var(--weight-strong);
   border-bottom-color: var(--ink);
 }
 .header-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
-.site-header__short {
-  display: none;
+.header-actions .btn {
+  padding: 10px var(--space-5);
+  font-size: var(--text-md);
+  font-weight: var(--weight-heavy);
+}
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 280px;
+  padding: 10px var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--control);
+  border-radius: var(--radius);
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: var(--text-md);
+  text-align: left;
+  cursor: text;
+}
+.search-box svg {
+  width: 20px;
+  height: 20px;
+  color: var(--ink);
+  flex: none;
+}
+.search-box[aria-expanded="true"] {
+  border-color: var(--ink);
 }
 
 /* Opens under the masthead, the full width of the page. */
@@ -91,6 +284,54 @@
   display: flex;
   gap: var(--space-2);
   align-items: flex-end;
+}
+
+/* trending: chips with a "+", one scrolling row */
+.trending {
+  border-bottom: var(--hairline);
+  background: var(--paper);
+}
+.trending__inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: var(--space-2) var(--gutter);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.trending__icon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+.trending ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.trend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-3);
+  border-radius: 999px;
+  background: var(--paper-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.trend-chip span {
+  font-size: var(--text-md);
+  font-weight: var(--weight-regular);
+}
+.trend-chip:hover {
+  background: var(--rule-strong);
 }
 
 main {
@@ -119,30 +360,77 @@ main {
   color: var(--ink-2);
 }
 
-@media (max-width: 1360px) {
-  .brand small {
+@media (max-width: 1180px) {
+  .header-actions__wide {
     display: none;
   }
+  .search-box {
+    width: 200px;
+  }
 }
-@media (max-width: 720px) {
+@media (max-width: 860px) {
+  .promo p {
+    font-size: var(--text-sm);
+  }
   .site-header__inner {
     flex-wrap: wrap;
-    gap: var(--space-1) var(--space-3);
+    gap: 0 var(--space-3);
+    padding-bottom: 0;
   }
   .nav {
     order: 3;
     flex-basis: 100%;
+    gap: var(--space-4);
   }
-  .site-header__short {
-    display: inline;
+  .nav a {
+    margin-bottom: 0;
+    font-size: var(--text-base);
   }
-  /* phones: the header buttons show their icons; the words stay for screen readers */
-  .site-header__label {
+  .header-actions {
+    margin-left: auto;
+  }
+  .search-box {
+    width: auto;
+    border: 0;
+    background: none;
+    padding: var(--space-2);
+  }
+  .search-box__text {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip: rect(0 0 0 0);
     white-space: nowrap;
+  }
+  .brand__name {
+    font-size: 1.75rem;
+  }
+}
+@media (max-width: 560px) {
+  .promo {
+    gap: var(--space-2);
+  }
+  .strip__inner {
+    gap: var(--space-1) var(--space-3);
+  }
+  .strip__group {
+    gap: var(--space-1) var(--space-3);
+  }
+  .strip__date,
+  .strip-choice__label {
+    display: none;
+  }
+  /* the language's own name, read by screen readers; its code on screen */
+  .strip__wide {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .strip__narrow {
+    display: inline;
   }
 }

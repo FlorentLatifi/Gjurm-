@@ -3,7 +3,7 @@ import { labels, t } from "@/shared/i18n";
 
 /**
  * Labels and colours for the coverage dimensions (mirrors backend gjurme/sources/ratings.py).
- * Perspective is a diverging scale (blue ← gray → red, ADR-011 tokens); region and ownership are
+ * Perspective is a diverging scale (maroon ← light neutral → navy, as on Ground News; ADR-028); region and ownership are
  * categorical slots assigned to a fixed entity, never by rank; "unrated"/"unknown" is a hatched
  * neutral so it can never be mistaken for the center.
  */
@@ -118,7 +118,16 @@ export interface Segment {
   color: string;
   /** Hatched fill: "unrated" / "unknown" / "other", never confused with a real category. */
   hatched?: boolean;
+  /** Text printed on the segment itself (perspective only: the pole and centre colours). */
+  ink?: string;
 }
+
+const BIAS_GROUP_INK: Record<BiasGroup, string> = {
+  left: "var(--on-bias-pole)",
+  center: "var(--on-bias-center)",
+  right: "var(--on-bias-pole)",
+  unrated: "var(--ink)",
+};
 
 export type Lens = "perspective" | "region" | "ownership" | "factuality";
 export const LENS_LABEL: Readonly<Record<Lens, string>> = labels({
@@ -137,6 +146,7 @@ export function segments(coverage: Coverage, lens: Lens): Segment[] {
       value: coverage.bias[g] ?? 0,
       color: BIAS_GROUP_COLOR[g],
       hatched: g === "unrated",
+      ink: BIAS_GROUP_INK[g],
     }));
   }
   if (lens === "factuality") {
@@ -169,6 +179,18 @@ export function segments(coverage: Coverage, lens: Lens): Segment[] {
     })),
     { key: "other", label: t("Other"), value: other, color: "var(--unrated)", hatched: true },
   ];
+}
+
+/**
+ * The side that covered a story most, Ground News' "45% Center": the largest rated segment, or
+ * null when every outlet in view is unrated (a hatched segment never leads).
+ */
+export function leadingSegment(parts: Segment[]): { segment: Segment; share: number } | null {
+  const total = parts.reduce((sum, p) => sum + p.value, 0);
+  const rated = parts.filter((p) => !p.hatched && p.value > 0);
+  if (!total || !rated.length) return null;
+  const segment = rated.reduce((best, p) => (p.value > best.value ? p : best));
+  return { segment, share: segment.value / total };
 }
 
 /** True when no outlet in these stories has a perspective rating yet. */

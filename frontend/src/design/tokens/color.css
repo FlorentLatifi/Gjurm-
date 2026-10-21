@@ -41,12 +41,15 @@
   --div-neg: #e34948;
   --div-pos: #2a78d6;
 
-  /* coverage bars: perspective = diverging (blue ← gray → red, the Ground News convention);
+  /* coverage bars: perspective = diverging (maroon ← light neutral → navy, as on Ground News);
      region/ownership = categorical slots in fixed order; factuality = ordinal one-hue ramp;
      unrated = hatched neutral */
-  --bias-left: #2a78d6;
-  --bias-center: #a8a79f;
-  --bias-right: #e34948;
+  --bias-left: #9b2f2f;
+  --bias-center: #cfcbc1;
+  --bias-right: #21508f;
+  /* text printed on a bias segment (the hero bar) */
+  --on-bias-pole: #ffffff;
+  --on-bias-center: #0b0b0b;
   --cat-1: #2a78d6;
   --cat-2: #eb6834;
   --cat-3: #1baf7a;
@@ -58,6 +61,22 @@
   --fact-low: #86b6ef;
   --unrated: #e6e4dd;
   --unrated-ink: #b5b3ab;
+
+  /* chrome, as on Ground News: the tan promo strip, the dark top strip, story covers (no
+     publisher images, ADR-003: a cover is a dark panel lettered with the story's topic) */
+  --promo: #d8c8a4;
+  --promo-ink: #0b0b0b;
+  --strip: #262624;
+  --strip-ink: #e9e7e1;
+  --strip-ink-2: #b4b2ab;
+  --cover-1: #2b2f36;
+  --cover-2: #33302b;
+  --cover-3: #2a3330;
+  --cover-4: #352d33;
+  --cover-ink: #ffffff;
+  --cover-chip-ink: #0b0b0b;
+  --cover-ink-2: rgba(255, 255, 255, 0.1);
+  --cover-veil: linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.55) 100%);
 
   /* status: reserved, always with a label */
   --good: #006300;
@@ -94,9 +113,11 @@
     --sent-positive: #3987e5;
     --div-neg: #e66767;
     --div-pos: #3987e5;
-    --bias-left: #3987e5;
-    --bias-center: #5f5e59;
-    --bias-right: #e66767;
+    --bias-left: #d46a6a;
+    --bias-center: #c9c6bd;
+    --bias-right: #5b8fd9;
+    --on-bias-pole: #0b0b0b;
+    --on-bias-center: #0b0b0b;
     --cat-1: #3987e5;
     --cat-2: #d95926;
     --cat-3: #199e70;
@@ -108,6 +129,15 @@
     --fact-low: #184f95;
     --unrated: #2c2c2a;
     --unrated-ink: #4a4a46;
+    --promo: #4a4232;
+    --promo-ink: #f2f0ea;
+    --strip: #0b0b0a;
+    --strip-ink: #e9e7e1;
+    --strip-ink-2: #9a9890;
+    --cover-1: #22262c;
+    --cover-2: #2a2723;
+    --cover-3: #212a27;
+    --cover-4: #2b2429;
     --good: #0ca30c;
     --bad: #e66767;
   }
@@ -139,9 +169,11 @@
   --sent-positive: #3987e5;
   --div-neg: #e66767;
   --div-pos: #3987e5;
-  --bias-left: #3987e5;
-  --bias-center: #5f5e59;
-  --bias-right: #e66767;
+  --bias-left: #d46a6a;
+  --bias-center: #c9c6bd;
+  --bias-right: #5b8fd9;
+  --on-bias-pole: #0b0b0b;
+  --on-bias-center: #0b0b0b;
   --cat-1: #3987e5;
   --cat-2: #d95926;
   --cat-3: #199e70;
@@ -153,6 +185,15 @@
   --fact-low: #184f95;
   --unrated: #2c2c2a;
   --unrated-ink: #4a4a46;
+  --promo: #4a4232;
+  --promo-ink: #f2f0ea;
+  --strip: #0b0b0a;
+  --strip-ink: #e9e7e1;
+  --strip-ink-2: #9a9890;
+  --cover-1: #22262c;
+  --cover-2: #2a2723;
+  --cover-3: #212a27;
+  --cover-4: #2b2429;
   --good: #0ca30c;
   --bad: #e66767;
 }

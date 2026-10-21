@@ -1,46 +1,21 @@
 import { type Theme, usePreferences } from "@/stores/preferences";
 import { labels, t } from "@/shared/i18n";
 
-const NEXT: Record<Theme, Theme> = { system: "dark", dark: "light", light: "system" };
-const LABEL = labels({ system: "Auto", dark: "Dark", light: "Light" });
+const LABEL = labels({ light: "Light", dark: "Dark", system: "Auto" });
+const ORDER: Theme[] = ["light", "dark", "system"];
 
-function Icon({ theme }: { theme: Theme }) {
-  const common = { viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.5, "aria-hidden": true } as const;
-  if (theme === "dark") {
-    return (
-      <svg {...common}>
-        <path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z" strokeLinejoin="round" />
-      </svg>
-    );
-  }
-  if (theme === "light") {
-    return (
-      <svg {...common} strokeLinecap="round">
-        <circle cx="8" cy="8" r="3" />
-        <path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1" />
-      </svg>
-    );
-  }
-  return (
-    <svg {...common}>
-      <circle cx="8" cy="8" r="6" />
-      <path d="M8 2a6 6 0 0 1 0 12Z" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
+/** "Theme: Light Dark Auto", as in Ground News' top strip: the chosen one is pressed. */
 export function ThemeToggle() {
   const theme = usePreferences((s) => s.theme);
   const setTheme = usePreferences((s) => s.setTheme);
-  const next = NEXT[theme];
   return (
-    <button
-      type="button"
-      className="btn btn--ghost btn--sm"
-      onClick={() => setTheme(next)}
-      aria-label={t("Colour theme: {theme}. Switch to {next}.", { theme: LABEL[theme], next: LABEL[next].toLowerCase() })}
-    >
-      <Icon theme={theme} /> <span className="site-header__label">{LABEL[theme]}</span>
-    </button>
+    <div className="strip-choice" role="group" aria-label={t("Colour theme")}>
+      <span className="strip-choice__label" aria-hidden="true">{t("Theme:")}</span>
+      {ORDER.map((option) => (
+        <button key={option} type="button" aria-pressed={theme === option} onClick={() => setTheme(option)}>
+          {LABEL[option]}
+        </button>
+      ))}
+    </div>
   );
 }
