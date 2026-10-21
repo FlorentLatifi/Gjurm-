@@ -44,12 +44,12 @@ h3 {
   margin: 0;
   line-height: var(--leading-tight);
 }
-/* page titles and story headlines speak in the news voice */
+/* page titles and story headlines: heavy and tight, as on Ground News */
 h1 {
-  font-family: var(--font-serif);
+  font-family: var(--font-head);
   font-size: var(--text-xl);
-  font-weight: var(--weight-strong);
-  letter-spacing: -0.005em;
+  font-weight: var(--weight-heavy);
+  letter-spacing: -0.015em;
 }
 h2 {
   font-size: var(--text-base);
@@ -139,7 +139,7 @@ tbody tr:hover {
 }
 .prose h2 {
   color: var(--ink);
-  font-family: var(--font-serif);
+  font-family: var(--font-head);
   font-size: var(--text-lg);
   margin-top: var(--space-3);
 }

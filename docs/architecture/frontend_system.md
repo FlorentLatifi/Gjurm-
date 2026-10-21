@@ -14,8 +14,8 @@ Every phase was measured before it was kept: unit and end-to-end tests, screensh
 | D1 layers | adopt | adopted, ESLint-enforced (every rule checked against a deliberate violation) | — |
 | D2 global state | Zustand | Zustand: `stores/preferences` (theme, lens), `stores/reading` | — |
 | D3 lens in the URL | adopt | `?lens=` wins over the remembered lens | — |
-| D4 fonts | Newsreader + Atkinson Hyperlegible Next/Mono | **Newsreader for headlines, the system font for the interface** | Atkinson has no plain zero ("1Ø Oct" in every date); Schibsted Grotesk, tried next, cost ~370 ms to first content as a preloaded 47 KB face |
-| D5 perspective colours | a non-partisan pair | **Ground News' blue / gray / red, unchanged** | The product follows Ground News; its readers already read that convention. The real problem (links in the "Left" blue) is solved by D6 |
+| D4 fonts | Newsreader + Atkinson Hyperlegible Next/Mono | **the system sans for everything, headlines heavy** (ADR-028; Newsreader until then) | Ground News' look is one heavy sans; Atkinson has no plain zero ("1Ø Oct" in every date); Schibsted Grotesk cost ~370 ms to first content as a preloaded 47 KB face |
+| D5 perspective colours | a non-partisan pair | **Ground News' maroon / light neutral / navy** (ADR-028) | The product follows Ground News, and its screenshots show the left in maroon and the right in navy (the blue-left reading kept until ADR-028 was a mistake). Links in a data colour are solved by D6 |
 | D6 ink-on-paper chrome | adopt | adopted; control borders now ≥ 3:1 (were 1.75:1) | — |
 | D7 link previews | defer | **built**: crawler-only, ADR-025 | Sharing is how news travels here |
 | Router | data router with loaders | **`BrowserRouter` + prefetch on route entry** | The data router added 13 KB to every page and measured slower; the same per-page query builders now run when a route is entered |
@@ -122,7 +122,6 @@ frontend/src/                    (as built)
 │   ├── ThemeToggle.tsx · preferences.ts · chunkReload.ts
 ├── design/
 │   ├── tokens/{color,type,space,motion}.css
-│   ├── fonts.css                Newsreader 600, latin + latin-ext
 │   ├── base.css · primitives.css · index.css
 ├── shared/
 │   ├── api/                     client.ts · types.ts (hand-written) · openapi.json (the API's schema)
@@ -336,7 +335,7 @@ Verified against Caddy 2.11.4 (and in the end-to-end suite). `try_files` must si
 
 ### Fonts (see §4)
 
-Self-hosted woff2 (the CSP has `font-src 'self'`, and the privacy promise means no third-party requests): Newsreader 600, `latin` (ë, ç) and `latin-ext` (č ć š ž đ in names such as Dačić, fetched only when a page contains them) — 38 KB, both checked for every glyph. `font-display: swap`, no preload: a preloaded interface face competed with the JavaScript and delayed first content by ~370 ms on a slow connection, so the interface uses the system font.
+None since ADR-028: headlines and interface use the reader's system sans (zero bytes; every platform's face has the Albanian and regional letters). Until then Newsreader 600 was self-hosted (38 KB); a preloaded interface face had delayed first content by ~370 ms on a slow connection. The fonts budget is 0, so a new face has to argue for itself in `budgets.json`.
 
 ### Link previews (F11)
 
@@ -386,18 +385,18 @@ The data marks keep their **validated surface**. Only the page background warms 
 - Light categorical: all checks pass. Contrast warns for 3 slots, and the coverage bars already carry the required relief (printed percentages, 2px gaps).
 - Dark categorical: all checks pass, including contrast.
 
-**Decision D5: perspective colours stay blue / gray / red**, the convention Ground News uses. European readers may read red as the left; the methodology page states that the colours carry no party meaning. A non-partisan pair was considered and rejected: the product follows Ground News, whose readers already read its bars, and the actual confusion — links drawn in the "Left" blue — is gone with the ink chrome.
+**Decision D5: perspective colours are Ground News' maroon / light neutral / navy** (ADR-028; until then blue / gray / red, wrongly taken for Ground News'). The methodology page states that the colours carry no party meaning. A non-partisan pair was considered and rejected: the product follows Ground News, whose readers already read its bars, and the actual confusion — links drawn in a data colour — is gone with the ink chrome.
 
 ### Type
 
 | Role | Face | Why this one |
 |---|---|---|
-| **Headlines** (story titles, page titles; mostly Albanian text) | **Newsreader** (Production Type, OFL), static 600 | Drawn for news reading on screens. Gives story headlines the authority of a front page and separates "the news" (serif) from "the tool". Not one of the overused AI-default serifs. |
+| **Headlines** (story titles, page titles; mostly Albanian text) | **the system sans, weight 700, tight tracking** (ADR-028) | Ground News' look. Newsreader 600, the serif used until then, is gone with its 38 KB. The masthead word uses a condensed cut where the platform has one (`--font-mast`). |
 | **Interface, body and figures** | **the system font** (`system-ui`: SF, Roboto, Segoe UI) | Zero bytes and native on every device. Tabular figures only where numbers stack (table cells, tooltips). Atkinson Hyperlegible draws a slashed zero in every date; Schibsted Grotesk cost ~370 ms of first content on slow connections. |
 
 Verified with fontTools before adoption: every glyph Albanian and the regional names need (ë ç č ć š ž đ), and the file sizes against the budget.
 
-Stacks: `system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif` and `"Newsreader", Georgia, "Times New Roman", serif`.
+Stacks: `system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif` (text and headlines) and `"Arial Narrow", "Roboto Condensed", … , Arial, sans-serif` (the masthead word).
 
 **Scale.** It replaces the 22 ad-hoc sizes. Steps are spaced so neighbouring roles are clearly distinct.
 

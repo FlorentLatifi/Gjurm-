@@ -12,7 +12,6 @@ export const sq: Record<string, string> = {
   "GJURMË — every side of the Albanian-language news": "GJURMË — çdo anë e lajmeve në shqip",
   "Albanian-language news grouped into stories: which outlets covered each one, by perspective, region and ownership, who reported first, and what one side missed — always linking to the original articles.":
     "Lajmet në shqip të grupuara sipas ngjarjeve: cilat media e raportuan secilën, sipas këndvështrimit, rajonit dhe pronësisë, kush e raportoi i pari dhe çfarë humbi njëra anë — gjithmonë me lidhje te artikujt origjinalë.",
-  "Every side of the Albanian-language news": "Çdo anë e lajmeve në shqip",
   "GJURMË home": "GJURMË, faqja kryesore",
   "Skip to content": "Kalo te përmbajtja",
   Main: "Kryesore",
@@ -20,7 +19,6 @@ export const sq: Record<string, string> = {
   Search: "Kërko",
   "Search stories": "Kërko lajme",
   "Search stories, e.g. Prizren": "Kërko lajme, p.sh. Prizren",
-  "Colour theme: {theme}. Switch to {next}.": "Ngjyrat: {theme}. Kalo te {next}.",
   Auto: "Auto",
   Dark: "E errët",
   Light: "E çelët",
@@ -34,7 +32,6 @@ export const sq: Record<string, string> = {
   // --- navigation ------------------------------------------------------------------------
   Stories: "Lajmet",
   Blindspot: "Pikat e verbra",
-  "My bias": "Anshmëria ime",
   Dashboard: "Paneli",
   Trends: "Trendet",
   Topics: "Temat",
@@ -150,8 +147,6 @@ export const sq: Record<string, string> = {
   "{n} articles": "{n} artikuj",
   "{n} story": "{n} lajm",
   "{n} stories": "{n} lajme",
-  "{n} mention": "{n} përmendje",
-  "{n} mentions": "{n} përmendje",
   "{n} mention (24 h)": "{n} përmendje (24 orë)",
   "{n} mentions (24 h)": "{n} përmendje (24 orë)",
   "{n} day": "{n} ditë",
@@ -251,21 +246,14 @@ export const sq: Record<string, string> = {
   "First reported by": "Raportuar së pari nga",
   "(AI summary)": "(përmbledhje nga AI)",
   "(AI summary, in English)": "(përmbledhje nga AI, në anglisht)",
-  "How each outlet headlined it": "Si e titulloi secila media",
-  "Every outlet's own headline, linked to the original. Compare the wording.":
-    "Titulli i secilës media, me lidhje te origjinali. Krahasoni formulimet.",
   Timeline: "Kronologjia",
   "Who reported it, and when — each mark is one report.": "Kush e raportoi dhe kur — çdo shenjë është një raportim.",
   "Related stories": "Lajme të ngjashme",
   "Stories within three days that name the same people, organisations or places.":
     "Lajme brenda tri ditëve që përmendin të njëjtët persona, organizata ose vende.",
   "Coverage details": "Hollësi të mbulimit",
-  "Distinct outlets that covered this story.": "Mediat e ndryshme që e raportuan këtë lajm.",
   Outlets: "Mediat",
   Tone: "Toni",
-  "{n} negative · {u} neutral · {p} positive": "{n} negativë · {u} neutralë · {p} pozitivë",
-  Started: "Filloi",
-  "Last update": "Përditësimi i fundit",
   "Ratings are editorial and belong to the outlet, not to the article.":
     "Vlerësimet janë redaksionale dhe i përkasin medias, jo artikullit.",
   "None of these outlets has a perspective or factuality rating yet.":
@@ -280,9 +268,6 @@ export const sq: Record<string, string> = {
   "Albanian and Balkan news grouped into stories, with how each outlet covered them.":
     "Lajmet shqiptare dhe ballkanike të grupuara sipas ngjarjeve, me mënyrën si i raportoi secila media.",
   "Top stories": "Lajmet kryesore",
-  "The same event as reported by different outlets, grouped into one story. The bar shows who covered it — by perspective, region, ownership or factuality of the outlets.":
-    "E njëjta ngjarje, siç e raportuan media të ndryshme, e bashkuar në një lajm. Shiriti tregon kush e raportoi — sipas këndvështrimit, rajonit, pronësisë ose faktualitetit të mediave.",
-  "How stories and ratings work": "Si funksionojnë lajmet dhe vlerësimet",
   "Story filters": "Filtrat e lajmeve",
   Order: "Renditja",
   "Most covered": "Më të raportuarat",
@@ -300,12 +285,10 @@ export const sq: Record<string, string> = {
   Previous: "Para",
   "Page {page} of {pages}": "Faqja {page} nga {pages}",
   Next: "Pas",
-  More: "Më shumë",
   "Stories one side — or one country's outlets — barely covered.":
     "Lajme që njëra anë — ose mediat e një shteti — mezi i prekën.",
   "No blindspot in this period.": "Asnjë pikë e verbër në këtë periudhë.",
   "All blindspots": "Të gjitha pikat e verbra",
-  "See all": "Shiko të gjitha",
   "Which outlets you read here, by perspective and region.": "Cilat media lexoni këtu, sipas këndvështrimit dhe rajonit.",
   "You opened {n} article recently.": "Kohët e fundit hapët {n} artikull.",
   "You opened {n} articles recently.": "Kohët e fundit hapët {n} artikuj.",
@@ -313,9 +296,6 @@ export const sq: Record<string, string> = {
     "Hapni artikuj nga lajmet për të parë balancën e leximit tuaj.",
   "See your balance": "Shihni balancën tuaj",
   "Stored only in this browser.": "Ruhet vetëm në këtë shfletues.",
-  "Trending names": "Emrat në rritje",
-  "People and organisations suddenly in the news (24 h).": "Persona dhe organizata që papritur janë në lajme (24 orë).",
-  "Not enough history yet.": "Ende nuk ka mjaft histori.",
 
   // --- blindspot page --------------------------------------------------------------------
   "Stories one side of the spectrum, or one country's media, barely covered.":
@@ -609,4 +589,39 @@ export const sq: Record<string, string> = {
   "Latest articles": "Artikujt më të rinj",
   "The newest items, linked to their original publishers.": "Artikujt më të fundit, me lidhje te botuesit origjinalë.",
   "Search articles": "Kërko artikuj",
+
+  // --- the Ground News chrome and front page (ADR-028) ---------------------------------
+  "See every side of every story": "Shiko çdo anë të çdo lajmi",
+  "Colour theme": "Ngjyrat",
+  "Theme:": "Pamja:",
+  Edition: "Edicioni",
+  "All sections": "Të gjitha faqet",
+  Trending: "Në trend",
+  News: "Lajme",
+  Home: "Kryefaqja",
+  "For you": "Për ty",
+  "Coverage: {outlets}": "Mbulimi: {outlets}",
+  "{share} {side} coverage: {outlets}": "{share} {side} · mbulim nga {outlets}",
+  "Daily briefing and latest stories": "Përmbledhja e ditës dhe lajmet më të reja",
+  "Daily briefing": "Përmbledhja e ditës",
+  "Latest stories": "Më të rejat",
+  "How blindspots work": "Si funksionojnë pikat e verbra",
+  "View the blindspot feed": "Shiko të gjitha pikat e verbra",
+  "No outlet in this group covered the story — a blindspot for its readers.":
+    "Asnjë media e këtij grupi nuk e raportoi këtë lajm — një pikë e verbër për lexuesit e tyre.",
+  "Total news sources": "Gjithsej media",
+  "Last updated": "Përditësuar",
+  Distribution: "Shpërndarja",
+  "{share} of the sources are {side}": "{share} e mediave: {side}",
+  "Published {when}": "Publikuar {when}",
+  "Coverage from": "Mbulimi nga",
+  "Compare headlines": "Krahaso titujt",
+  "Bias distribution": "Shpërndarja sipas këndvështrimit",
+  "Region distribution": "Shpërndarja sipas rajonit",
+  "Ownership distribution": "Shpërndarja sipas pronësisë",
+  "Factuality distribution": "Shpërndarja sipas faktualitetit",
+  "Untracked bias": "Pa vlerësim këndvështrimi",
+  "Other countries": "Shtete të tjera",
+  "Unknown ownership": "Pronësi e panjohur",
+  "Untracked factuality": "Pa vlerësim faktualiteti",
 };
