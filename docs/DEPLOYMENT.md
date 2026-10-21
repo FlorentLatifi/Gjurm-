@@ -66,9 +66,9 @@ Free-plan figures as published in October 2026; GJURMË's figures are estimates 
 
 | Service | Free plan | GJURMË (estimate) | At the cap |
 |---|---|---|---|
-| Neon storage | 1 GB per project | grows ≈ 150–250 MB/month at first; retention is shortened to 7 days (raw feed payloads) and 30 days (excerpts) | writes fail |
+| Neon storage | 1 GB per project | grows ≈ 250–400 MB/month at first with 19 sources; retention is shortened to 7 days (raw feed payloads) and 30 days (excerpts) | writes fail |
 | Neon compute | 100 CU-hours/month, scale to zero after 5 min idle | ≈ 45 CU-hours for the pipeline (48 wake-ups a day), plus readers' cache misses | compute suspended until the next month |
-| Neon transfer | 5 GB/month | ≈ 2–3 GB (mostly the clustering stage reloading two days of articles per run) | compute suspended until the next month |
+| Neon transfer | 5 GB/month | ≈ 2–3 GB (mostly the clustering stage reloading four days of headlines, names and the first words of each excerpt per run) | compute suspended until the next month |
 | Vercel Hobby | 4 h active CPU, 1 M invocations, 100 GB transfer per month; non-commercial use only | a cold start costs ≈ 0.8 s CPU (the API no longer imports the LLM SDKs at start-up); answers served from the CDN cost nothing | project paused until the next month |
 | GitHub Actions | unlimited for a public repository | 48 runs a day, ≈ 1–3 minutes each | — |
 

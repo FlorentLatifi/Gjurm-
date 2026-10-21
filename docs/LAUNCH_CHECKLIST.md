@@ -85,7 +85,7 @@ The rows below apply to the server paths (Oracle or a paid VPS). Skip the VPS/do
 
 ## 5. Known limitations at launch
 
-- Coverage still leans to Kosovo: 6 of 10 enabled sources are Kosovo-based, 3 Albanian, 1 North Macedonian. Top Channel and A2 CNN, two major Albanian broadcasters, have no usable feed.
+- Coverage still leans to Kosovo: 13 of 19 enabled sources are Kosovo-based, 5 Albanian, 1 North Macedonian. Top Channel, A2 CNN, TV Klan and Report TV, major Albanian broadcasters, have no usable feed (docs/SOURCES.md).
 - Stories group paraphrased coverage of one event with TF-IDF and name guards, not embeddings: some paraphrases stay separate stories, and "X meets Y" / "X meets Z" on the same day can merge ([ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings)). `gjurme stories-review` checks it on live data.
 - Tone and entities are machine-generated from headline and excerpt only, and can be wrong; the methodology page says so.
 - One server: the recovery point is the last nightly backup.

@@ -96,7 +96,7 @@ Te skeda **Variables → New repository variable**:
 
 GitHub → **Actions → Free hosting → Run workflow** (task: `pipeline`) → **Run workflow**.
 
-Pas 2–4 minutash run-i duhet të dalë i gjelbër ✅. Ai krijon tabelat, merr lajmet e para nga 10 mediat dhe i analizon. Prej tani përsëritet vetë çdo 30 minuta.
+Pas rreth 10 minutash run-i duhet të dalë i gjelbër ✅. Ai krijon tabelat, merr lajmet e para nga 19 mediat dhe i analizon. Run-et e ardhshme zgjasin 1–3 minuta, sepse marrin vetëm lajmet e reja. Prej tani përsëritet vetë çdo 30 minuta.
 
 Nëse del i kuq ❌, hape dhe shiko hapin e kuq:
 
@@ -142,7 +142,7 @@ Shifrat e GJURMË-s janë vlerësime për fillimin. Kontrolloji herë pas here t
 
 | Shërbimi | Kufiri falas | GJURMË (vlerësim) | Çfarë ndodh në kufi |
 |---|---|---|---|
-| Neon: hapësira | 1 GB | rreth 150–250 MB në muaj në fillim; më ngadalë kur fillon fshirja e të dhënave të vjetra (të dhënat e papërpunuara të feed-eve pas 7 ditësh, përmbledhjet e feed-eve pas 30) | shkrimet ndalen |
+| Neon: hapësira | 1 GB | rreth 250–400 MB në muaj në fillim, me 19 media; më ngadalë kur fillon fshirja e të dhënave të vjetra (të dhënat e papërpunuara të feed-eve pas 7 ditësh, përmbledhjet e feed-eve pas 30) | shkrimet ndalen |
 | Neon: koha e punës | 100 orë-CU në muaj | rreth 45 nga run-et, plus vizitorët | databaza ndalet deri në muajin tjetër |
 | Neon: transferimi | 5 GB në muaj | rreth 2–3 GB | njësoj |
 | Vercel | 4 orë CPU, 1 milion thirrje, 100 GB trafik në muaj | përgjigjet ruhen 5 minuta në CDN, prandaj shumica e vizitave nuk e zgjojnë API-në | projekti pezullohet deri në muajin tjetër |

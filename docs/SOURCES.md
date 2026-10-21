@@ -2,7 +2,7 @@
 
 Every source is declared in `backend/src/gjurme/sources/sources.yaml`. Nothing about a feed is assumed: a source is enabled only after the validator has fetched it from the open internet and confirmed a working, robots-permitted feed with the fields the pipeline needs.
 
-## Current registry (validated 2026-09-24, extended 2026-10-05)
+## Current registry (validated 2026-09-24, extended 2026-10-05 and 2026-10-21)
 
 Validation ran on GitHub's runners, because the build container's egress policy blocks news domains: [Source validation run #2](https://github.com/FlorentLatifi/Gjurm-/actions/runs/36046867715) (`validate` job: feed check and autodiscovery; `live-pipeline` job: real ingest → process → enrich → quality).
 
@@ -27,6 +27,29 @@ Validation ran on GitHub's runners, because the build container's egress policy 
 **Live run result** (same workflow, real feeds, heuristic enrichment because no API key is configured): 91 articles stored from the 5 enabled sources, 0 rejected items, Gazeta Express's malformed XML recovered, and 2 cross-outlet near-duplicates linked by dedup L4.
 
 The five sources added on 2026-10-05 passed the weekly scheduled validation twice ([2026-09-28](https://github.com/FlorentLatifi/Gjurm-/actions/runs/36432792910), [2026-10-05](https://github.com/FlorentLatifi/Gjurm-/actions/runs/37327377828)). They bring Albania and North Macedonia in: 6 of the 10 enabled sources are Kosovo-based, 3 Albanian, 1 North Macedonian. Two of Albania's largest broadcasters (Top Channel, A2 CNN) still have no usable feed.
+
+### Added on 2026-10-21
+
+Kosovo's and Albania's largest outlets that were missing, checked by [Source validation run #35](https://github.com/FlorentLatifi/Gjurm-/actions/runs/39594174784) and [#36](https://github.com/FlorentLatifi/Gjurm-/actions/runs/39594896879). Run #36 also tried the paths where publishing systems usually put a feed (`/feed/`, `/rss`, `/rss/`, `/rss.xml`, `/feed.xml`, `/feed/rss`) for every outlet whose declared feed failed.
+
+| Source | Country | Feed | Status | Evidence |
+|---|---|---|---|---|
+| Zëri | XK | `https://zeri.info/rss/` | **enabled** | `/feed/` is 404; autodiscovery found `/rss/` (10 items); fields 100% |
+| Dukagjini | XK | `https://dukagjini.com/feed/` | **enabled** | 10 items; fields 100% (both runs) |
+| Indeksonline | XK | `https://indeksonline.net/feed/` | **enabled** | 11 items; fields 100% (both runs) |
+| Lajmi.net | XK | `https://lajmi.net/feed/` | **enabled** | 10 items; fields 100% (both runs) |
+| Sinjali | XK | `https://sinjali.com/feed/` | **enabled** | 10 items; fields 100% (both runs) |
+| Hibrid.info | XK | `https://hibrid.info/feed/` | **enabled** | 10 items; fields 100% (both runs); fact-checking |
+| Ekonomia Online | XK | `https://ekonomiaonline.com/feed/` | **enabled** | 10 items; fields 100% (both runs); business |
+| RTSH | AL | `https://rtsh.al/feed/` | **enabled** | 10 items; fields 100% (both runs); public broadcaster |
+| Faktoje.al | AL | `https://faktoje.al/feed/` | **enabled** | 9 items; fields 100% (both runs); fact-checking |
+| RTK, Insajderi, Nacionale | XK | — | excluded | HTTP 403 to automated requests in both runs. Not circumvented. |
+| TV Klan, Ora News, ATA, Panorama | AL | — | excluded | HTTP 403 to automated requests in both runs. Not circumvented. |
+| Shqiptarja.com, Report TV, Syri.net, Lapsi.al | AL | — | excluded | HTTP 404, and no feed linked from the homepage or at the usual paths |
+| Klan Kosova | XK | — | excluded | `/feed/` answers with a page that is not a feed; nothing at the usual paths |
+| Monitor | AL | — | excluded | `robots.txt` disallows the feed path. Respected. |
+
+19 sources are enabled: 13 Kosovo-based, 5 Albanian, 1 North Macedonian. The live pipeline of run #36 stored 230 articles from them, and its largest story brought together 8 outlets. Top Channel, A2 CNN, TV Klan and Report TV still have no usable feed; if one of them publishes a feed, or allows GitHub's runners, the weekly validation shows it.
 
 **Occasional 403s.** A source can answer 403 to one weekly check and 200 to the next: Gazeta Express did on 2026-09-28, Kallxo on 2026-10-05. That points to the publisher's protection reacting to GitHub's shared runner addresses rather than to a dead feed, so a single 403 does not disable a source. The server polls from its own address, and 20 consecutive failures there disable a source automatically.
 
