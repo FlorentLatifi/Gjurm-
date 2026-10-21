@@ -4,6 +4,14 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Changed
+- **The Ground News look** ([ADR-028](docs/DECISIONS.md#adr-028-the-ground-news-look)), from the owner's screenshots of Ground News:
+  - **Chrome.** A tan promo strip and a dark top strip with the theme, language, date and an edition picker. The masthead has a menu, a condensed word mark, Home / For you / Blindspot / Topics, a search box and two buttons, with trending chips under it.
+  - **Front page.** Three columns: a daily briefing and the latest stories; the lead story large, then rows with "45% Center coverage: 6 outlets" and a cover; Blindspot cards and your own bias.
+  - **Story page.** Left / Center / Right tabs with each side's headlines and "Compare headlines". A coverage-details panel, and the outlets in one column per side.
+  - **Type and colour.** Headlines in one heavy system sans (38 KB of fonts gone). Perspective in Ground News' maroon / light neutral / navy, validated for colour vision in both themes.
+  - **No images.** Publisher images are still not shown (ADR-003); a dark cover lettered with the topic takes their place.
+
 ### Added
 - **Nine more outlets**: Zëri, Dukagjini, Indeksonline, Lajmi.net, Sinjali, Hibrid.info and Ekonomia Online from Kosovo, RTSH and Faktoje.al from Albania (19 enabled sources). Thirteen other large outlets were checked and stay excluded, with the evidence in [SOURCES.md](docs/SOURCES.md#added-on-2026-10-21). `gjurme sources validate` now also tries the usual feed paths when neither the declared feed nor the homepage's links work. To keep the doubled volume inside Neon's free transfer, the clustering stage reads only the first words of each excerpt it uses (a quarter of the excerpt or less).
 - **Free hosting without a server** ([ADR-027](docs/DECISIONS.md#adr-027-a-0-path-without-a-server-vercel--neon--github-actions)): the site and API on Vercel (`vercel.json`, `api/index.py`), the database on Neon, and the pipeline in GitHub Actions (`free-hosting.yml`: every 30 minutes, and an encrypted weekly backup). No card needed; step by step in Albanian in [NISJA.md, part B](docs/NISJA.md#pjesa-b-faqja-online-falas-pa-server-e-rekomanduar). Supporting changes that apply everywhere: `gjurme scheduler --once` (one tick for an external timer), `CDN_CACHE_SECONDS` (public API answers carry `CDN-Cache-Control`), the `database_size` quality check against `DB_SIZE_LIMIT_MB` (15 checks per run), database URLs as dashboards give them (`postgres://…`, and `DATABASE_URL_UNPOOLED` first), and an API that starts in a quarter of the CPU time (the LLM SDKs are no longer imported at start-up).

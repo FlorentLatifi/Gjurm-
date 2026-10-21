@@ -37,13 +37,13 @@ describe("interface language", () => {
   it("is Albanian by default, and English is one click away and remembered", async () => {
     app();
     const nav = screen.getByRole("navigation", { name: "Kryesore" });
-    expect(nav).toHaveTextContent("Lajmet");
+    expect(nav).toHaveTextContent("Kryefaqja");
     expect(document.documentElement.lang).toBe("sq");
 
     await userEvent.click(screen.getByRole("button", { name: "English" }));
     expect(getLang()).toBe("en");
     expect(document.documentElement.lang).toBe("en");
-    expect(screen.getByRole("navigation", { name: "Main" })).toHaveTextContent("Stories");
+    expect(screen.getByRole("navigation", { name: "Main" })).toHaveTextContent("Home");
     expect(JSON.parse(localStorage.getItem("gjurme-prefs")!).state.lang).toBe("en");
 
     await userEvent.click(screen.getByRole("button", { name: "Shqip" }));

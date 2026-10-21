@@ -95,6 +95,12 @@ export function formatDay(day: string, long = false): string {
   return (long ? dayLongFmt() : dayFmt()).format(d);
 }
 
+/** Today in the newsroom's time zone, as the masthead dates the paper: "Mër, 21 tet 2026". */
+export function formatToday(now: Date = new Date()): string {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(now); // YYYY-MM-DD
+  return formatDay(day, true);
+}
+
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   return sq() ? sqDateTime(new Date(iso), TZ) : dateTimeFmt().format(new Date(iso));

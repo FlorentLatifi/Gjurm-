@@ -122,6 +122,23 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+.btn--solid {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+.btn--solid:hover {
+  background: var(--ink-2);
+  border-color: var(--ink-2);
+}
+.btn--block {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: var(--space-3);
+  font-size: var(--text-base);
+  font-weight: var(--weight-strong);
+}
 .btn--ghost {
   border-color: transparent;
   color: var(--ink-2);
@@ -274,7 +291,7 @@ a.chip:hover {
   color: var(--bad);
 }
 .state__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-head);
   font-size: var(--text-lg);
   color: var(--ink);
 }
@@ -375,24 +392,23 @@ th.col-tone {
 
 /* a filter group that folds behind a button on narrow screens; inline everywhere else */
 .filters__toggle {
-  display: none;
+  display: inline-flex;
 }
+/* the secondary filters fold away on every screen, as the front page keeps its controls slim */
 .filters__panel {
-  display: contents;
+  display: none;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+}
+.filters__panel.is-open {
+  display: flex;
 }
 @media (max-width: 720px) {
-  .filters__toggle {
-    display: inline-flex;
-  }
   .filters__panel {
-    display: none;
-    flex-basis: 100%;
     flex-direction: column;
     align-items: stretch;
-    gap: var(--space-3);
-  }
-  .filters__panel.is-open {
-    display: flex;
   }
   .filters__panel .field {
     flex: none;

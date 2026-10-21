@@ -7,7 +7,7 @@ import { useApiQuery } from "@/shared/query/apiQuery";
 import { formatInt } from "@/shared/lib/format";
 import { noneRated } from "@/shared/model/ratings";
 import { Card } from "@/ui/Card";
-import { StoryCard } from "../StoryCard";
+import { BlindspotCard } from "../StoryCard";
 import { blindspotKind, blindspotQueries } from "../queries";
 import { labels, localName, t } from "@/shared/i18n";
 
@@ -43,9 +43,9 @@ export default function BlindspotPage() {
     });
 
   const column = (title: string, question: string, list: typeof items, lens: "perspective" | "region") => (
-    <Card title={`${title} · ${formatInt(list.length)}`} question={question} query={query} empty={!list.length}
-      emptyText={t("None in this period.")}>
-      {() => <div>{list.map((s) => <StoryCard key={s.id} story={s} lens={lens} compact />)}</div>}
+    <Card className="card--bare" title={`${title} · ${formatInt(list.length)}`} question={question} query={query}
+      empty={!list.length} emptyText={t("None in this period.")}>
+      {() => <div className="stack">{list.map((s) => <BlindspotCard key={s.id} story={s} lens={lens} />)}</div>}
     </Card>
   );
 
@@ -53,7 +53,14 @@ export default function BlindspotPage() {
     <>
       <div className="page-head">
         <div>
-          <h1>{t("Blindspot")}</h1>
+          <h1 className="blindspot-mark blindspot-mark--page">
+            <svg viewBox="0 0 48 28" aria-hidden="true">
+              <circle cx="14" cy="14" r="11" fill="none" stroke="currentColor" strokeWidth="4" />
+              <circle cx="34" cy="14" r="11" fill="none" stroke="currentColor" strokeWidth="4" />
+              <path d="M14 9h20M14 19h20" stroke="currentColor" strokeWidth="4" />
+            </svg>
+            {t("Blindspot")}
+          </h1>
           <p>
             {t("Stories that outlets on one side barely covered — or that are about a country whose own outlets did not report them. Reading them is the quickest way out of a news bubble.")}
           </p>

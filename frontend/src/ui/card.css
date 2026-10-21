@@ -6,6 +6,16 @@
   padding: var(--space-4);
   min-width: 0;
 }
+.card__head h2 {
+  font-size: var(--text-md);
+  font-weight: var(--weight-heavy);
+}
+/* a heading and its stories, without the card's own frame (the stories bring theirs) */
+.card--bare {
+  background: none;
+  border: 0;
+  padding: 0;
+}
 .card__head {
   display: flex;
   flex-wrap: wrap;

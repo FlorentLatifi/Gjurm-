@@ -30,6 +30,10 @@ export function feedQueries(search: URLSearchParams) {
       // single-outlet items are the long tail; the feed starts at stories two outlets covered
       min_sources: q ? 1 : 2, page, page_size: 15,
     }),
+    // the left column's "Latest": the newest stories two outlets covered, whatever the order
+    latest: storiesQuery({
+      ...apiParamsOf(filters), sort: "latest", country: country || undefined, min_sources: 2, page: 1, page_size: 8,
+    }),
     blindspots: blindspotsQuery({ days: Math.max(filters.days, 7) }),
     spikes: entitySpikesQuery(6),
     taxonomy: taxonomyQuery(),

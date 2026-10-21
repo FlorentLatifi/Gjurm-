@@ -104,8 +104,8 @@ export function AboutSq({ topics, status }: AboutProps) {
           atëherë media shfaqet <em>pa vlerësim</em> (një segment me viza në çdo shirit).</li>
         <li><strong>Pronësia</strong> (kompani private, grup mediatik, transmetues publik, media
           publike ndërkombëtare, jofitimprurëse …) merret nga informacioni publik për botuesin.</li>
-        <li>Ngjyrat ndjekin Ground News — blu për të majtën, gri për qendrën, e kuqe për të djathtën —
-          që lexuesit e tij t’i lexojnë shiritat menjëherë. Ato janë konventë e shkallës, jo ngjyra
+        <li>Ngjyrat ndjekin Ground News — bordo për të majtën, gri e çelët për qendrën, blu e errët për
+          të djathtën — që lexuesit e tij t’i lexojnë shiritat menjëherë. Ato janë konventë e shkallës, jo ngjyra
           partiake. Gjetiu në faqe ngjyra del vetëm në grafikë dhe shirita; teksti dhe lidhjet janë
           të zeza.</li>
         <li>Vlerësimet mund të jenë të gabuara ose të vjetruara. Mediat dhe lexuesit mund të kërkojnë

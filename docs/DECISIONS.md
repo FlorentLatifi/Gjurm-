@@ -128,7 +128,7 @@ Short records of the decisions that shape the system: context, the decision, and
 ## ADR-024: An editorial identity — colour belongs to data
 **Context.** The interface used the same blue for links, focus and the active tab as for "Left" in the coverage bars; on a site about bias, every link read as left-leaning. The look was a generic dashboard: system font, rounded shadowed cards, 22 font sizes.
 **Decision.** Ink on paper for everything that is not data (links, focus, navigation, controls; control borders ≥ 3:1). Colour only in data marks, which stay on the surface their palettes were validated for (ADR-011). Perspective keeps Ground News' blue / gray / red, because the product follows Ground News and its readers already read that convention. Headlines in Newsreader (self-hosted, 38 KB with Albanian and Serbian letters); the interface in the reader's system font. Tokens for type (7 sizes, 2 weights), space (4 px grid), radius and motion (nothing animates on load; reduced motion stops everything). The signature is the trace: every report of a story as one tick on one time line.
-**Consequences.** Colour on screen always means something. One interface font fewer means the identity rests on the headline face and the layout; an attempt with a custom interface face (Atkinson Hyperlegible, then Schibsted Grotesk) was dropped — the first draws a slashed zero in every date, the second cost 370 ms on slow connections.
+**Consequences.** Colour on screen always means something. One interface font fewer means the identity rests on the headline face and the layout; an attempt with a custom interface face (Atkinson Hyperlegible, then Schibsted Grotesk) was dropped — the first draws a slashed zero in every date, the second cost 370 ms on slow connections. The perspective colours and the headline face changed with ADR-028.
 
 ## ADR-025: Story link previews for crawlers only
 **Context.** A single-page app serves one `index.html`, so a story shared on Facebook, WhatsApp, X, Telegram or Slack previewed as the home page — the main way news travels in the region.
@@ -162,3 +162,25 @@ Short records of the decisions that shape the system: context, the decision, and
 | — | Migration 0002 (bridge dates), `force_custom_plan` | Measured performance work (ADR-014, ADR-015) |
 | Story clustering with embeddings in V2 | TF-IDF clustering with name guards (CLUSTER stage, migration 0003), stories as the home page | Ground News-style product at $0 (ADR-020–022) |
 | Frontend: React Router data router, CSS Modules, a custom interface font ([frontend_system.md](architecture/frontend_system.md) §1–4) | `BrowserRouter` with route prefetch, one stylesheet per component, the system font for the interface | Measured slower or not worth the churn (ADR-023, ADR-024) |
+
+## ADR-028: The Ground News look
+**Context.** The owner asked for the design to follow Ground News as closely as possible, from screenshots of its front page and a story page. The interface had Ground News' ideas (stories, coverage bars, Blindspot) in a look of its own: a serif for headlines, one column of ruled rows, and blue for the left. The screenshots show Ground News drawing the left in maroon and the right in navy, so the colours ADR-024 kept were not in fact Ground News'.
+**Decision.**
+- **The chrome is Ground News':** a tan promo strip; a dark top strip holding the theme, the language, the date and an edition (one country's outlets); a masthead with a menu button, a condensed word mark, Home / For you / Blindspot / Topics, a wide search box and two buttons; and a row of trending chips (names suddenly in the news, then the topics).
+- **The front page has three columns:**
+  - the middle one: the lead story large, then rows with a kicker, a heavy headline, a short bar with "45% Center coverage: 6 outlets", and a cover on the right;
+  - the left one: a daily briefing (the lead story with its summary) and the latest stories;
+  - the right one: Blindspot cards framed in the colour of the side that did cover them, and the reader's own bias.
+- **The story page:**
+  - Left / Center / Right tabs (the lens's groups when ratings are missing), each listing that side's headlines, and "Compare headlines" for every side at once;
+  - a coverage-details panel with totals per side;
+  - a distribution of the outlets in one pill-shaped column per side, with the unrated ones apart.
+- **Type is one heavy system sans:** Newsreader is gone (38 KB of font no longer downloaded).
+- **Perspective colours are Ground News' maroon / light neutral / navy,** validated in both themes. The poles pass every check. The neutral midpoint fails only the categorical lightness and chroma checks, as a diverging midpoint should, and every bar prints its shares.
+- **No images.** ADR-003 still holds: GJURMË shows no publisher images. Where Ground News has a photo there is a dark cover lettered with the story's topic and the initials of the outlets that covered it; outlets' logos are their initials in a circle.
+**Consequences.**
+- The page reads as Ground News without copying its assets or content.
+- The layout is wider (1600 px) and the entry bundle grew by 1.2 KB. Its budget was raised by 1 KB, and the home page's by 2 KB, while 38 KB of fonts left.
+- A publisher-image option, licensed or from the feeds' own media fields, would need a legal review first. It would replace the covers without changing the layout.
+- ADR-024's ink-on-paper rule stands for links and controls. The tan and dark strips are chrome tokens, not data colours.
+

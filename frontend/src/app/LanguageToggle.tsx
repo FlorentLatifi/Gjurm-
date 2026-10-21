@@ -13,9 +13,9 @@ export function LanguageToggle() {
   const setLang = usePreferences((s) => s.setLang);
   const other: Lang = lang === "sq" ? "en" : "sq";
   return (
-    <button type="button" className="btn btn--ghost btn--sm" lang={other} onClick={() => setLang(other)}>
-      <span className="site-header__label">{NAME[other].full}</span>
-      <span className="site-header__short" aria-hidden="true">{NAME[other].short}</span>
+    <button type="button" className="strip-link" lang={other} onClick={() => setLang(other)}>
+      <span className="strip__wide">{NAME[other].full}</span>
+      <span className="strip__narrow" aria-hidden="true">{NAME[other].short}</span>
     </button>
   );
 }
