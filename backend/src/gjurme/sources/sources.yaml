@@ -187,3 +187,249 @@ sources:
     country: XK
     enabled: false
     notes: "Feed OK on 2026-09-28 and 2026-10-05 (5 items). English-language: held back because the zero-cost keyword rules only understand Albanian. Enable once an AI model analyses articles."
+
+  # ------------------------------------------------------------------ candidates 2026-10-21
+  # Kosovo's and Albania's largest outlets not yet in the registry. Feed URLs are guesses
+  # until the Source validation workflow confirms them (autodiscovery scans discovery_urls).
+
+  - slug: zeri
+    name: Zëri
+    homepage_url: https://zeri.info/
+    feed_url: https://zeri.info/feed/
+    discovery_urls: [https://zeri.info/]
+    language: sq
+    country: XK
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Kosovo daily: politics, current affairs."
+
+  - slug: rtk
+    name: RTK
+    homepage_url: https://www.rtklive.com/
+    feed_url: https://www.rtklive.com/sq/rss
+    discovery_urls: [https://www.rtklive.com/, https://www.rtklive.com/sq/]
+    language: sq
+    country: XK
+    enabled: false
+    ownership: public
+    notes: "Candidate 2026-10-21 — Kosovo public broadcaster."
+
+  - slug: dukagjini
+    name: Dukagjini
+    homepage_url: https://dukagjini.com/
+    feed_url: https://dukagjini.com/feed/
+    discovery_urls: [https://dukagjini.com/]
+    language: sq
+    country: XK
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Kosovo broadcaster and portal."
+
+  - slug: indeksonline
+    name: Indeksonline
+    homepage_url: https://indeksonline.net/
+    feed_url: https://indeksonline.net/feed/
+    discovery_urls: [https://indeksonline.net/]
+    language: sq
+    country: XK
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Kosovo news portal."
+
+  - slug: lajmi-net
+    name: Lajmi.net
+    homepage_url: https://lajmi.net/
+    feed_url: https://lajmi.net/feed/
+    discovery_urls: [https://lajmi.net/]
+    language: sq
+    country: XK
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Kosovo news portal."
+
+  - slug: sinjali
+    name: Sinjali
+    homepage_url: https://sinjali.com/
+    feed_url: https://sinjali.com/feed/
+    discovery_urls: [https://sinjali.com/]
+    language: sq
+    country: XK
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Kosovo news portal."
+
+  - slug: insajderi
+    name: Insajderi
+    homepage_url: https://insajderi.org/
+    feed_url: https://insajderi.org/feed/
+    discovery_urls: [https://insajderi.org/]
+    language: sq
+    country: XK
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Kosovo news portal, investigations."
+
+  - slug: nacionale
+    name: Nacionale
+    homepage_url: https://nacionale.com/
+    feed_url: https://nacionale.com/feed/
+    discovery_urls: [https://nacionale.com/]
+    language: sq
+    country: XK
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Kosovo news portal."
+
+  - slug: klan-kosova
+    name: Klan Kosova
+    homepage_url: https://klankosova.tv/
+    feed_url: https://klankosova.tv/feed/
+    discovery_urls: [https://klankosova.tv/]
+    language: sq
+    country: XK
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Kosovo broadcaster."
+
+  - slug: hibrid
+    name: Hibrid.info
+    homepage_url: https://hibrid.info/
+    feed_url: https://hibrid.info/feed/
+    discovery_urls: [https://hibrid.info/]
+    language: sq
+    country: XK
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Kosovo fact-checking."
+
+  - slug: ekonomia-online
+    name: Ekonomia Online
+    homepage_url: https://ekonomiaonline.com/
+    feed_url: https://ekonomiaonline.com/feed/
+    discovery_urls: [https://ekonomiaonline.com/]
+    language: sq
+    country: XK
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Kosovo business and economy."
+
+  - slug: shqiptarja
+    name: Shqiptarja.com
+    homepage_url: https://shqiptarja.com/
+    feed_url: https://shqiptarja.com/feed
+    discovery_urls: [https://shqiptarja.com/]
+    language: sq
+    country: AL
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Albanian portal: politics, justice, investigations."
+
+  - slug: tv-klan
+    name: TV Klan
+    homepage_url: https://tvklan.al/
+    feed_url: https://tvklan.al/feed/
+    discovery_urls: [https://tvklan.al/]
+    language: sq
+    country: AL
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Albanian broadcaster."
+
+  - slug: report-tv
+    name: Report TV
+    homepage_url: https://report-tv.al/
+    feed_url: https://report-tv.al/rss
+    discovery_urls: [https://report-tv.al/]
+    language: sq
+    country: AL
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Albanian broadcaster: politics, justice."
+
+  - slug: rtsh
+    name: RTSH
+    homepage_url: https://rtsh.al/
+    feed_url: https://rtsh.al/feed/
+    discovery_urls: [https://rtsh.al/, https://lajme.rtsh.al/]
+    language: sq
+    country: AL
+    enabled: false
+    ownership: public
+    notes: "Candidate 2026-10-21 — Albanian public broadcaster."
+
+  - slug: syri
+    name: Syri.net
+    homepage_url: https://www.syri.net/
+    feed_url: https://www.syri.net/feed
+    discovery_urls: [https://www.syri.net/]
+    language: sq
+    country: AL
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Albanian portal and TV."
+
+  - slug: ora-news
+    name: Ora News
+    homepage_url: https://www.oranews.tv/
+    feed_url: https://www.oranews.tv/feed/
+    discovery_urls: [https://www.oranews.tv/]
+    language: sq
+    country: AL
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Albanian broadcaster."
+
+  - slug: ata
+    name: Agjencia Telegrafike Shqiptare
+    homepage_url: https://ata.gov.al/
+    feed_url: https://ata.gov.al/feed/
+    discovery_urls: [https://ata.gov.al/]
+    language: sq
+    country: AL
+    enabled: false
+    ownership: state
+    notes: "Candidate 2026-10-21 — Albanian state news agency."
+
+  - slug: panorama
+    name: Panorama
+    homepage_url: https://www.panorama.com.al/
+    feed_url: https://www.panorama.com.al/feed/
+    discovery_urls: [https://www.panorama.com.al/]
+    language: sq
+    country: AL
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Albanian daily."
+
+  - slug: lapsi
+    name: Lapsi.al
+    homepage_url: https://lapsi.al/
+    feed_url: https://lapsi.al/feed/
+    discovery_urls: [https://lapsi.al/]
+    language: sq
+    country: AL
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Albanian portal."
+
+  - slug: monitor
+    name: Monitor
+    homepage_url: https://www.monitor.al/
+    feed_url: https://www.monitor.al/feed/
+    discovery_urls: [https://www.monitor.al/]
+    language: sq
+    country: AL
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Albanian business and economy magazine."
+
+  - slug: faktoje
+    name: Faktoje.al
+    homepage_url: https://faktoje.al/
+    feed_url: https://faktoje.al/feed/
+    discovery_urls: [https://faktoje.al/]
+    language: sq
+    country: AL
+    enabled: false
+    ownership: unknown
+    notes: "Candidate 2026-10-21 — Albanian fact-checking."
