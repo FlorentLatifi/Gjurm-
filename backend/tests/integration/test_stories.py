@@ -524,6 +524,27 @@ def test_a_report_of_two_lookalike_stories_does_not_merge_them(
     assert story_of(db, roundup) in {story_of(db, fires[0]), story_of(db, fires[1])}
 
 
+def test_clustering_reads_only_the_words_of_an_excerpt_it_uses(
+    db: sessionmaker[Session],
+) -> None:
+    from gjurme.stories.clustering import _load
+    from gjurme.stories.similarity import EXCERPT_MAX_WORDS, tokens
+
+    excerpt = " ".join(f"fjala{i} – Prishtinë," for i in range(300))  # 900 words, 1 in 3 a dash
+    with db() as s:
+        src = add_source(s, "gjate")
+        long_id = article(s, src, "Kuvendi miraton buxhetin", NOW, excerpt=excerpt)
+        none_id = article(s, src, "Qeveria takim me sindikatat", NOW)
+        s.commit()
+        rows = {r.id: r for r in _load(s, NOW - timedelta(hours=1), NOW + timedelta(hours=1))}
+    loaded = rows[long_id].doc.excerpt
+    assert loaded is not None and len(loaded) < len(excerpt) / 4
+    assert tokens(loaded, max_words=EXCERPT_MAX_WORDS) == tokens(
+        excerpt, max_words=EXCERPT_MAX_WORDS
+    )
+    assert rows[none_id].doc.excerpt is None
+
+
 def test_review_report_lists_stories_weak_members_and_near_misses(
     db: sessionmaker[Session], settings: Settings, newsroom: dict[str, Any]
 ) -> None:
