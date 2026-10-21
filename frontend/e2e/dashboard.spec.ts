@@ -129,7 +129,7 @@ test.describe("GJURMË stories", () => {
     const popup = context.waitForEvent("page");
     await page.locator(".headline a").first().click();
     await (await popup).close();
-    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "My bias" }).click();
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "For you" }).click();
     await expect(page.locator(".stat", { hasText: "Articles opened" })).toContainText("1");
     await page.getByRole("button", { name: "Clear my history" }).click();
     await expect(page.getByRole("heading", { name: "Nothing read yet" })).toBeVisible();
@@ -228,7 +228,7 @@ test.describe("GJURMË dashboard", () => {
 
   test("theme toggle persists the chosen theme", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: /Colour theme/ }).click();
+    await page.getByRole("group", { name: "Colour theme" }).getByRole("button", { name: "Dark" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -264,7 +264,8 @@ test.describe("GJURMË dashboard", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Top stories");
     await page.route(/\/assets\/Trends-[^/]+\.js$/, (route) => route.abort());
-    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Trends" }).click();
+    await page.getByRole("button", { name: "All sections" }).click();
+    await page.getByRole("navigation", { name: "All sections" }).getByRole("link", { name: "Trends" }).click();
     await expect(page.getByRole("alert")).toContainText("This page could not be loaded");
     await expect(page).toHaveURL(/\/trends$/);
     await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
@@ -405,9 +406,9 @@ test.describe("GJURMË in Albanian", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "sq");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Lajmet kryesore");
     await expect(page.getByRole("navigation", { name: "Kryesore" }).getByRole("link", { name: "Pikat e verbra" })).toBeVisible();
-    await expect(page.locator(".story-card__foot strong").first()).toHaveText(/^\d+ (medium|media)$/);
+    await expect(page.locator(".story-hero__count").first()).toHaveText(/^\d+ (medium|media) · \d+ artikuj?$/);
     // Albanian dates are written by the app: Chromium has no Albanian locale data
-    await expect(page.locator(".story-card__top time").first()).toHaveText(/^Përditësuar (tani|dje|\d+ (minutë|minuta|orë|ditë) më parë)$/);
+    await expect(page.locator(".story-hero__kicker time").first()).toHaveText(/^Përditësuar (tani|dje|\d+ (minutë|minuta|orë|ditë) më parë)$/);
     await page.getByRole("button", { name: "English" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Top stories");
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
@@ -426,11 +427,12 @@ test.describe("GJURMË in Albanian", () => {
       await route.fulfill({ response, json: body });
     });
     await page.goto("/");
-    const summary = page.locator(".story-card__summary").first();
+    // the daily briefing is the lead story, with its summary
+    const summary = page.locator(".briefing__summary").first();
     await expect(summary).toHaveText("Kuvendi miratoi buxhetin.");
     await expect(summary).toHaveAttribute("lang", "sq");
     await page.getByRole("button", { name: "English" }).click();
-    await expect(page.locator(".story-card__summary").first()).toHaveText("Parliament passed the budget.");
+    await expect(page.locator(".briefing__summary").first()).toHaveText("Parliament passed the budget.");
     await page.unrouteAll({ behavior: "ignoreErrors" });
   });
 

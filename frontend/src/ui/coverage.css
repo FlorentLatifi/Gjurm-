@@ -13,6 +13,38 @@
 .coverage--sm .coverage__bar {
   height: 6px;
 }
+/* Ground News' row bar: short and thin, next to its one-line summary */
+.coverage--xs {
+  width: 100px;
+  flex: none;
+}
+.coverage--xs .coverage__bar {
+  height: 8px;
+  gap: 0;
+}
+.coverage--xs .coverage__seg {
+  min-width: 2px;
+  border-radius: 0;
+}
+/* the lead story's bar: tall, its labels on the segments */
+.coverage--lg .coverage__bar {
+  height: 30px;
+  gap: 0;
+}
+.coverage--lg .coverage__seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4px;
+  border-radius: 0;
+  overflow: hidden;
+}
+.coverage__inside {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-heavy);
+  white-space: nowrap;
+  padding: 0 var(--space-2);
+}
 .coverage__seg {
   flex-basis: 0;
   min-width: 3px;
