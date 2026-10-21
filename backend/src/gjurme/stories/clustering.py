@@ -48,6 +48,7 @@ from gjurme.config import Settings
 from gjurme.db.models import Article, Entity, Story
 from gjurme.stories.similarity import (
     BROAD_PLACES,
+    EXCERPT_MAX_WORDS,
     Doc,
     Names,
     apply_place_lexicon,
@@ -152,8 +153,14 @@ class _Row:
     doc: Doc
 
 
+# Only the excerpt's first words count (EXCERPT_MAX_WORDS), so only those leave the database: every
+# run reloads four days of articles, and on a free tier the transfer is metered. The margin
+# covers the punctuation that splits as a word here but is not one for ``tokens``.
 _LOAD_SQL = text("""
-    SELECT a.id, a.title, a.excerpt, a.published_at, a.story_id, a.duplicate_of_id,
+    SELECT a.id, a.title, a.published_at, a.story_id, a.duplicate_of_id,
+           array_to_string(
+               (regexp_split_to_array(a.excerpt, '\\s+'))[1:(:excerpt_words)], ' '
+           ) AS excerpt,
            coalesce(array_agg(e.name) FILTER (WHERE e.type = 'person'), '{}') AS people,
            coalesce(array_agg(e.name) FILTER (WHERE e.type = 'location'), '{}') AS places,
            coalesce(array_agg(e.name) FILTER (WHERE e.type = 'organization'), '{}') AS orgs
@@ -176,7 +183,9 @@ def _load(session: Session, start: datetime, end: datetime) -> list[_Row]:
             r.duplicate_of_id,
             Doc(r.id, r.title, r.excerpt, r.people, r.places, r.orgs),
         )
-        for r in session.execute(_LOAD_SQL, {"start": start, "end": end})
+        for r in session.execute(
+            _LOAD_SQL, {"start": start, "end": end, "excerpt_words": EXCERPT_MAX_WORDS + 20}
+        )
     ]
     lexicon = place_lexicon(r.doc for r in rows)
     for r in rows:

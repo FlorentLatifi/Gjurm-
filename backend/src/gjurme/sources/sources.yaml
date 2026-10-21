@@ -188,9 +188,10 @@ sources:
     enabled: false
     notes: "Feed OK on 2026-09-28 and 2026-10-05 (5 items). English-language: held back because the zero-cost keyword rules only understand Albanian. Enable once an AI model analyses articles."
 
-  # ------------------------------------------------------------------ candidates 2026-10-21
-  # Kosovo's and Albania's largest outlets not yet in the registry. Feed URLs are guesses
-  # until the Source validation workflow confirms them (autodiscovery scans discovery_urls).
+  # ------------------------------------------------------------------ added 2026-10-21
+  # Kosovo's and Albania's largest outlets that were not yet in the registry. Source validation
+  # runs #35 and #36 confirmed the enabled ones; the others answer 403 to automated requests
+  # (not circumvented), have no feed at the usual paths (404) or disallow it in robots.txt.
 
   - slug: zeri
     name: Zëri
@@ -212,7 +213,7 @@ sources:
     country: XK
     enabled: false
     ownership: public
-    notes: "Candidate 2026-10-21 — Kosovo public broadcaster."
+    notes: "HTTP 403 to automated requests (2026-10-21, twice). Not circumvented — excluded. Kosovo public broadcaster."
 
   - slug: dukagjini
     name: Dukagjini
@@ -267,7 +268,7 @@ sources:
     country: XK
     enabled: false
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Kosovo news portal, investigations."
+    notes: "HTTP 403 to automated requests (2026-10-21, twice). Not circumvented — excluded. Kosovo news portal, investigations."
 
   - slug: nacionale
     name: Nacionale
@@ -278,7 +279,7 @@ sources:
     country: XK
     enabled: false
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Kosovo news portal."
+    notes: "HTTP 403 to automated requests (2026-10-21, twice). Not circumvented — excluded. Kosovo news portal."
 
   - slug: klan-kosova
     name: Klan Kosova
@@ -289,7 +290,7 @@ sources:
     country: XK
     enabled: false
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Kosovo broadcaster."
+    notes: "/feed/ answers 200 with a page that is not a feed; no feed at the usual paths (2026-10-21). Kosovo broadcaster."
 
   - slug: hibrid
     name: Hibrid.info
@@ -322,7 +323,7 @@ sources:
     country: AL
     enabled: false
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Albanian portal: politics, justice, investigations."
+    notes: "HTTP 404; no feed linked from the homepage or at the usual paths (2026-10-21). Albanian portal: politics, justice, investigations."
 
   - slug: tv-klan
     name: TV Klan
@@ -333,7 +334,7 @@ sources:
     country: AL
     enabled: false
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Albanian broadcaster."
+    notes: "HTTP 403 to automated requests (2026-10-21, twice). Not circumvented — excluded. Albanian broadcaster."
 
   - slug: report-tv
     name: Report TV
@@ -344,7 +345,7 @@ sources:
     country: AL
     enabled: false
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Albanian broadcaster: politics, justice."
+    notes: "HTTP 404; no feed linked from the homepage or at the usual paths (2026-10-21). Albanian broadcaster: politics, justice."
 
   - slug: rtsh
     name: RTSH
@@ -366,7 +367,7 @@ sources:
     country: AL
     enabled: false
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Albanian portal and TV."
+    notes: "HTTP 404; no feed linked from the homepage or at the usual paths (2026-10-21). Albanian portal and TV."
 
   - slug: ora-news
     name: Ora News
@@ -377,7 +378,7 @@ sources:
     country: AL
     enabled: false
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Albanian broadcaster."
+    notes: "HTTP 403 to automated requests (2026-10-21, twice). Not circumvented — excluded. Albanian broadcaster."
 
   - slug: ata
     name: Agjencia Telegrafike Shqiptare
@@ -388,7 +389,7 @@ sources:
     country: AL
     enabled: false
     ownership: state
-    notes: "Candidate 2026-10-21 — Albanian state news agency."
+    notes: "HTTP 403 to automated requests (2026-10-21, twice). Not circumvented — excluded. Albanian state news agency."
 
   - slug: panorama
     name: Panorama
@@ -399,7 +400,7 @@ sources:
     country: AL
     enabled: false
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Albanian daily."
+    notes: "HTTP 403 to automated requests (2026-10-21, twice). Not circumvented — excluded. Albanian daily."
 
   - slug: lapsi
     name: Lapsi.al
@@ -410,7 +411,7 @@ sources:
     country: AL
     enabled: false
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Albanian portal."
+    notes: "HTTP 404; no feed linked from the homepage or at the usual paths (2026-10-21). Albanian portal."
 
   - slug: monitor
     name: Monitor
@@ -421,7 +422,7 @@ sources:
     country: AL
     enabled: false
     ownership: unknown
-    notes: "Candidate 2026-10-21 — Albanian business and economy magazine."
+    notes: "robots.txt disallows the feed path (2026-10-21). Respected — excluded. Albanian business and economy magazine."
 
   - slug: faktoje
     name: Faktoje.al
