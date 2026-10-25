@@ -62,7 +62,7 @@ The rows below apply to the server paths (Oracle or a paid VPS). Skip the VPS/do
 | 👤 | Dead-man checks for the pipeline and the backups (healthchecks.io, free) | `.env` (`HEALTHCHECK_PING_URL`, `BACKUP_HEALTHCHECK_URL`) | They alert when runs or backups stop; the webhook cannot when the server is down ([DEPLOYMENT.md](DEPLOYMENT.md#8-verify)). |
 | 👤 | Off-site backup bucket (recommended) | rclone config + `RCLONE_REMOTE` | [DEPLOYMENT.md §9](DEPLOYMENT.md#9-off-site-backups-optional-recommended--owner) |
 | 👤 | **Private contact for correction/removal requests** on the About page | Repository variable `CONTACT_URL` (e.g. `mailto:press@your-domain`), used at image build | The default is the repository's GitHub issues, which are public. A person asking for their name to be removed should not have to post it publicly. Also set the server's `CONTACT_URL` (User-Agent and OpenAPI contact). |
-| 👤 | **Outlet ratings** (perspective and factuality) for the real outlets | `backend/src/gjurme/sources/sources.yaml`, each with its `ratings_note` ([SOURCES.md](SOURCES.md#ratings)) | Until then the feed opens on the region lens and perspective blindspots stay empty; ownership is already filled in. An editorial judgement — document the basis. |
+| ✅ | **Outlet ratings** (perspective and factuality) for the real outlets | `backend/src/gjurme/sources/sources.yaml`, each with its `ratings_note` | First review 2026-10-25, evidence in [RATINGS.md](RATINGS.md); next review January 2027 with 60+ days of headlines and opinion sections. |
 | 👤 | Decide the default branch strategy | GitHub | Images and deploys follow the **default branch** (currently the development branch). Create `main` and make it the default if you prefer; nothing else changes. |
 | 👤 | Optional legal review of the content-usage design | — | The design is conservative (metadata only, link-back, takedown), but no legal claims are made ([ADR-003](DECISIONS.md#adr-003-store-metadata-and-derived-data-only)). |
 
@@ -81,7 +81,7 @@ Verified from outside on 2026-10-25 by the *Launch check* workflow (`launch-chec
 | ✅ | `/metrics` not public; admin API without a token | 401 |
 | ✅ | Encrypted weekly backup | artifact of 2026-10-25 |
 | 👤 | Submit the sitemap to Google Search Console and Bing Webmaster Tools | [NISJA.md](NISJA.md) |
-| 👤 | Outlet perspective and factuality ratings (§2) | until then the region lens leads |
+| ✅ | Outlet perspective and factuality ratings | [RATINGS.md](RATINGS.md): 16 center, 2 lean left, 1 lean right; next review January 2027 |
 
 The steps below are for the server path.
 

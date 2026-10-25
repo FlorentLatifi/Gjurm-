@@ -109,6 +109,13 @@ function AboutEn({ topics, status }: AboutProps) {
           <em> outlet</em>, never about a single article. GJURMË only shows a rating that rests on a
           documented review, and states its basis on the outlet’s page. Until then the outlet is
           shown as <em>unrated</em> (a hatched segment in every bar).</li>
+        <li>In Kosovo and Albania the perspective scale measures closeness to the two political camps:
+          <em> left</em> is Vetëvendosje (Kosovo) and the Socialist Party (Albania), <em>right</em> is
+          PDK, LDK and AAK (Kosovo) and the Democratic Party (Albania). An outlet leans only when at least
+          two signals agree — its owners' documented ties, the framing of its own headlines, and how much
+          room each camp gets. The first review (October 2026) rated 16 of the 19 outlets center, two lean
+          left and one lean right; the evidence for each is in the 
+          <a href="https://github.com/FlorentLatifi/Gjurm-/blob/claude/gallant-franklin-2uhex2/docs/RATINGS.md">ratings review</a>.</li>
         <li><strong>Ownership</strong> (private company, media group, public broadcaster,
           international public media, non-profit …) comes from public information about the
           publisher.</li>
