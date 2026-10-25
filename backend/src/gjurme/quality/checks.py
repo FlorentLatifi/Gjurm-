@@ -364,11 +364,20 @@ def check_foreign_domains(s: Session) -> CheckResult:
 
 
 def check_low_confidence(s: Session) -> CheckResult:
+    """How often a model was unsure of its analysis. The keyword rules (provider "fake") are
+    unsure by design and say so on the page (ADR-018): counting them would raise this warning on
+    every run of the free mode and hide a model that really is struggling."""
     row = s.execute(
         text("""
-        SELECT count(*) FILTER (WHERE enrichment_confidence < 0.5) AS low, count(*) AS total
-        FROM core.articles
-        WHERE enriched_at >= now() - interval '24 hours' AND enrichment_status = 'succeeded'
+        SELECT count(*) FILTER (WHERE a.enrichment_confidence < 0.5 AND NOT rules.yes) AS low,
+               count(*) FILTER (WHERE NOT rules.yes) AS total,
+               count(*) FILTER (WHERE rules.yes) AS rule_based
+        FROM core.articles a
+        CROSS JOIN LATERAL (
+            SELECT coalesce(bool_or(e.provider = 'fake'), false) AS yes
+            FROM core.enrichments e WHERE e.article_id = a.id AND e.is_current
+        ) rules
+        WHERE a.enriched_at >= now() - interval '24 hours' AND a.enrichment_status = 'succeeded'
     """)
     ).one()
     rate = _rate(row.low, row.total)
@@ -378,7 +387,7 @@ def check_low_confidence(s: Session) -> CheckResult:
         _grade(rate, 0.30),
         rate,
         0.30,
-        {"low_confidence": row.low, "enriched": row.total},
+        {"low_confidence": row.low, "enriched": row.total, "rule_based": row.rule_based},
     )
 
 
