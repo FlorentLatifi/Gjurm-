@@ -184,3 +184,19 @@ Short records of the decisions that shape the system: context, the decision, and
 - A publisher-image option, licensed or from the feeds' own media fields, would need a legal review first. It would replace the covers without changing the layout.
 - ADR-024's ink-on-paper rule stands for links and controls. The tan and dark strips are chrome tokens, not data colours.
 
+## ADR-029: An outside clock for the free pipeline
+**Context.** Four days after launch on the free path (ADR-027), GitHub had started the 30-minute schedule every 2 to 5 hours, and the weekly backup not at all. The site read "stale" most of the time, and the uptime monitor failed and e-mailed. Outlets whose feeds hold 10 items lost news between runs (`feed_overflow_24h`). Each late run then had 150–180 articles to handle. From a GitHub runner every database statement is a round trip of ~100–150 ms to Neon, so a run took 10 minutes.
+**Decision.**
+- **An outside clock.** cron-job.org (free, no card) starts the workflow every 30 minutes through the API (`workflow_dispatch`). It uses a fine-grained token that can only start and read this repository's workflows. GitHub's schedule stays as a fallback.
+- **No standing jobs.** A job that loops for hours, or a run that dispatches the next one, would hold a runner around the clock. That would turn a CI service into a server, against the spirit of GitHub's terms.
+- **The backup and the keep-alive no longer wait for their own schedule.** They run with any run once due: when the newest backup artifact is 7 days old, and on every run for the keep-alive, which costs one API call.
+- **Fewer round trips per article:**
+  - The analysis looks up reusable results (syndicated copies) once per run, not once per article; results stored during the run are added.
+  - New names are inserted and read back in one statement.
+  - The attempt count is written with the result.
+  - The processing stage sets the trigram threshold once per batch.
+  - On the demo data: −33 % statements in the analysis, −12 % in processing.
+**Consequences.**
+- The pipeline's rhythm now depends on one more free service and one token, which expires; the guide says to renew it yearly.
+- A 30-minute tick of 40–60 articles takes 1 to 4 minutes, so Neon sleeps between runs and stays inside its compute hours.
+

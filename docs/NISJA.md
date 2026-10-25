@@ -96,7 +96,7 @@ Te skeda **Variables → New repository variable**:
 
 GitHub → **Actions → Free hosting → Run workflow** (task: `pipeline`) → **Run workflow**.
 
-Pas rreth 10 minutash run-i duhet të dalë i gjelbër ✅. Ai krijon tabelat, merr lajmet e para nga 19 mediat dhe i analizon. Run-et e ardhshme zgjasin 1–3 minuta, sepse marrin vetëm lajmet e reja. Prej tani përsëritet vetë çdo 30 minuta.
+Pas rreth 10 minutash run-i duhet të dalë i gjelbër ✅. Ai krijon tabelat, merr lajmet e para nga 19 mediat dhe i analizon. Run-et e ardhshme zgjasin 1–4 minuta, sepse marrin vetëm lajmet e reja. Që të përsëriten saktë çdo 30 minuta, vendos edhe orën e jashtme te hapi B9.
 
 Nëse del i kuq ❌, hape dhe shiko hapin e kuq:
 
@@ -159,7 +159,7 @@ Kur afrohesh te kufijtë ke dy rrugë:
 
 ### B8. Kopjet rezervë dhe rikthimi
 
-Çdo të diel në 02:23 (UTC), run-i *backup* e ruan databazën të enkriptuar si *artifact*, që mbahet 35 ditë: **Actions → Free hosting** → run-i i së dielës → **Artifacts**. Kopje mund të bësh edhe vetë kur të duash: **Run workflow → task: `backup`**.
+Një herë në javë, workflow-i e ruan databazën të enkriptuar si *artifact*, që mbahet 35 ditë: **Actions → Free hosting** → run-i me kopjen → **Artifacts**. Kopja bëhet me run-in e parë pasi e fundit është më e vjetër se 7 ditë, kështu që nuk varet nga orari i GitHub-it. Kopje mund të bësh edhe vetë kur të duash: **Run workflow → task: `backup`**.
 
 Rikthimi, në një kompjuter me `gpg` dhe klientin e PostgreSQL-it:
 
@@ -170,7 +170,38 @@ pg_restore --clean --if-exists --no-owner --dbname "postgresql://..." gjurme.dum
 
 Neon ruan edhe historinë e 6 orëve të fundit (**Instant restore**), për gabimet e menjëhershme.
 
-**Run-et automatike.** GitHub i ndal proceset e planifikuara të një repo publike pas 60 ditësh pa asnjë aktivitet. Workflow-i e rindez veten çdo javë, por nëse prapëseprapë ndalet: **Actions → Free hosting → Enable workflow**.
+**Run-et automatike.** GitHub i ndal proceset e planifikuara të një repo publike pas 60 ditësh pa asnjë aktivitet. Workflow-i e rindez veten në çdo run, por nëse prapëseprapë ndalet: **Actions → Free hosting → Enable workflow**.
+
+### B9. Ora e saktë: cron-job.org 👤 (e domosdoshme)
+
+GitHub i nis run-et e planifikuara me vonesë kur është i ngarkuar. Në tetor 2026, run-et "çdo 30 minuta" u nisën çdo 2–5 orë. Kështu lajmet dilnin me orë vonesë, mediat me feed të shkurtër humbnin lajme dhe monitori dërgonte email-e "stale". Zgjidhja është një orë e jashtme falas, që e nis workflow-in me saktësi çdo 30 minuta.
+
+**1. Çelësi te GitHub** (vetëm për të nisur run-et, jo për të ndryshuar kodin):
+
+1. GitHub → foto e profilit → **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
+2. **Token name:** `gjurme-cron`. **Expiration:** 1 vit (shëno në kalendar ta ripërtërish).
+3. **Repository access:** *Only select repositories* → **Gjurm-**.
+4. **Permissions → Repository permissions → Actions: Read and write**. Asgjë tjetër.
+5. **Generate token** dhe kopjoje (`github_pat_...`). Mos e ndaj në chat apo screenshot.
+
+**2. Puna te cron-job.org** (falas, pa kartë):
+
+1. **cron-job.org → Sign up**, konfirmo email-in → **Create cronjob**.
+2. **Title:** `GJURMË pipeline`.
+3. **URL:** `https://api.github.com/repos/FlorentLatifi/Gjurm-/actions/workflows/free-hosting.yml/dispatches`
+4. **Execution schedule:** *Custom*, minutat `11` dhe `41`, çdo orë, çdo ditë. Ose *Every 30 minutes*.
+5. Te skeda **Advanced**:
+   - **Request method:** `POST`
+   - **Headers**, tre rreshta:
+     - `Accept` = `application/vnd.github+json`
+     - `Authorization` = `Bearer github_pat_...` (çelësi nga hapi 1)
+     - `X-GitHub-Api-Version` = `2022-11-28`
+   - **Request body:** `{"ref":"claude/gallant-franklin-2uhex2","inputs":{"task":"pipeline"}}`
+6. **Create**. Pastaj **Test run**: duhet të kthejë **204**. Te **Actions → Free hosting** del një run i ri me *workflow_dispatch*.
+
+Kontroll pas një dite: **Actions → Free hosting** duhet të ketë një run çdo 30 minuta (secili 1–4 minuta), dhe **Actions → Uptime monitor** duhet të jetë i gjelbër. Kopja rezervë bëhet vetë me run-in e parë pas 7 ditësh.
+
+Nëse cron-job.org kthen **401**, çelësi ka skaduar ose është kopjuar gabim: krijo një të ri (hapi 1) dhe ndrysho rreshtin `Authorization`. Nëse kthen **404**, kontrollo URL-në dhe që çelësi ka qasje te **Gjurm-**.
 
 ---
 
