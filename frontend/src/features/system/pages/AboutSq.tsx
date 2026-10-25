@@ -19,7 +19,7 @@ export function AboutSq({ topics, status }: AboutProps) {
 
       <h2>1. Mbledhja</h2>
       <ul>
-        <li>Lexohen vetëm <strong>burime publike RSS</strong>, çdo 15 minuta, me një identifikim të
+        <li>Lexohen vetëm <strong>burime publike RSS</strong>, çdo 30 minuta, me një identifikim të
           qartë të robotit (user agent). Respektohet <code>robots.txt</code>; mediat që e ndalojnë
           qasjen automatike nuk përfshihen.</li>
         <li>Ruajmë <strong>titullin, lidhjen, kohën e publikimit, kategoritë e burimit</strong> dhe një

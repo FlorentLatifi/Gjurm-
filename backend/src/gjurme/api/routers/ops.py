@@ -68,7 +68,7 @@ def ready(request: Request, response: Response) -> Any:
 )
 def public_status(request: Request, response: Response, db: DB, settings: AppSettings) -> Any:
     # Every visitor's page asks for it (the status pill), so it is cached briefly, here and in
-    # the browser; a pipeline run every 15 minutes makes 30 s of staleness irrelevant.
+    # the browser; a pipeline run every 30 minutes makes 30 s of staleness irrelevant.
     response.headers["Cache-Control"] = f"public, max-age={STATUS_TTL_SECONDS}"
     return request.app.state.cache.get_or_set(
         "status", lambda: _public_status(db, settings), ttl=STATUS_TTL_SECONDS
@@ -84,6 +84,12 @@ def _public_status(db: Session, settings: Settings) -> dict[str, Any]:
         SELECT started_at, status FROM ops.pipeline_runs
         WHERE status <> 'skipped_locked' ORDER BY started_at DESC LIMIT 1""")
     ).first()
+    # a run in progress says nothing yet about health: judge by the last one that finished
+    last_finished = db.execute(
+        text("""
+        SELECT status FROM ops.pipeline_runs
+        WHERE status NOT IN ('skipped_locked', 'running') ORDER BY started_at DESC LIMIT 1""")
+    ).scalar()
     last_success = db.execute(
         text("""
         SELECT max(finished_at) FROM ops.pipeline_runs
@@ -125,7 +131,7 @@ def _public_status(db: Session, settings: Settings) -> dict[str, Any]:
     if minutes is None or minutes > settings.alert_stale_pipeline_minutes or not collecting:
         state = "stale"
     elif (
-        (last and last.status != "succeeded")
+        (last_finished is not None and last_finished != "succeeded")
         or any(s["is_active"] and s["consecutive_failures"] > 0 for s in sources)
         # auto-disabled after failing in a row: no longer failing, no longer collected either
         or any(not s["is_active"] and s["verification_status"] == "failing" for s in sources)
