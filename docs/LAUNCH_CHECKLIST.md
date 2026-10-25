@@ -34,6 +34,7 @@ Step by step in Albanian: [NISJA.md, part B](NISJA.md#pjesa-b-faqja-online-falas
 | 👤 | First run: *Actions → Free hosting → Run workflow* | GitHub |
 | 👤 | Vercel project from the repository with the environment variable `DATABASE_URL` | vercel.com (Hobby: non-commercial use) |
 | 👤 | Variable `PUBLIC_URL=https://<project>.vercel.app` (uptime monitor); optional: alerts to a phone through ntfy (`ALERT_WEBHOOK_URL`, `ALERT_WEBHOOK_FORMAT=ntfy`), secrets `HEALTHCHECK_PING_URL` and `ANTHROPIC_API_KEY`, Vercel variable `VITE_CONTACT_URL` | GitHub, Vercel |
+| 👤 | **The clock**: a fine-grained token (*Actions: read and write*, this repository only) and a cron-job.org job that starts *Free hosting* every 30 minutes. GitHub's own schedule alone ran every 2–5 hours (ADR-029) | GitHub, cron-job.org: [NISJA.md, B9](NISJA.md#b9-ora-e-saktë-cron-joborg--e-domosdoshme) |
 | 👤 | Watch the usage pages of Neon and Vercel in the first weeks | [DEPLOYMENT.md](DEPLOYMENT.md#limits-and-what-to-watch) |
 
 ### The $0 path with a server: Oracle Always Free + DuckDNS + keyword-rule analysis ([ADR-018](DECISIONS.md#adr-018-a-0-launch-path-oracle-always-free--keyword-rule-analysis))
