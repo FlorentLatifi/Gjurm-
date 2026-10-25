@@ -71,7 +71,7 @@ def _looks_like_image(url: str, mime: str, medium: str) -> bool:
     if medium:
         return medium == "image"
     if mime:
-        return mime.startswith("image/")
+        return mime == "image" or mime.startswith("image/")
     return url.lower().split("?")[0].endswith(_IMAGE_EXTENSIONS)
 
 
@@ -92,7 +92,8 @@ def entry_image(entry: Any) -> str | None:
         rel = str(link.get("rel") or "enclosure")
         mime = str(link.get("type") or "")
         url = _image_address(link.get("href") or link.get("url"), base)
-        if url and rel == "enclosure" and mime.startswith("image/"):
+        # some feeds (Koha) give the bare type "image"
+        if url and rel == "enclosure" and (mime == "image" or mime.startswith("image/")):
             return url
     content = entry.get("content") or []
     html = [c.get("value") for c in content if isinstance(c, dict)]

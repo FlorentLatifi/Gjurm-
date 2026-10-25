@@ -23,7 +23,7 @@ from gjurme.ingestion.fetcher import FeedFetcher
 from gjurme.ingestion.normalize import clean_text
 from gjurme.sources.registry import SourceConfig
 
-FIELDS = ("title", "link", "id", "published_iso", "summary", "author", "tags")
+FIELDS = ("title", "link", "id", "published_iso", "summary", "author", "tags", "image")
 MAX_CANDIDATES = 6
 # WordPress, Drupal, Joomla and most news CMSs serve their feed at one of these paths.
 WELL_KNOWN_FEED_PATHS = ("/feed/", "/rss", "/rss/", "/rss.xml", "/feed.xml", "/feed/rss")
@@ -166,8 +166,8 @@ def to_markdown(reports: list[SourceReport], generated_at: datetime | None = Non
         f"# Source validation report — {generated_at:%Y-%m-%d %H:%M} UTC",
         "",
         "| Source | Declared feed | Status | Items | Newest item | Title/link/date coverage "
-        "| ë/ç seen | Recommendation |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Photos | ë/ç seen | Recommendation |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for r in reports:
         d = r.declared
@@ -179,10 +179,12 @@ def to_markdown(reports: list[SourceReport], generated_at: datetime | None = Non
             if d and d.ok
             else "—"
         )
+        photos = f"{d.field_coverage.get('image', 0):.0%}" if d and d.ok else "—"
         lines.append(
             f"| {r.name} | `{r.declared_feed or '—'}` | "
             f"{(d.status + (f' ({d.http_status})' if d.http_status else '')) if d else 'none'} | "
             f"{d.items if d else 0} | {d.newest if d and d.newest else '—'} | {cov} | "
+            f"{photos} | "
             f"{'yes' if d and d.albanian_chars_seen else 'no'} | {r.recommendation} |"
         )
     for r in reports:

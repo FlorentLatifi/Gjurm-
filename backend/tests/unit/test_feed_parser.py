@@ -112,3 +112,12 @@ def test_no_unsafe_or_missing_image() -> None:
     assert unsafe.entries[0]["image"] is None
     data = parse_feed(_feed('<media:thumbnail url="data:image/png;base64,AAAA"/>'))
     assert data.entries[0]["image"] is None
+
+
+def test_image_from_an_atom_enclosure_with_a_bare_type() -> None:
+    atom = b"""<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom">
+<title>k</title><entry><title>B</title><link rel="alternate" href="https://news.example/b"/>
+<id>https://news.example/1</id><updated>2026-10-25T18:02:33+01:00</updated>
+<link rel="enclosure" href="https://img.example/x.webp?q=80" length="7" type="image"/>
+</entry></feed>"""
+    assert parse_feed(atom).entries[0]["image"] == "https://img.example/x.webp?q=80"
