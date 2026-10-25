@@ -83,6 +83,13 @@ jobs:
               || warn "$loaded/$tried photos load without a referrer (the others fall back to the lettered cover)"
           fi
 
+          # Outlet ratings (RATINGS.md) reached the database: every listed outlet has a perspective
+          srcs="$(get -f "$URL/api/v1/sources?days=7" || echo '[]')"
+          rated="$(echo "$srcs" | jq '[.[]? | select(.bias != "unrated")] | length')"
+          listed="$(echo "$srcs" | jq 'length')"
+          [ "$rated" -gt 0 ] && [ "$rated" -eq "$listed" ] && ok "All $listed outlets have a perspective rating" \
+            || bad "$rated of $listed outlets have a perspective rating (sources.yaml synced?)"
+
           # 4. Search engines: sitemap and robots.txt on the public address
           sitemap="$(get -f "$URL/sitemap.xml" || true)"
           n="$(printf '%s' "$sitemap" | grep -c '<loc>' || true)"
