@@ -24,7 +24,9 @@ export function AboutSq({ topics, status }: AboutProps) {
           qasjen automatike nuk përfshihen.</li>
         <li>Ruajmë <strong>titullin, lidhjen, kohën e publikimit, kategoritë e burimit</strong> dhe një
           fragment të shkurtër që përdoret vetëm për analizë. Fragmentet nuk shfaqen kurrë dhe
-          fshihen pas 90 ditësh. Faqet e artikujve nuk kopjohen kurrë, as fotot.</li>
+          fshihen pas 90 ditësh. Faqet e artikujve nuk kopjohen kurrë. Një lajm shfaq foton që mediumi e vendos vetë në RSS-in
+          e tij, të ngarkuar nga faqja e mediumit dhe me emrin e tij — nuk kopjohet kurrë në serverët
+          tanë; një medium mund të kërkojë që fotot e tij të mos shfaqen.</li>
         <li>Dublikatat hiqen (e njëjta lidhje, i njëjti titull i ripublikuar). Titujt pothuajse
           identikë nga media të ndryshme mbahen — raportimi i secilës media llogaritet — dhe lidhen si
           i njëjti lajm.</li>

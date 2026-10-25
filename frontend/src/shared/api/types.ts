@@ -241,6 +241,8 @@ export interface StorySummary {
   language: string;
   summary_en: string | null;
   summary_sq: string | null;
+  /** The photo an outlet put in its own feed entry, at the outlet's address (ADR-030). */
+  image_url: string | null;
   source_slug: string;
   source_name: string;
   first_published_at: string;
@@ -266,6 +268,7 @@ export interface StoryArticle {
   language: string;
   summary_en: string | null;
   summary_sq: string | null;
+  image_url: string | null;
   sentiment_label: SentimentLabel | null;
   source_slug: string;
   source_name: string;

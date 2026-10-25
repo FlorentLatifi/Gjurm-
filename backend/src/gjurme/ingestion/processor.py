@@ -119,6 +119,7 @@ class Candidate:
     published_at: datetime
     published_estimated: bool
     content_hash: str
+    image_url: str | None = None
 
 
 class ItemRejectedError(Exception):
@@ -181,7 +182,14 @@ def build_candidate(
         published_at=published_at,
         published_estimated=estimated,
         content_hash=sha256_hex(title, excerpt or ""),
+        image_url=_image_url(payload.get("image")),
     )
+
+
+def _image_url(value: Any) -> str | None:
+    """The feed's photo address, as the parser kept it (absolute https, bounded)."""
+    ok = isinstance(value, str) and value.startswith("https://")
+    return value if ok and len(value) <= 1000 else None
 
 
 def _find_same_source_title_dup(session: Session, source_id: int, cand: Candidate) -> int | None:
@@ -261,6 +269,9 @@ def process_item(
         item.processed_at = now
         title_changed = existing.title_normalized != cand.title_normalized
         excerpt_changed = bool(cand.excerpt) and cand.excerpt != existing.excerpt
+        if existing.source_id == source.id and cand.image_url and not existing.image_url:
+            # an entry seen again now carries a photo (or was stored before photos were kept)
+            existing.image_url = cand.image_url
         if existing.source_id == source.id and (title_changed or excerpt_changed):
             # Publisher corrected the entry. Never downgrade: a missing excerpt in the new
             # version keeps the stored one.
@@ -309,6 +320,7 @@ def process_item(
             published_date=_local_date(cand.published_at, tz),
             published_at_estimated=cand.published_estimated,
             content_hash=cand.content_hash,
+            image_url=cand.image_url,
             duplicate_of_id=near,
         )
         .on_conflict_do_nothing(index_elements=[Article.url_hash])

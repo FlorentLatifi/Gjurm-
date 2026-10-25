@@ -38,6 +38,8 @@ class SourceConfig(BaseModel):
     ownership: str = "unknown"
     owner: str | None = None
     ratings_note: str | None = None
+    # false: the outlet's photos are not shown, on its request (ADR-030)
+    images: bool = True
 
     @field_validator("homepage_url", "feed_url")
     @classmethod
@@ -130,6 +132,7 @@ def sync_sources(session: Session, registry: Registry) -> dict[str, int]:
                 country=cfg.country,
                 is_active=cfg.enabled,
                 disabled_reason=None if cfg.enabled else "disabled in sources.yaml",
+                show_images=cfg.images,
                 **{attr: getattr(cfg, attr) for attr in RATING_FIELDS},
             )
             session.add(row)
@@ -140,6 +143,9 @@ def sync_sources(session: Session, registry: Registry) -> dict[str, int]:
             if getattr(row, attr) != getattr(cfg, attr):
                 setattr(row, attr, getattr(cfg, attr))
                 changed = True
+        if row.show_images != cfg.images:
+            row.show_images = cfg.images
+            changed = True
         if row.feed_url != cfg.feed_url:
             row.feed_url = cfg.feed_url
             row.etag = row.last_modified = None  # validators belong to the old URL

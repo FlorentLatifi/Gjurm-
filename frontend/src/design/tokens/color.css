@@ -77,6 +77,7 @@
   --cover-chip-ink: #0b0b0b;
   --cover-ink-2: rgba(255, 255, 255, 0.1);
   --cover-veil: linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.55) 100%);
+  --cover-photo-veil: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.45) 40%, rgba(0, 0, 0, 0.88) 100%);
 
   /* status: reserved, always with a label */
   --good: #006300;

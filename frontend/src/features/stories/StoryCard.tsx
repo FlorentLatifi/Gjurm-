@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useId, useRef } from "react";
+import { type ReactNode, useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { StorySummary } from "@/shared/api/types";
@@ -135,16 +135,24 @@ function coverTone(slug: string | null): number {
 }
 
 /**
- * A story's picture, without a picture: GJURMË shows no publisher images (ADR-003), so where
- * Ground News has a photo there is a dark panel lettered with the story's topic and the outlets
- * that covered it.
+ * A story's picture: the photo an outlet put in its own feed entry, loaded from the outlet's
+ * site and never copied (ADR-030). Without one — or when it fails to load — a dark panel
+ * lettered with the story's topic and the outlets that covered it.
  */
 export function Cover({ story, children, className = "" }: { story: StorySummary; children?: ReactNode; className?: string }) {
   const topic = story.topic_name ? localName(story.topic_name, story.topic_name_sq) : t("News");
+  const [broken, setBroken] = useState<string | null>(null);
+  const photo = story.image_url && story.image_url !== broken ? story.image_url : null;
   return (
-    <div className={`cover cover--${coverTone(story.topic_slug)} ${className}`}>
-      {/* drawn by CSS from the attribute: a texture, not text to read (its name is in the kicker) */}
-      <span className="cover__word" data-word={topic} aria-hidden="true" />
+    <div className={`cover cover--${coverTone(story.topic_slug)} ${photo ? "cover--photo" : ""} ${className}`}>
+      {photo ? (
+        // decorative: the headline beside it says what the story is
+        <img className="cover__photo" src={photo} alt="" loading="lazy" decoding="async"
+          referrerPolicy="no-referrer" onError={() => setBroken(photo)} />
+      ) : (
+        /* drawn by CSS from the attribute: a texture, not text to read (its name is in the kicker) */
+        <span className="cover__word" data-word={topic} aria-hidden="true" />
+      )}
       <span className="cover__outlets" aria-hidden="true">
         {story.sources.slice(0, 4).map((src) => <span key={src.slug}>{initials(src.name)}</span>)}
         {story.source_count > 4 && <span>+{story.source_count - 4}</span>}

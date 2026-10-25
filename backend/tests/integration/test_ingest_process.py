@@ -185,6 +185,42 @@ def test_changed_item_is_requeued(db, settings, make_fetcher) -> None:
         assert _count(s, Article) == 1
 
 
+def test_the_feed_photo_is_kept_and_reaches_articles_stored_before(
+    db, settings, make_fetcher
+) -> None:
+    with db() as s, s.begin():
+        add_source(s, "src", "https://src.example.com/feed/")
+    old = {"title": "Lajmi i vjetër pa foto", "link": "https://src.example.com/a", "guid": "g1"}
+    new = {"title": "Lajmi i ri me foto", "link": "https://src.example.com/b", "guid": "g2"}
+    for item in (old, new):
+        item["pubDate"] = pubdate()
+    body = {"v": rss([old])}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=body["v"])
+
+    fetcher = make_fetcher(handler)
+    ingest_all(db, fetcher, settings)
+    with db() as s:
+        process_pending(s, settings)
+    # the same entry, unchanged, now with a photo; and a new entry with one
+    body["v"] = rss(
+        [
+            {**old, "image": "https://cdn.src.example.com/a.jpg"},
+            {**new, "image": "http://cdn.src.example.com/b.jpg"},
+        ]
+    )
+    stats = ingest_all(db, fetcher, settings)
+    assert stats.sources[0].items_changed == 0
+    with db() as s:
+        process_pending(s, settings)
+        images = dict(s.execute(select(Article.guid, Article.image_url)).all())
+    assert images == {
+        "g1": "https://cdn.src.example.com/a.jpg",
+        "g2": "https://cdn.src.example.com/b.jpg",
+    }
+
+
 def _ingest_items(db, settings, make_fetcher, feeds: dict[str, list[dict[str, str]]]) -> None:
     routes = {}
     with db() as s, s.begin():
