@@ -693,7 +693,7 @@
   background: var(--cover-photo-veil);
 }
 .story-hero__cover.cover--photo .story-hero__body {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  text-shadow: var(--cover-photo-shadow);
 }
 .story-hero__cover .cover__word {
   font-size: clamp(5rem, 3rem + 5vw, 8rem);
