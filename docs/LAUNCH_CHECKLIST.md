@@ -66,7 +66,26 @@ The rows below apply to the server paths (Oracle or a paid VPS). Skip the VPS/do
 | 👤 | Decide the default branch strategy | GitHub | Images and deploys follow the **default branch** (currently the development branch). Create `main` and make it the default if you prefer; nothing else changes. |
 | 👤 | Optional legal review of the content-usage design | — | The design is conservative (metadata only, link-back, takedown), but no legal claims are made ([ADR-003](DECISIONS.md#adr-003-store-metadata-and-derived-data-only)). |
 
-## 3. Launch-day steps ⬜
+## 3. The free path is live: https://gjurm.vercel.app ✅
+
+Verified from outside on 2026-10-25 by the *Launch check* workflow (`launch-check.yml`, also daily; [run](https://github.com/FlorentLatifi/Gjurm-/actions/runs/40219051475)):
+
+| | Check | Result |
+|---|---|---|
+| ✅ | Home page, HSTS, CSP (`frame-ancestors 'none'`, `img-src https:`), `nosniff` | all present |
+| ✅ | `/health/ready`; pipeline every 30 minutes (cron-job.org, ADR-029) | 1,022 articles in 24 h from 19 outlets |
+| ✅ | Stories and photos (ADR-030) | 847 multi-outlet stories in 2 days; 48 of the first 50 with an outlet's photo |
+| ✅ | `sitemap.xml` and `robots.txt` on the public address | 617 pages |
+| ✅ | WhatsApp link preview | the story's headline and image |
+| ✅ | Contact for corrections (`VITE_CONTACT_URL`) | set |
+| ✅ | `/metrics` not public; admin API without a token | 401 |
+| ✅ | Encrypted weekly backup | artifact of 2026-10-25 |
+| 👤 | Submit the sitemap to Google Search Console and Bing Webmaster Tools | [NISJA.md](NISJA.md) |
+| 👤 | Outlet perspective and factuality ratings (§2) | until then the region lens leads |
+
+The steps below are for the server path.
+
+## 4. Launch-day steps (server path) ⬜
 
 1. ⬜ **Model quality spot-check.** Run the *Source validation* workflow with the `ANTHROPIC_API_KEY` secret set and `enrich_limit` 30–50. Its review report lists every result next to its headline, with names dropped by grounding, tokens and cost per article, to compare with the ≈ $0.004 estimate. On a server with a key the equivalent is `gjurme enrich --limit 50` plus `admin quality` / `admin costs`. Optionally repeat with `LLM_MODEL=claude-haiku-4-5` before deciding the default.
 2. ⬜ First deploy: `./deploy.sh <sha>` ([DEPLOYMENT.md §6](DEPLOYMENT.md#6-first-deploy)).
@@ -77,20 +96,20 @@ The rows below apply to the server paths (Oracle or a paid VPS). Skip the VPS/do
 7. ⬜ Set `DEPLOY_ENABLED=true` and confirm that the next push deploys through CI.
 8. ⬜ Set the repository variables `PUBLIC_URL` and `CONTACT_URL` **before** the first CI image build. CI passes them into the web build (`VITE_PUBLIC_URL`, `VITE_CONTACT_URL`), which makes canonical links, Open Graph and robots.txt point at the real domain and shows the private contact. Then submit `https://<domain>/sitemap.xml` in Google Search Console and Bing Webmaster Tools: it lists every multi-outlet story of the last 90 days, the outlets and the topics.
 
-## 4. First week ⬜
+## 5. First week ⬜
 
 - ⬜ Daily glance ([OPERATIONS.md](OPERATIONS.md#daily-glance-2-minutes)): runs, costs, quality, alerts.
 - ⬜ Watch the backlog and the budget: raise or lower `LLM_DAILY_BUDGET_USD` to match real volume.
 - ⬜ First Sunday: confirm the automatic restore verification passed (`dc logs backup`).
 - ✅ Validate Albanian and North Macedonian candidates for geographic balance: Reporter.al, Euronews Albania, BalkanWeb and Portalb.mk enabled; A2 CNN excluded (404) ([SOURCES.md](SOURCES.md)).
 
-## 5. Known limitations at launch
+## 6. Known limitations at launch
 
 - Coverage still leans to Kosovo: 13 of 19 enabled sources are Kosovo-based, 5 Albanian, 1 North Macedonian. Top Channel, A2 CNN, TV Klan and Report TV, major Albanian broadcasters, have no usable feed (docs/SOURCES.md).
 - Stories group paraphrased coverage of one event with TF-IDF and name guards, not embeddings: some paraphrases stay separate stories, and "X meets Y" / "X meets Z" on the same day can merge ([ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings)). `gjurme stories-review` checks it on live data.
 - Tone and entities are machine-generated from headline and excerpt only, and can be wrong; the methodology page says so.
 - One server: the recovery point is the last nightly backup.
 
-## 6. Backlog (V2 candidates)
+## 7. Backlog (V2 candidates)
 
 Message Batches API for backfills (−50% cost) · story clustering with embeddings · entity alias resolution · entity graph view · email or RSS alerts for followed entities · Serbian and Macedonian sources · public dataset export · daily rollup table if analytics latency matters at larger scale.

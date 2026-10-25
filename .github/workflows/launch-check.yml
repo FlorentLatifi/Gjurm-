@@ -1,0 +1,117 @@
+# Launch check: the live site, verified from outside (LAUNCH_CHECKLIST.md §3).
+# Everything a reader, a search engine or a link preview sees, plus what must stay closed:
+# security headers, freshness, stories and their photos, the sitemap and robots.txt, the link
+# preview a chat app gets, the contact for corrections, /metrics and the admin API.
+# Uses the repository variable PUBLIC_URL, else the Vercel address. Read-only: it only sends GETs.
+name: Launch check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 7 * * *" # daily
+  push:
+    paths:
+      - ".github/workflows/launch-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      URL: ${{ vars.PUBLIC_URL || 'https://gjurm.vercel.app' }}
+    steps:
+      - name: Check the live site
+        run: |
+          set -u
+          URL="${URL%/}"
+          failed=0
+          ok()   { echo "✅ $1"; echo "| ✅ | $1 |" >> "$GITHUB_STEP_SUMMARY"; }
+          bad()  { echo "::error::$1"; echo "| ❌ | $1 |" >> "$GITHUB_STEP_SUMMARY"; failed=1; }
+          warn() { echo "::warning::$1"; echo "| ⚠️ | $1 |" >> "$GITHUB_STEP_SUMMARY"; }
+          get()  { curl -sS --retry 3 --retry-delay 5 --max-time 30 "$@"; }
+          printf '## Launch check: %s\n\n| | Check |\n|---|---|\n' "$URL" >> "$GITHUB_STEP_SUMMARY"
+
+          # 1. The page and its security headers
+          headers="$(get -D - -o /tmp/index.html "$URL/")"
+          code="$(echo "$headers" | awk 'toupper($1) ~ /^HTTP/ {c=$2} END {print c}')"
+          [ "$code" = "200" ] && grep -q '<div id="root">' /tmp/index.html \
+            && ok "Home page answers 200" || bad "Home page answered $code"
+          h() { echo "$headers" | grep -i "^$1:" | head -1 | cut -d: -f2- | tr -d '\r'; }
+          csp="$(h content-security-policy)"
+          [ -n "$(h strict-transport-security)" ] && ok "HSTS header" || bad "No HSTS header"
+          echo "$csp" | grep -q "frame-ancestors 'none'" && ok "CSP: frame-ancestors 'none'" || bad "CSP lacks frame-ancestors: $csp"
+          echo "$csp" | grep -q "img-src 'self' data: https:" && ok "CSP lets outlets' photos load (img-src https:)" || bad "CSP blocks photos: $csp"
+          [ "$(h x-content-type-options | tr -d ' ')" = "nosniff" ] && ok "X-Content-Type-Options: nosniff" || bad "No X-Content-Type-Options"
+
+          # 2. API, database and freshness
+          get -f -o /dev/null "$URL/health/ready" && ok "/health/ready (API and database)" || bad "/health/ready failed"
+          status="$(get -f "$URL/api/v1/status" || echo '{}')"
+          echo "$status" | jq '{status, last_success_at, minutes_since_success, articles_last_24h, analysis_mode}' || true
+          s="$(echo "$status" | jq -r '.status // "none"')"
+          case "$s" in
+            ok) ok "Pipeline status ok ($(echo "$status" | jq -r '.articles_last_24h // "?"') articles in 24 h)" ;;
+            degraded)
+              warn "Pipeline status degraded: last run $(echo "$status" | jq -r '.last_run_status'); sources: $(echo "$status" | jq -c '[.sources[]? | select(.consecutive_failures > 0 or .verification_status == "failing") | {slug, is_active, verification_status, consecutive_failures}]')" ;;
+            *) bad "Pipeline status: $s" ;;
+          esac
+
+          # 3. Stories and their photos (ADR-030)
+          stories="$(get -f "$URL/api/v1/stories?days=2&page_size=50" || echo '{}')"
+          total="$(echo "$stories" | jq -r '.total // 0')"
+          shown="$(echo "$stories" | jq -r '.items | length' 2>/dev/null || echo 0)"
+          with="$(echo "$stories" | jq -r '[.items[]? | select(.image_url)] | length')"
+          [ "$total" -gt 0 ] && ok "$total multi-outlet stories in 2 days" || bad "No stories in 2 days"
+          if [ "$with" -gt 0 ]; then ok "$with of $shown stories on the first page have a photo"; else bad "No story on the first page has a photo"; fi
+          loaded=0; tried=0
+          for img in $(echo "$stories" | jq -r '[.items[]? | .image_url // empty][:8][]'); do
+            tried=$((tried + 1))
+            # as a reader's browser asks: a browser user agent, no referrer (referrerpolicy=no-referrer)
+            type="$(curl -sS -L --max-time 20 -o /dev/null -w '%{http_code} %{content_type}' \
+              -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36' \
+              -H 'Accept: image/avif,image/webp,image/*,*/*;q=0.8' "$img" || true)"
+            case "$type" in 200\ image/*) loaded=$((loaded + 1)) ;; *) echo "photo not loaded ($type): $img" ;; esac
+          done
+          if [ "$tried" -gt 0 ]; then
+            [ "$loaded" -eq "$tried" ] && ok "$loaded/$tried photos load without a referrer" \
+              || warn "$loaded/$tried photos load without a referrer (the others fall back to the lettered cover)"
+          fi
+
+          # 4. Search engines: sitemap and robots.txt on the public address
+          sitemap="$(get -f "$URL/sitemap.xml" || true)"
+          n="$(printf '%s' "$sitemap" | grep -c '<loc>' || true)"
+          echo "$sitemap" | grep -q "<loc>$URL/stories/" && ok "sitemap.xml lists $n pages on $URL" \
+            || bad "sitemap.xml does not list stories on $URL (first: $(echo "$sitemap" | grep -o '<loc>[^<]*' | head -1))"
+          robots="$(get -f "$URL/robots.txt" || true)"
+          echo "$robots" | grep -qi "^Sitemap: $URL/sitemap.xml" && ok "robots.txt points at $URL/sitemap.xml" \
+            || bad "robots.txt does not point at $URL/sitemap.xml: $(echo "$robots" | grep -i sitemap)"
+
+          # 5. Link previews in chat apps
+          id="$(echo "$stories" | jq -r '.items[0].id // empty')"
+          if [ -n "$id" ]; then
+            preview="$(get -A 'WhatsApp/2.24.1 A' "$URL/stories/$id" || true)"
+            title="$(echo "$preview" | grep -o '<meta property="og:title" content="[^"]*' | cut -d'"' -f4)"
+            echo "$preview" | grep -q 'property="og:image"' && [ -n "$title" ] \
+              && ok "WhatsApp preview of /stories/$id: \"$title\"" || bad "No link preview for /stories/$id"
+          fi
+
+          # 6. Corrections and removal: the contact the About page shows
+          found=0
+          for chunk in $(grep -o 'assets/[A-Za-z0-9_.-]*\.js' /tmp/index.html | sort -u); do
+            get -f "$URL/$chunk" > /tmp/entry.js || continue
+            for lazy in $(grep -o '[A-Za-z]*\(Info\|About\)[A-Za-z]*-[A-Za-z0-9_-]*\.js' /tmp/entry.js | sort -u); do
+              get -f "$URL/assets/$lazy" | grep -q 'mailto:\|https://[^"]*contact\|https://[^"]*forms' && found=1
+            done
+          done
+          [ "$found" = 1 ] && ok "A contact for corrections is set (VITE_CONTACT_URL)" \
+            || warn "No contact for corrections found in the About page (set VITE_CONTACT_URL in Vercel and redeploy)"
+
+          # 7. What must stay closed
+          metrics="$(get "$URL/metrics" || true)"
+          echo "$metrics" | grep -q '^# HELP' && bad "/metrics is public" || ok "/metrics is not public"
+          code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$URL/api/v1/admin/runs")"
+          [ "$code" != "200" ] && ok "Admin API refuses a request without a token ($code)" || bad "Admin API answered 200 without a token"
+
+          exit "$failed"
