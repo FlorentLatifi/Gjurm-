@@ -158,6 +158,23 @@ def test_identical_content_is_served_from_cache(db, settings) -> None:
         )
 
 
+def test_low_confidence_counts_a_model_not_the_keyword_rules(db, settings) -> None:
+    """The keyword rules are unsure by design and say so on the page; the check is for a model."""
+    from gjurme.quality.checks import check_low_confidence
+
+    ids = _articles(db, 4)
+    run_enrichment(db, settings, FakeProvider(), article_ids=ids[:2])
+    with db() as s:
+        rules_only = check_low_confidence(s)
+    assert rules_only.status == "pass" and rules_only.details["rule_based"] == 2
+    unsure = {**GOOD, "confidence": 0.2}
+    run_enrichment(db, settings, ScriptedProvider([unsure]), article_ids=ids[2:])
+    with db() as s:
+        result = check_low_confidence(s)
+    assert (result.status, result.observed) == ("warn", 1.0)
+    assert result.details == {"low_confidence": 2, "enriched": 2, "rule_based": 2}
+
+
 def test_invalid_output_recorded_and_retried_later(db, settings) -> None:
     [aid] = _articles(db, 1)
     stats = run_enrichment(db, settings, ScriptedProvider(["{not json"]))

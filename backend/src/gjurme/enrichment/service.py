@@ -215,25 +215,53 @@ def load_queue(
     return items
 
 
-def find_cached(session: Session, ihash: str, model: str, article_id: int) -> Enrichment | None:
-    """Reuse another article's result for identical input (syndicated copies).
+@dataclass(frozen=True, slots=True)
+class CachedResult:
+    """A stored result another article with identical input can reuse."""
+
+    id: int
+    article_id: int
+    output: dict[str, Any]
+
+
+class ResultCache:
+    """Results to reuse for identical input (syndicated copies), loaded once per run.
 
     An article's *own* earlier results are excluded: re-queueing an article means "analyse it
     again" (e.g. a suspected bad output), which a cache hit would silently turn into a no-op.
+    One query for the whole queue instead of one per article: from a runner far from the
+    database every query is a round trip (ADR-027). Results stored during the run are added,
+    so the second copy of a story syndicated twice in one run still reuses the first.
     """
-    return session.scalar(
-        select(Enrichment)
-        .where(
-            Enrichment.article_id != article_id,
-            Enrichment.input_hash == ihash,
-            Enrichment.prompt_version == PROMPT_VERSION,
-            Enrichment.model == model,
-            Enrichment.status.in_(("succeeded", "cached")),
-            Enrichment.output.is_not(None),
+
+    def __init__(self, session: Session, hashes: Iterable[str], model: str) -> None:
+        self._by_hash: dict[str, list[CachedResult]] = {}
+        wanted = list(set(hashes))
+        if not wanted:
+            return
+        rows = session.execute(
+            select(Enrichment.id, Enrichment.article_id, Enrichment.input_hash, Enrichment.output)
+            .where(
+                Enrichment.input_hash.in_(wanted),
+                Enrichment.prompt_version == PROMPT_VERSION,
+                Enrichment.model == model,
+                Enrichment.status.in_(("succeeded", "cached")),
+                Enrichment.output.is_not(None),
+            )
+            .order_by(Enrichment.id)
         )
-        .order_by(Enrichment.id.desc())
-        .limit(1)
-    )
+        for r in rows:
+            self.add(r.input_hash, CachedResult(r.id, r.article_id, r.output))
+
+    def add(self, ihash: str, result: CachedResult) -> None:
+        self._by_hash.setdefault(ihash, []).append(result)
+
+    def find(self, ihash: str, article_id: int) -> CachedResult | None:
+        """The newest result for this input from another article."""
+        for result in reversed(self._by_hash.get(ihash, [])):
+            if result.article_id != article_id:
+                return result
+        return None
 
 
 # ---------------------------------------------------------------------------------------------
@@ -308,28 +336,36 @@ def _upsert_entities(session: Session, output: EnrichmentOutput) -> list[int]:
             wanted.setdefault((ent.type, key), ent.name)
     if not wanted:
         return []
-    stmt = (
+    # One round trip: insert the new names, and read the ids of new and existing ones together.
+    rows = [{"type": t, "normalized_key": k, "name": n} for (t, k), n in wanted.items()]
+    inserted = (
         insert(Entity)
-        .values([{"type": t, "normalized_key": k, "name": n} for (t, k), n in wanted.items()])
+        .values(rows)
         .on_conflict_do_nothing(index_elements=[Entity.type, Entity.normalized_key])
+        .returning(Entity.id, Entity.type, Entity.normalized_key)
+        .cte("inserted")
     )
-    session.execute(stmt)
-    rows = session.execute(
-        select(Entity.id, Entity.type, Entity.normalized_key).where(
-            Entity.normalized_key.in_([k for _, k in wanted]),
-            Entity.type.in_({t for t, _ in wanted}),
-        )
+    existing = select(Entity.id, Entity.type, Entity.normalized_key).where(
+        Entity.normalized_key.in_([k for _, k in wanted]),
+        Entity.type.in_({t for t, _ in wanted}),
     )
-    return [r.id for r in rows if (r.type, r.normalized_key) in wanted]
+    found = session.execute(
+        select(inserted.c.id, inserted.c.type, inserted.c.normalized_key).union(existing)
+    )
+    return sorted({r.id for r in found if (r.type, r.normalized_key) in wanted})
 
 
-def apply_output(session: Session, article_id: int, output: EnrichmentOutput) -> None:
+def apply_output(
+    session: Session, article_id: int, output: EnrichmentOutput, *, attempts: int | None = None
+) -> None:
     """Make ``output`` the article's current analysis (denormalized fields + bridges)."""
     now = datetime.now(UTC)
+    counted = {} if attempts is None else {"enrichment_attempts": attempts}
     published_date = session.execute(
         update(Article)
         .where(Article.id == article_id)
         .values(
+            **counted,
             enrichment_status="succeeded",
             enriched_at=now,
             primary_topic_id=TOPIC_BY_SLUG[output.primary_topic].id,
@@ -386,8 +422,9 @@ def persist_outcome(
     run_id: int | None,
     provider_name: str,
     max_attempts: int,
-    cached_from: Enrichment | None = None,
-) -> None:
+    cached_from: CachedResult | None = None,
+) -> int | None:
+    """Store a call's outcome; the stored result's id when it succeeded."""
     item = outcome.item
     attempt = item.attempts + 1
     success = outcome.status in ("succeeded", "cached") and outcome.output is not None
@@ -397,59 +434,55 @@ def persist_outcome(
             .where(Enrichment.article_id == item.article_id, Enrichment.is_current.is_(True))
             .values(is_current=False)
         )
-    session.add(
-        Enrichment(
-            article_id=item.article_id,
-            run_id=run_id,
-            provider=provider_name,
-            model=outcome.model,
-            prompt_version=PROMPT_VERSION,
-            schema_version=SCHEMA_VERSION,
-            status=outcome.status,
-            attempt=attempt,
-            input_hash=item.input_hash,
-            input_tokens=outcome.usage.input_tokens,
-            output_tokens=outcome.usage.output_tokens,
-            cache_read_tokens=outcome.usage.cache_read_tokens,
-            cache_write_tokens=outcome.usage.cache_write_tokens,
-            cost_usd=outcome.cost,
-            latency_ms=outcome.latency_ms,
-            request_id=outcome.request_id,
-            output=outcome.output.model_dump() if outcome.output else None,
-            raw_response=None if success else (outcome.raw_text or "")[:RAW_RESPONSE_MAX] or None,
-            error=outcome.error,
-            quality_flags=(
-                {**outcome.flags, "cached_from": cached_from.id} if cached_from else outcome.flags
-            )
-            or None,
-            is_current=success,
+    row = Enrichment(
+        article_id=item.article_id,
+        run_id=run_id,
+        provider=provider_name,
+        model=outcome.model,
+        prompt_version=PROMPT_VERSION,
+        schema_version=SCHEMA_VERSION,
+        status=outcome.status,
+        attempt=attempt,
+        input_hash=item.input_hash,
+        input_tokens=outcome.usage.input_tokens,
+        output_tokens=outcome.usage.output_tokens,
+        cache_read_tokens=outcome.usage.cache_read_tokens,
+        cache_write_tokens=outcome.usage.cache_write_tokens,
+        cost_usd=outcome.cost,
+        latency_ms=outcome.latency_ms,
+        request_id=outcome.request_id,
+        output=outcome.output.model_dump() if outcome.output else None,
+        raw_response=None if success else (outcome.raw_text or "")[:RAW_RESPONSE_MAX] or None,
+        error=outcome.error,
+        quality_flags=(
+            {**outcome.flags, "cached_from": cached_from.id} if cached_from else outcome.flags
         )
+        or None,
+        is_current=success,
     )
+    session.add(row)
     if success:
         assert outcome.output is not None
-        apply_output(session, item.article_id, outcome.output)
-        session.execute(
-            update(Article).where(Article.id == item.article_id).values(enrichment_attempts=attempt)
-        )
-    elif outcome.fatal:
+        apply_output(session, item.article_id, outcome.output, attempts=attempt)
+        session.flush()
+        return row.id
+    if outcome.fatal:
         # Configuration problem (bad key, unknown model): not the article's fault — leave it
         # queued without consuming one of its attempts.
-        return
-    else:
-        # refused → never retry; otherwise retry until attempts are exhausted
-        terminal = outcome.status == "refused"
-        session.execute(
-            update(Article)
-            .where(Article.id == item.article_id)
-            .values(
-                enrichment_attempts=attempt, enrichment_status="skipped" if terminal else "failed"
-            )
+        return None
+    # refused → never retry; otherwise retry until attempts are exhausted
+    terminal = outcome.status == "refused"
+    session.execute(
+        update(Article)
+        .where(Article.id == item.article_id)
+        .values(enrichment_attempts=attempt, enrichment_status="skipped" if terminal else "failed")
+    )
+    if attempt >= max_attempts and not terminal:
+        log.warning(
+            "article exhausted enrichment attempts",
+            extra={"article_id": item.article_id, "error": outcome.error},
         )
-        if attempt >= max_attempts and not terminal:
-            log.warning(
-                "article exhausted enrichment attempts",
-                extra={"article_id": item.article_id, "error": outcome.error},
-            )
+    return None
 
 
 # ---------------------------------------------------------------------------------------------
@@ -477,6 +510,7 @@ def run_enrichment(
             return stats
         queue = load_queue(session, settings, provider.model, article_ids)
         stats.spent_today_usd = spent_today(session)
+        cache = ResultCache(session, (item.input_hash for item in queue), provider.model)
     stats.queued = len(queue)
     if not queue:
         return stats
@@ -496,18 +530,23 @@ def run_enrichment(
     # calls of a run would each pay a cache write; sent first and alone, one call writes it.
     warm_cache = provider.name == "anthropic"
 
-    def record(outcome: CallOutcome, cached_from: Enrichment | None = None) -> None:
+    def record(outcome: CallOutcome, cached_from: CachedResult | None = None) -> None:
         nonlocal consecutive_failures
         for retry in (False, True):
             try:
                 with session_factory() as s, s.begin():
-                    persist_outcome(
+                    stored = persist_outcome(
                         s,
                         outcome,
                         run_id=run_id,
                         provider_name=provider.name,
                         max_attempts=settings.enrich_max_attempts,
                         cached_from=cached_from,
+                    )
+                if stored is not None and outcome.output is not None:
+                    cache.add(
+                        outcome.item.input_hash,
+                        CachedResult(stored, outcome.item.article_id, outcome.output.model_dump()),
                     )
                 break
             except IntegrityError:
@@ -556,9 +595,8 @@ def run_enrichment(
                 if item is None:
                     stop_dispatch = True
                     break
-                with session_factory() as s:
-                    cached = find_cached(s, item.input_hash, provider.model, item.article_id)
-                if cached is not None and cached.output is not None:
+                cached = cache.find(item.input_hash, item.article_id)
+                if cached is not None:
                     out = EnrichmentOutput.model_validate(cached.output)
                     record(
                         CallOutcome(

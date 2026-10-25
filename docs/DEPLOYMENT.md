@@ -46,8 +46,8 @@ Added in October 2026 for owners who cannot open an Oracle account ([ADR-027](DE
 | `web` (Caddy: static site, HTTPS, security headers, crawler previews, sitemap) | Vercel's CDN and `vercel.json` (the same headers and routing; a test keeps them equal to the Caddyfile) |
 | `api` | one Vercel Python function, `api/index.py` → `gjurme.api.serverless` |
 | `db` | Neon, free plan, region AWS us-east-1 (next to Vercel's `iad1` and GitHub's runners) |
-| `migrate`, `scheduler` | `.github/workflows/free-hosting.yml`: every 30 minutes `gjurme db upgrade` + `gjurme scheduler --once` (one tick: feeds, analysis, stories, quality checks, daily retention) |
-| `backup` | the same workflow, Sundays: `pg_dump` (the server's own major version), encrypted with `BACKUP_PASSPHRASE`, kept 35 days as an artifact |
+| `migrate`, `scheduler` | `.github/workflows/free-hosting.yml`, started every 30 minutes by an outside cron (cron-job.org calling `workflow_dispatch`; GitHub's own schedule is the fallback): `gjurme db upgrade` + `gjurme scheduler --once` (one tick: feeds, analysis, stories, quality checks, daily retention) |
+| `backup` | the same workflow, with the first run once the newest backup is 7 days old: `pg_dump` (the server's own major version), encrypted with `BACKUP_PASSPHRASE`, kept 35 days as an artifact |
 
 **Setup, in short 👤 owner.**
 
@@ -55,10 +55,11 @@ Added in October 2026 for owners who cannot open an Oracle account ([ADR-027](DE
 2. GitHub repository secrets `DATABASE_URL` (that string) and `BACKUP_PASSPHRASE`; repository variable `FREE_HOSTING=true`; run *Actions → Free hosting → Run workflow* once.
 3. Vercel (Hobby): import the repository; keep the framework preset *Other* and the root `./` (`vercel.json` holds the build); add the environment variable `DATABASE_URL`; deploy.
 4. Variable `PUBLIC_URL=https://<project>.vercel.app` turns on the uptime monitor. Optional: secrets `HEALTHCHECK_PING_URL`, `ANTHROPIC_API_KEY`, `ALERT_WEBHOOK_URL`; Vercel variable `VITE_CONTACT_URL`.
+5. **The clock.** A fine-grained token with *Actions: read and write* on this repository only, and a cron-job.org job that POSTs `{"ref":"<default branch>","inputs":{"task":"pipeline"}}` to `https://api.github.com/repos/<owner>/<repo>/actions/workflows/free-hosting.yml/dispatches` every 30 minutes (NISJA.md, B9). Without it the cadence is whatever GitHub's scheduler grants: every 2 to 5 hours in October 2026.
 
 **What the function does differently.** `gjurme.api.serverless.serverless_defaults` sets what the dashboard need not: `GJURME_ENV=production`, the production domain (`VERCEL_PROJECT_PRODUCTION_URL`) as `PUBLIC_BASE_URL` and CORS origin, `TRUST_PROXY_HEADERS=true` (Vercel overwrites `X-Forwarded-For`), a pool of 1 + 2 connections per instance, and `CDN_CACHE_SECONDS=300`: public API answers and the sitemap carry `CDN-Cache-Control`, so Vercel's CDN serves repeat requests for five minutes without calling the function or waking the database. Link-preview pages never do: a crawler's preview and a reader's app share the URL `/stories/{id}`, and a cache keyed by URL must never hold the preview. Without `ADMIN_API_TOKEN` in Vercel's environment the admin API is closed (a random token nobody knows). `vercel.json` sends the requested path along as `?__path=`, so the app sees the original path whichever path Vercel hands the function. If `DATABASE_URL_UNPOOLED` is set (the Neon integration sets it next to a pooled `DATABASE_URL`), it wins: the pipeline's advisory lock and the session settings need a direct connection. The front end takes its public URL from the same Vercel variable at build time (robots.txt, og:image, canonical and shared links).
 
-**Not available without a server:** Prometheus `/metrics`, the weekly restore test of the backup, and the scheduler's 15-minute cadence (30 minutes here; GitHub may start a scheduled run some minutes late).
+**Not available without a server:** Prometheus `/metrics`, the weekly restore test of the backup, and the scheduler's 15-minute cadence (30 minutes here, kept by the outside cron; a run from a GitHub runner talks to Neon over ~100 ms round trips, so a tick takes 1 to 4 minutes, longer after a gap).
 
 ### Limits and what to watch
 

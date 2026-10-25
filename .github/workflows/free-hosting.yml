@@ -7,6 +7,12 @@
 # It does nothing until the repository variable FREE_HOSTING is "true" and the DATABASE_URL
 # secret is set (docs/NISJA.md, part B). On a server, leave FREE_HOSTING unset: the server's
 # scheduler does this work.
+#
+# GitHub starts scheduled runs late, or not at all, when it is busy: in October 2026 the
+# 30-minute schedule ran every 2 to 5 hours, and the weekly backup not at all. The reliable
+# clock is an outside one: a free cron service starts this workflow every 30 minutes through
+# the API (workflow_dispatch; docs/NISJA.md, B9). The schedule stays as a fallback, and the
+# backup and the keep-alive run with any pipeline run once they are due.
 name: Free hosting
 
 on:
@@ -100,12 +106,14 @@ jobs:
           fi
           uv run gjurme scheduler --once
 
+  # A backup a week, whatever starts the workflow: it runs when asked for, or when the newest
+  # backup artifact is older than 7 days.
   backup:
-    if: >-
-      vars.FREE_HOSTING == 'true' &&
-      (github.event.schedule == '23 2 * * 0' || inputs.task == 'backup')
+    if: vars.FREE_HOSTING == 'true' && github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      actions: read
     concurrency:
       group: free-hosting-backup
       cancel-in-progress: false
@@ -113,7 +121,22 @@ jobs:
       run:
         shell: bash # pipefail, <(...)
     steps:
+      - name: Is a backup due?
+        id: due
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASKED: ${{ inputs.task == 'backup' }}
+        run: |
+          newest="$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
+            --jq '[.artifacts[] | select(.name | startswith("gjurme-")) | select(.expired | not)
+                   | .created_at] | max // ""')"
+          echo "newest backup: ${newest:-none}"
+          if [ "$ASKED" = true ] || [ -z "$newest" ] ||
+             [ "$(date -d "$newest" +%s)" -lt "$(date -d '7 days ago' +%s)" ]; then
+            echo "due=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Dump the database and encrypt it
+        if: steps.due.outputs.due == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
@@ -136,6 +159,7 @@ jobs:
           echo "NAME=$name" >> "$GITHUB_ENV"
           ls -lh "$name"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: steps.due.outputs.due == 'true'
         with:
           name: ${{ env.NAME }}
           path: ${{ env.NAME }}
@@ -143,9 +167,9 @@ jobs:
           compression-level: 0 # already compressed and encrypted
 
   # In a public repository GitHub turns scheduled workflows off after 60 days without activity.
-  # Re-enabling the workflow resets that clock, so do it every week.
+  # Re-enabling the workflow resets that clock; it costs one API call, so every run does it.
   keepalive:
-    if: vars.FREE_HOSTING == 'true' && github.event.schedule == '23 2 * * 0'
+    if: vars.FREE_HOSTING == 'true' && github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
