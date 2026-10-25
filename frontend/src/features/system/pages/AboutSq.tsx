@@ -104,6 +104,13 @@ export function AboutSq({ topics, status }: AboutProps) {
           për <em>median</em>, kurrë për një artikull të vetëm. GJURMË shfaq vetëm vlerësime që
           mbështeten në një shqyrtim të dokumentuar dhe e tregon bazën e tyre në faqen e medias. Deri
           atëherë media shfaqet <em>pa vlerësim</em> (një segment me viza në çdo shirit).</li>
+        <li>Në Kosovë dhe Shqipëri shkalla e këndvështrimit mat afërsinë me dy kampet politike:
+          <em> majtas</em> janë Vetëvendosje (Kosovë) dhe Partia Socialiste (Shqipëri), <em>djathtas</em>
+          janë PDK, LDK dhe AAK (Kosovë) dhe Partia Demokratike (Shqipëri). Një media anon vetëm kur të
+          paktën dy shenja përputhen — lidhjet e dokumentuara të pronarëve, mënyra si i shkruan vetë
+          titujt dhe sa hapësirë i jep secilit kamp. Shqyrtimi i parë (tetor 2026) i vlerësoi 16 nga 19
+          mediat në qendër, dy që anojnë majtas dhe një që anon djathtas; provat për secilën janë te 
+          <a href="https://github.com/FlorentLatifi/Gjurm-/blob/claude/gallant-franklin-2uhex2/docs/RATINGS.md">shqyrtimi i vlerësimeve</a>.</li>
         <li><strong>Pronësia</strong> (kompani private, grup mediatik, transmetues publik, media
           publike ndërkombëtare, jofitimprurëse …) merret nga informacioni publik për botuesin.</li>
         <li>Ngjyrat ndjekin Ground News — bordo për të majtën, gri e çelët për qendrën, blu e errët për
