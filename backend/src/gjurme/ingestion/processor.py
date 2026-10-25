@@ -200,12 +200,9 @@ def _find_same_source_title_dup(session: Session, source_id: int, cand: Candidat
 
 
 def _find_cross_source_near_dup(session: Session, source_id: int, cand: Candidate) -> int | None:
+    """Needs the similarity threshold set in the transaction (``_set_near_dup_threshold``)."""
     if len(cand.title_normalized.split()) < NEAR_DUP_MIN_WORDS:
         return None
-    session.execute(
-        text("SELECT set_config('pg_trgm.similarity_threshold', :t, true)"),
-        {"t": str(NEAR_DUP_SIMILARITY)},
-    )
     rows = session.execute(
         select(Article.id, Article.duplicate_of_id, Article.title_normalized)
         .where(
@@ -225,6 +222,15 @@ def _find_cross_source_near_dup(session: Session, source_id: int, cand: Candidat
         if is_near_verbatim(row.title_normalized, cand.title_normalized):
             return int(row.duplicate_of_id or row.id)
     return None
+
+
+def _set_near_dup_threshold(session: Session) -> None:
+    """The ``%`` operator's threshold, for the rest of the transaction: once per batch, not per
+    item, since from a runner far from the database every statement is a round trip."""
+    session.execute(
+        text("SELECT set_config('pg_trgm.similarity_threshold', :t, true)"),
+        {"t": str(NEAR_DUP_SIMILARITY)},
+    )
 
 
 def _local_date(dt: datetime, tz: ZoneInfo) -> Any:
@@ -343,6 +349,7 @@ def process_pending(
         )
         if not items:
             break
+        _set_near_dup_threshold(session)
         for item in items:
             source = sources[item.source_id]
             try:

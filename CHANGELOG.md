@@ -4,6 +4,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Fixed
+- **News every 30 minutes on the free path** ([ADR-029](docs/DECISIONS.md#adr-029-an-outside-clock-for-the-free-pipeline)). GitHub had started the 30-minute schedule every 2 to 5 hours and skipped the weekly backup. An outside cron (cron-job.org) now starts the workflow, with steps in [NISJA.md, B9](docs/NISJA.md#b9-ora-e-saktë-cron-joborg--e-domosdoshme). The backup runs with the first run once the newest is 7 days old. The analysis and processing stages need a third and an eighth fewer database round trips per article.
+
 ### Changed
 - **The Ground News look** ([ADR-028](docs/DECISIONS.md#adr-028-the-ground-news-look)), from the owner's screenshots of Ground News:
   - **Chrome.** A tan promo strip and a dark top strip with the theme, language, date and an edition picker. The masthead has a menu, a condensed word mark, Home / For you / Blindspot / Topics, a search box and two buttons, with trending chips under it.
