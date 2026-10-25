@@ -112,6 +112,8 @@ class Source(Base):
     ownership: Mapped[str] = mapped_column(String(24), server_default=text("'unknown'"))
     owner: Mapped[str | None] = mapped_column(Text)
     ratings_note: Mapped[str | None] = mapped_column(Text)
+    # False when the outlet asked for its photos not to be shown (ADR-030)
+    show_images: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now(), onupdate=func.now())
 
@@ -269,6 +271,8 @@ class Article(Base):
     countries: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
     summary_en: Mapped[str | None] = mapped_column(Text)
     summary_sq: Mapped[str | None] = mapped_column(Text)  # prompt v1.2 and later
+    # the photo the outlet put in its own feed entry: its address only, never a copy (ADR-030)
+    image_url: Mapped[str | None] = mapped_column(Text)
     enrichment_confidence: Mapped[float | None] = mapped_column(Numeric(4, 3))
     # --- moderation / takedown ---
     is_hidden: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))

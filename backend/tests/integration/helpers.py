@@ -31,7 +31,8 @@ def add_source(
 
 
 def rss(items: list[dict[str, str]], title: str = "Feed") -> bytes:
-    """Minimal RSS 2.0 document; each item dict may have title/link/guid/pubDate/description."""
+    """Minimal RSS 2.0 document; each item dict may have title/link/guid/pubDate/description,
+    and ``image``, given as an image enclosure."""
     parts = [
         f'<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>{title}</title>'
     ]
@@ -40,6 +41,8 @@ def rss(items: list[dict[str, str]], title: str = "Feed") -> bytes:
         for tag in ("title", "link", "guid", "pubDate", "description"):
             if it.get(tag) is not None:
                 parts.append(f"<{tag}><![CDATA[{it[tag]}]]></{tag}>")
+        if it.get("image"):
+            parts.append(f'<enclosure url="{it["image"]}" type="image/jpeg" length="1"/>')
         parts.append("</item>")
     parts.append("</channel></rss>")
     return "".join(parts).encode("utf-8")

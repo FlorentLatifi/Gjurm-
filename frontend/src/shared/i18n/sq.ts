@@ -614,6 +614,7 @@ export const sq: Record<string, string> = {
   Distribution: "Shpërndarja",
   "{share} of the sources are {side}": "{share} e mediave: {side}",
   "Published {when}": "Publikuar {when}",
+  "Photo:": "Foto:",
   "Coverage from": "Mbulimi nga",
   "Compare headlines": "Krahaso titujt",
   "Bias distribution": "Shpërndarja sipas këndvështrimit",

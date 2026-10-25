@@ -15,7 +15,7 @@ Short records of the decisions that shape the system: context, the decision, and
 
 ## ADR-003: Store metadata and derived data only
 **Context.** Publisher terms vary and were not reviewed by a lawyer; no legal claims are made.
-**Decision.** Store title, URL, dates, author and categories. Use the feed excerpt only as LLM input: it is never exposed and is purged after 90 days. Publish only our own derived data (topics, entities, tone, a one-sentence English summary) with a link to the original. No page scraping, no images. Polite fetching (robots.txt, conditional GET, identifying User-Agent). A working takedown path.
+**Decision.** Store title, URL, dates, author and categories. Use the feed excerpt only as LLM input: it is never exposed and is purged after 90 days. Publish only our own derived data (topics, entities, tone, a one-sentence English summary) with a link to the original. No page scraping, no images (amended by ADR-030: the feed's own photo is shown, hotlinked). Polite fetching (robots.txt, conditional GET, identifying User-Agent). A working takedown path.
 **Consequences.** The product cannot show article text. Summaries are the model's own words. Sources that block automated access are excluded, not circumvented (Top Channel, Balkan Insight).
 
 ## ADR-004: No queue, no orchestrator
@@ -177,7 +177,7 @@ Short records of the decisions that shape the system: context, the decision, and
   - a distribution of the outlets in one pill-shaped column per side, with the unrated ones apart.
 - **Type is one heavy system sans:** Newsreader is gone (38 KB of font no longer downloaded).
 - **Perspective colours are Ground News' maroon / light neutral / navy,** validated in both themes. The poles pass every check. The neutral midpoint fails only the categorical lightness and chroma checks, as a diverging midpoint should, and every bar prints its shares.
-- **No images.** ADR-003 still holds: GJURMË shows no publisher images. Where Ground News has a photo there is a dark cover lettered with the story's topic and the initials of the outlets that covered it; outlets' logos are their initials in a circle.
+- **No images** (superseded by ADR-030). ADR-003 still holds: GJURMË shows no publisher images. Where Ground News has a photo there is a dark cover lettered with the story's topic and the initials of the outlets that covered it; outlets' logos are their initials in a circle.
 **Consequences.**
 - The page reads as Ground News without copying its assets or content.
 - The layout is wider (1600 px) and the entry bundle grew by 1.2 KB. Its budget was raised by 1 KB, and the home page's by 2 KB, while 38 KB of fonts left.
@@ -199,4 +199,9 @@ Short records of the decisions that shape the system: context, the decision, and
 **Consequences.**
 - The pipeline's rhythm now depends on one more free service and one token, which expires; the guide says to renew it yearly.
 - A 30-minute tick of 40–60 articles takes 1 to 4 minutes, so Neon sleeps between runs and stays inside its compute hours.
+
+## ADR-030: The outlet's own photo, hotlinked
+**Context.** Owner feedback on the live site: every story looked the same, a dark lettered panel where readers expect a photo (ADR-028 kept ADR-003's "no images"). The outlets already publish a photo per article in their own RSS feeds (Media RSS `media:content` / `media:thumbnail`, an image enclosure, or an `<img>` in the entry), which is what feed readers and aggregators display.
+**Decision.** Keep only the *address* of the photo the outlet itself put in the feed entry (`articles.image_url`, https only, at most 1000 characters; http is upgraded) and show it from the outlet's site: never downloaded, resized, cached or stored by GJURMË. A story shows its lead article's photo, else the first one an outlet gave. The story page credits it ("Foto: <outlet>") and links the article. `referrerpolicy="no-referrer"`, `loading="lazy"`; a photo that fails to load falls back to the lettered cover. An outlet that asks for its photos not to be shown gets `images: false` in `sources.yaml` (`sources.show_images`), applied at read time to stories already stored. The CSP allows `img-src https:`. Articles stored earlier get their photo when their entry is seen again in the feed (one payload rewrite per item, then a backfill update).
+**Consequences.** Readers' browsers contact the outlets' image hosts (no referrer is sent); the privacy text says so. A photo the outlet removes or moves breaks gracefully. No storage or transfer cost on Neon beyond one URL per article. Link previews keep GJURMË's own image.
 

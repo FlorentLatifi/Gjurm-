@@ -111,7 +111,7 @@ _HEADS_SQL = """
 
 _MEMBERS_SQL = """
     SELECT a.story_id, a.id, a.title, a.url, a.published_at, a.language, a.summary_en,
-           a.summary_sq,
+           a.summary_sq, CASE WHEN s.show_images THEN a.image_url END AS image_url,
            a.sentiment_label, a.countries, a.enrichment_status,
            s.slug AS source_slug, s.name AS source_name, s.country AS source_country,
            s.bias AS source_bias, s.factuality AS source_factuality,
@@ -195,6 +195,9 @@ def _summary(
         "language": rep["language"],
         "summary_en": rep["summary_en"],
         "summary_sq": rep["summary_sq"],
+        # the lead article's photo, else the first one an outlet gave (ADR-030)
+        "image_url": rep["image_url"]
+        or next((m["image_url"] for m in members if m["image_url"]), None),
         "source_slug": rep["source_slug"],
         "source_name": rep["source_name"],
         "first_published_at": agg["first_at"],
@@ -370,6 +373,7 @@ def story_detail(session: Session, story_id: int) -> dict[str, Any] | None:
             "language": m["language"],
             "summary_en": m["summary_en"],
             "summary_sq": m["summary_sq"],
+            "image_url": m["image_url"],
             "sentiment_label": m["sentiment_label"],
             "source_slug": m["source_slug"],
             "source_name": m["source_name"],
