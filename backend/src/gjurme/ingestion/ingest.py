@@ -18,7 +18,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_, case, or_, select, tuple_
+from sqlalchemy import and_, case, or_, select, text, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -93,6 +93,18 @@ class _SourceSnapshot:
     etag: str | None
     last_modified: str | None
     is_active: bool  # False: an auto-disabled source fetched again to see if it recovered
+
+
+# Articles already stored take the photo their unchanged feed entry now carries (ADR-030).
+_BACKFILL_IMAGES = text(
+    """
+    UPDATE core.articles a SET image_url = fi.payload->>'image'
+    FROM raw.feed_items fi
+    WHERE fi.source_id = :source_id AND fi.item_key = ANY(:keys) AND fi.article_id = a.id
+      AND a.source_id = fi.source_id AND a.image_url IS NULL
+      AND fi.payload->>'image' LIKE 'https://%'
+    """
+)
 
 
 def _prepare_items(entries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -210,17 +222,26 @@ def store_fetch_result(
                 )
             stmt = insert(FeedItem).values(rows)
             changed = FeedItem.content_hash != stmt.excluded.content_hash
+            # an item stored before photos were kept takes the new payload once, for its photo
+            gained_image = and_(
+                FeedItem.payload["image"].astext.is_(None),
+                stmt.excluded.payload["image"].astext.is_not(None),
+            )
             stmt = stmt.on_conflict_do_update(
                 index_elements=[FeedItem.source_id, FeedItem.item_key],
                 set_={
                     "last_seen_at": stmt.excluded.last_seen_at,
-                    "payload": case((changed, stmt.excluded.payload), else_=FeedItem.payload),
+                    "payload": case(
+                        (or_(changed, gained_image), stmt.excluded.payload),
+                        else_=FeedItem.payload,
+                    ),
                     "content_hash": stmt.excluded.content_hash,
                     "processed_at": case((changed, None), else_=FeedItem.processed_at),
                     "process_status": case((changed, "pending"), else_=FeedItem.process_status),
                 },
             )
             session.execute(stmt)
+            session.execute(_BACKFILL_IMAGES, {"source_id": source.id, "keys": list(prepared)})
     fetch.items_seen = stats.items_seen
     fetch.items_new = stats.items_new
     fetch.items_changed = stats.items_changed

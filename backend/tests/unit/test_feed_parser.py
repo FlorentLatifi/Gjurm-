@@ -57,3 +57,58 @@ def test_feed_autodiscovery() -> None:
     assert "https://portali.example.com/atom.xml" in urls
     assert "https://portali.example.com/rss/lajme" in urls
     assert "https://portali.example.com/kontakt" not in urls
+
+
+def _feed(item: str) -> bytes:
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"
+     xmlns:content="http://purl.org/rss/1.0/modules/content/">
+<channel><title>T</title><link>https://news.example/</link>
+<item><title>Lajm</title><link>https://news.example/a/1</link>{item}</item>
+</channel></rss>""".encode()
+
+
+def test_image_from_media_content_first() -> None:
+    parsed = parse_feed(
+        _feed(
+            '<media:content url="https://cdn.example/a.jpg" medium="image"/>'
+            '<media:thumbnail url="https://cdn.example/thumb.jpg"/>'
+        )
+    )
+    assert parsed.entries[0]["image"] == "https://cdn.example/a.jpg"
+
+
+def test_image_from_thumbnail_and_enclosure() -> None:
+    thumb = parse_feed(_feed('<media:thumbnail url="https://cdn.example/t.jpg"/>'))
+    assert thumb.entries[0]["image"] == "https://cdn.example/t.jpg"
+    enclosure = parse_feed(
+        _feed('<enclosure url="https://cdn.example/e.png" type="image/png" length="1"/>')
+    )
+    assert enclosure.entries[0]["image"] == "https://cdn.example/e.png"
+    audio = parse_feed(
+        _feed('<enclosure url="https://cdn.example/e.mp3" type="audio/mpeg" length="1"/>')
+    )
+    assert audio.entries[0]["image"] is None
+
+
+def test_image_from_entry_html_is_resolved_and_upgraded() -> None:
+    relative = parse_feed(
+        _feed('<description><![CDATA[<p><img src="/img/x.webp"> Tekst</p>]]></description>')
+    )
+    assert relative.entries[0]["image"] == "https://news.example/img/x.webp"
+    plain = parse_feed(
+        _feed(
+            '<content:encoded><![CDATA[<img src="http://news.example/y.jpg">]]></content:encoded>'
+        )
+    )
+    assert plain.entries[0]["image"] == "https://news.example/y.jpg"
+
+
+def test_no_unsafe_or_missing_image() -> None:
+    assert parse_feed(_feed("<description>Tekst</description>")).entries[0]["image"] is None
+    unsafe = parse_feed(
+        _feed('<description><![CDATA[<img src="javascript:alert(1)">]]></description>')
+    )
+    assert unsafe.entries[0]["image"] is None
+    data = parse_feed(_feed('<media:thumbnail url="data:image/png;base64,AAAA"/>'))
+    assert data.entries[0]["image"] is None

@@ -139,6 +139,21 @@ function CoverageDetails({ story, lens }: { story: StoryDetail; lens: Lens }) {
 }
 
 /** An outlet as Ground News shows it, a round logo; here its initials, linked to its profile. */
+/** The photo an outlet gave this story in its own feed, credited and linked to its article. */
+function StoryPhoto({ story }: { story: StoryDetail }) {
+  const [broken, setBroken] = useState(false);
+  const from = story.articles.find((a) => a.image_url === story.image_url);
+  if (!story.image_url || !from || broken) return null;
+  return (
+    <figure className="story-photo">
+      <img src={story.image_url} alt="" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+      <figcaption>
+        {t("Photo:")} <a href={from.url} target="_blank" rel="noopener noreferrer">{from.source_name}</a>
+      </figcaption>
+    </figure>
+  );
+}
+
 function Monogram({ src }: { src: StoryDetail["sources"][number] }) {
   return (
     <li><Link className="monogram" to={`/sources/${src.slug}`} title={src.name} aria-label={src.name}>{initials(src.name)}</Link></li>
@@ -244,6 +259,8 @@ export function StoryPage() {
             <BlindspotBadges story={s} />
           </p>
         </header>
+
+        <StoryPhoto story={s} />
 
         <div className="side-bar">
           {side && (

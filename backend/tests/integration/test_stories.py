@@ -621,6 +621,13 @@ def test_sync_writes_and_updates_ratings(session: Session) -> None:
     sync_sources(session, Registry(sources=[SourceConfig(**cfg)]))
     row = session.scalar(select(Source).where(Source.slug == "rated"))
     assert row is not None and (row.bias, row.ownership) == ("unrated", "unknown")
+    assert row.show_images
+    assert (
+        sync_sources(session, Registry(sources=[SourceConfig(**cfg, images=False)]))["updated"] == 1
+    )
+    session.refresh(row)
+    assert not row.show_images
+    sync_sources(session, Registry(sources=[SourceConfig(**cfg)]))
     rated = SourceConfig(
         **cfg, bias="center", factuality="high", ownership="private", ratings_note="Review 2026"
     )
@@ -722,6 +729,31 @@ def test_story_detail(client: TestClient, clustered: dict[str, Any]) -> None:
     assert '"excerpt"' not in resp.text and "kritikoi" not in resp.text  # excerpts never leak
     assert client.get("/api/v1/stories/999999").status_code == 404
     assert client.get("/api/v1/stories/0").status_code == 422
+
+
+def test_story_photo_is_an_outlets_own_unless_it_opted_out(
+    client: TestClient, db: sessionmaker[Session], clustered: dict[str, Any]
+) -> None:
+    story_id = clustered["budget_story"]
+    # the lead article has no photo: the first one an outlet gave stands in
+    later = clustered["budget"][2]
+    with db() as s, s.begin():
+        s.execute(
+            update(Article).where(Article.id == later).values(image_url="https://cdn.example/b.jpg")
+        )
+        owner = s.scalar(select(Article.source_id).where(Article.id == later))
+    detail = client.get(f"/api/v1/stories/{story_id}").json()
+    assert detail["image_url"] == "https://cdn.example/b.jpg"
+    shown = {a["id"]: a["image_url"] for a in detail["articles"]}
+    assert shown[later] == "https://cdn.example/b.jpg"
+    feed = client.get("/api/v1/stories", params={"days": 3}).json()["items"]
+    assert next(i for i in feed if i["id"] == story_id)["image_url"] == "https://cdn.example/b.jpg"
+    # the outlet asks for its photos not to be shown: gone at once, stored rows untouched
+    with db() as s, s.begin():
+        s.execute(update(Source).where(Source.id == owner).values(show_images=False))
+    detail = client.get(f"/api/v1/stories/{story_id}").json()
+    assert detail["image_url"] is None
+    assert all(a["image_url"] is None for a in detail["articles"])
 
 
 def test_blindspots(client: TestClient, clustered: dict[str, Any]) -> None:

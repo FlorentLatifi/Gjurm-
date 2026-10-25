@@ -37,7 +37,9 @@ function AboutEn({ topics, status }: AboutProps) {
           not included.</li>
         <li>We store the <strong>headline, link, publication time, feed categories</strong> and a short
           feed excerpt used only as input to the analysis. Excerpts are never shown and are deleted after
-          90 days. Article pages are never scraped; images are never copied.</li>
+          90 days. Article pages are never scraped. A story shows the photo an outlet put in its own
+          feed entry, loaded from the outlet's site and credited — never copied to our servers; an
+          outlet can ask for its photos not to be shown.</li>
         <li>Duplicates are removed (same link, same headline republished). Near-identical headlines from
           different outlets are kept — each outlet’s coverage counts — and linked as the same story.</li>
       </ul>

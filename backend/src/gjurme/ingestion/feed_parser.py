@@ -28,6 +28,8 @@ FEED_MIME_TYPES = (
 )
 _MAX_TAGS = 20
 _MAX_FIELD = 20_000
+_MAX_IMAGE_URL = 1000
+_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif")
 
 
 @dataclass(slots=True)
@@ -49,6 +51,61 @@ def _clip(value: Any) -> Any:
     return value
 
 
+def _image_address(value: Any, base: str | None) -> str | None:
+    """An absolute https address, or None. Relative addresses are resolved against the
+    article's own link and http is upgraded; anything else (data:, javascript:, over-long) is
+    dropped."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    url = urljoin(base or "", value.strip())
+    if url.lower().startswith("http://"):
+        url = "https://" + url[7:]  # the site's pages are https-only (img-src https:)
+    if not url.lower().startswith("https://") or len(url) > _MAX_IMAGE_URL:
+        return None
+    if any(c.isspace() or c in "\"'<>" for c in url):
+        return None
+    return url
+
+
+def _looks_like_image(url: str, mime: str, medium: str) -> bool:
+    if medium:
+        return medium == "image"
+    if mime:
+        return mime.startswith("image/")
+    return url.lower().split("?")[0].endswith(_IMAGE_EXTENSIONS)
+
+
+def entry_image(entry: Any) -> str | None:
+    """The photo the outlet attached to this entry: Media RSS content, then its thumbnail, then
+    an image enclosure, then the first ``<img>`` in the entry's own HTML (ADR-030)."""
+    base = entry.get("link")
+    for media in entry.get("media_content") or []:
+        url = _image_address(media.get("url"), base)
+        if url and _looks_like_image(
+            url, str(media.get("type") or ""), str(media.get("medium") or "")
+        ):
+            return url
+    for thumb in entry.get("media_thumbnail") or []:
+        if url := _image_address(thumb.get("url"), base):
+            return url
+    for link in [*(entry.get("enclosures") or []), *(entry.get("links") or [])]:
+        rel = str(link.get("rel") or "enclosure")
+        mime = str(link.get("type") or "")
+        url = _image_address(link.get("href") or link.get("url"), base)
+        if url and rel == "enclosure" and mime.startswith("image/"):
+            return url
+    content = entry.get("content") or []
+    html = [c.get("value") for c in content if isinstance(c, dict)]
+    html.append(entry.get("summary") or entry.get("description"))
+    for fragment in html:
+        if not isinstance(fragment, str) or "<img" not in fragment.lower():
+            continue
+        img = BeautifulSoup(fragment, "html.parser").find("img")
+        if img is not None and (url := _image_address(_attr(img, "src"), base)):
+            return url
+    return None
+
+
 def entry_to_payload(entry: Any) -> dict[str, Any]:
     """Project a feedparser entry onto a stable, JSON-serializable dict (the raw layer record)."""
     published = parse_feed_datetime(dict(entry))
@@ -68,6 +125,7 @@ def entry_to_payload(entry: Any) -> dict[str, Any]:
         "author": entry.get("author"),
         "tags": tags,
         "language": entry.get("language"),
+        "image": entry_image(entry),
     }
     return {k: _clip(v) for k, v in payload.items()}
 

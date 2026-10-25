@@ -19,6 +19,9 @@
 #   ratings_note: what the ratings are based on — required once bias or factuality is set.
 # bias and factuality are editorial judgements: set them only from a documented review, never
 # by guessing. Unrated outlets are shown as "unrated" in every coverage bar.
+#
+# images: false hides the photos this outlet puts in its feed (default true; ADR-030). Set it
+# when an outlet asks for its photos not to be shown on GJURMË.
 
 sources:
   # ------------------------------------------------------------------ verified 2026-09-24

@@ -136,7 +136,7 @@ Legal claims are **not** made here. The design follows the safer technical optio
 
 - Store **metadata only**: title, URL, source, timestamps, feed categories and author. The feed excerpt is kept **internally** as LLM input, is **never exposed** by the public API, and is purged after 90 days.
 - Publish only **our own derived data**: topics, entities, sentiment, and a one-sentence English summary written by the model. Every article links back to its original, with the source named.
-- No article-page scraping, no images, no full text.
+- No article-page scraping, no full text; images only as the feed gives them, hotlinked (ADR-030).
 - Polite fetching: identifying `User-Agent` with a contact URL, `robots.txt` checked for the feed path, conditional GET (`ETag` / `Last-Modified`), a minimum 15-minute interval, a response size cap.
 - A takedown path: the contact on the About page, plus the admin endpoint `POST /api/v1/admin/articles/{id}/hide` and `sources disable`. Both are documented in [OPERATIONS.md](OPERATIONS.md).
 - Privacy: no cookies, no analytics trackers, no user data stored. Rate-limit state is in memory only.
