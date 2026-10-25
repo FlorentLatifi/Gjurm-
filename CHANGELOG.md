@@ -5,9 +5,11 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 ## [Unreleased]
 
 ### Added
+- **Launch check** (`launch-check.yml`, daily and on demand): verifies the live site from outside: security headers, freshness, stories and their photos, sitemap and robots.txt, a WhatsApp link preview, the corrections contact, and that `/metrics` and the admin API stay closed. Results in the run summary.
 - **Photos on stories** ([ADR-030](docs/DECISIONS.md#adr-030-the-outlets-own-photo-hotlinked)). Each story shows the photo an outlet put in its own RSS entry, loaded from the outlet's site (never copied) and credited on the story page; without one, or when it fails to load, the lettered cover stays. Migration `0006` adds `articles.image_url` and `sources.show_images` (`images: false` in `sources.yaml` hides an outlet's photos). The CSP allows `img-src https:`. Migration `0007` gives articles stored earlier the photo still in their stored feed description (last 7 days); Koha's photos (`type="image"`) are recognised; `gjurme sources validate` reports each feed's photo coverage. On 2026-10-25, 12 of the 19 outlets put a photo in their feed; Kallxo, Balkanweb, Euronews Albania, Dukagjini, Indeksonline, Sinjali, Ekonomia Online and RTSH do not, so their stories show a photo only when another outlet's report has one.
 
 ### Fixed
+- **The status pill no longer turns yellow while news is being collected.** A pipeline run in progress made `/api/v1/status` read "degraded" (for 1–2 minutes of every 30, and up to 5 more through the CDN cache); health is now judged by the last finished run. The site says it collects every 30 minutes, as the free path does.
 - **News every 30 minutes on the free path** ([ADR-029](docs/DECISIONS.md#adr-029-an-outside-clock-for-the-free-pipeline)). GitHub had started the 30-minute schedule every 2 to 5 hours and skipped the weekly backup. An outside cron (cron-job.org) now starts the workflow, with steps in [NISJA.md, B9](docs/NISJA.md#b9-ora-e-saktë-cron-joborg--e-domosdoshme). The backup runs with the first run once the newest is 7 days old. The analysis and processing stages need a third and an eighth fewer database round trips per article.
 
 ### Changed

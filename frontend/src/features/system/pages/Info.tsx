@@ -32,7 +32,7 @@ function AboutEn({ topics, status }: AboutProps) {
 
       <h2>1. Collection</h2>
       <ul>
-        <li>Only public <strong>RSS feeds</strong> are read, every 15 minutes, identifying ourselves with a
+        <li>Only public <strong>RSS feeds</strong> are read, every 30 minutes, identifying ourselves with a
           clear user agent. <code>robots.txt</code> is respected; outlets that block automated access are
           not included.</li>
         <li>We store the <strong>headline, link, publication time, feed categories</strong> and a short
@@ -195,7 +195,7 @@ export function StatusPage() {
       <div className="page-head">
         <div>
           <h1>{t("System status")}</h1>
-          <p>{t("Live health of the collection pipeline. It runs automatically every 15 minutes.")}</p>
+          <p>{t("Live health of the collection pipeline. It runs automatically every 30 minutes.")}</p>
         </div>
       </div>
       <div className="stack">
