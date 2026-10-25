@@ -5578,6 +5578,18 @@
             "title": "Summary Sq",
             "description": "The summary in Albanian (prompt v1.2+)"
           },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url",
+            "description": "The photo in the outlet's own feed entry, at the outlet's address"
+          },
           "sentiment_label": {
             "anyOf": [
               {
@@ -5657,6 +5669,7 @@
           "language",
           "summary_en",
           "summary_sq",
+          "image_url",
           "sentiment_label",
           "source_slug",
           "source_name",
@@ -5710,6 +5723,18 @@
             ],
             "title": "Summary Sq",
             "description": "The summary in Albanian (prompt v1.2+)"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url",
+            "description": "The photo an outlet put in its own feed entry for this story, at the outlet's address (never copied); none when no outlet gave one or it opted out"
           },
           "source_slug": {
             "type": "string",
@@ -5838,6 +5863,7 @@
           "language",
           "summary_en",
           "summary_sq",
+          "image_url",
           "source_slug",
           "source_name",
           "first_published_at",
@@ -5939,6 +5965,18 @@
             "title": "Summary Sq",
             "description": "The summary in Albanian (prompt v1.2+)"
           },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url",
+            "description": "The photo an outlet put in its own feed entry for this story, at the outlet's address (never copied); none when no outlet gave one or it opted out"
+          },
           "source_slug": {
             "type": "string",
             "title": "Source Slug"
@@ -6037,6 +6075,7 @@
           "language",
           "summary_en",
           "summary_sq",
+          "image_url",
           "source_slug",
           "source_name",
           "first_published_at",

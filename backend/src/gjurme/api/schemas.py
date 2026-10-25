@@ -402,6 +402,11 @@ class StorySummary(Model):
     language: str
     summary_en: str | None
     summary_sq: str | None = Field(None, description="The summary in Albanian (prompt v1.2+)")
+    image_url: str | None = Field(
+        None,
+        description="The photo an outlet put in its own feed entry for this story, at the "
+        "outlet's address (never copied); none when no outlet gave one or it opted out",
+    )
     source_slug: str
     source_name: str
     first_published_at: datetime
@@ -431,6 +436,9 @@ class StoryArticle(Model):
     language: str
     summary_en: str | None
     summary_sq: str | None = Field(None, description="The summary in Albanian (prompt v1.2+)")
+    image_url: str | None = Field(
+        None, description="The photo in the outlet's own feed entry, at the outlet's address"
+    )
     sentiment_label: SentimentLabel | None
     source_slug: str
     source_name: str

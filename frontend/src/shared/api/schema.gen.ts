@@ -1512,6 +1512,11 @@ export interface components {
              * @description The summary in Albanian (prompt v1.2+)
              */
             summary_sq: string | null;
+            /**
+             * Image Url
+             * @description The photo in the outlet's own feed entry, at the outlet's address
+             */
+            image_url: string | null;
             /** Sentiment Label */
             sentiment_label: ("negative" | "neutral" | "positive") | null;
             /** Source Slug */
@@ -1561,6 +1566,11 @@ export interface components {
              * @description The summary in Albanian (prompt v1.2+)
              */
             summary_sq: string | null;
+            /**
+             * Image Url
+             * @description The photo an outlet put in its own feed entry for this story, at the outlet's address (never copied); none when no outlet gave one or it opted out
+             */
+            image_url: string | null;
             /** Source Slug */
             source_slug: string;
             /** Source Name */
@@ -1647,6 +1657,11 @@ export interface components {
              * @description The summary in Albanian (prompt v1.2+)
              */
             summary_sq: string | null;
+            /**
+             * Image Url
+             * @description The photo an outlet put in its own feed entry for this story, at the outlet's address (never copied); none when no outlet gave one or it opted out
+             */
+            image_url: string | null;
             /** Source Slug */
             source_slug: string;
             /** Source Name */

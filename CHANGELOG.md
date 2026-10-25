@@ -4,6 +4,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Added
+- **Photos on stories** ([ADR-030](docs/DECISIONS.md#adr-030-the-outlets-own-photo-hotlinked)). Each story shows the photo an outlet put in its own RSS entry, loaded from the outlet's site (never copied) and credited on the story page; without one, or when it fails to load, the lettered cover stays. Migration `0006` adds `articles.image_url` and `sources.show_images` (`images: false` in `sources.yaml` hides an outlet's photos). The CSP allows `img-src https:`.
+
 ### Fixed
 - **News every 30 minutes on the free path** ([ADR-029](docs/DECISIONS.md#adr-029-an-outside-clock-for-the-free-pipeline)). GitHub had started the 30-minute schedule every 2 to 5 hours and skipped the weekly backup. An outside cron (cron-job.org) now starts the workflow, with steps in [NISJA.md, B9](docs/NISJA.md#b9-ora-e-saktë-cron-joborg--e-domosdoshme). The backup runs with the first run once the newest is 7 days old. The analysis and processing stages need a third and an eighth fewer database round trips per article.
 
@@ -13,7 +16,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
   - **Front page.** Three columns: a daily briefing and the latest stories; the lead story large, then rows with "45% Center coverage: 6 outlets" and a cover; Blindspot cards and your own bias.
   - **Story page.** Left / Center / Right tabs with each side's headlines and "Compare headlines". A coverage-details panel, and the outlets in one column per side.
   - **Type and colour.** Headlines in one heavy system sans (38 KB of fonts gone). Perspective in Ground News' maroon / light neutral / navy, validated for colour vision in both themes.
-  - **No images.** Publisher images are still not shown (ADR-003); a dark cover lettered with the topic takes their place.
+  - **Covers.** A dark cover lettered with the topic where a story has no photo (photos: ADR-030).
 
 ### Added
 - **Nine more outlets**: Zëri, Dukagjini, Indeksonline, Lajmi.net, Sinjali, Hibrid.info and Ekonomia Online from Kosovo, RTSH and Faktoje.al from Albania (19 enabled sources). Thirteen other large outlets were checked and stay excluded, with the evidence in [SOURCES.md](docs/SOURCES.md#added-on-2026-10-21). `gjurme sources validate` now also tries the usual feed paths when neither the declared feed nor the homepage's links work. To keep the doubled volume inside Neon's free transfer, the clustering stage reads only the first words of each excerpt it uses (a quarter of the excerpt or less).
