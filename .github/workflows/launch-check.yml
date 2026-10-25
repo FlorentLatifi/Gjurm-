@@ -2,7 +2,8 @@
 # Everything a reader, a search engine or a link preview sees, plus what must stay closed:
 # security headers, freshness, stories and their photos, the sitemap and robots.txt, the link
 # preview a chat app gets, the contact for corrections, /metrics and the admin API.
-# Uses the repository variable PUBLIC_URL, else the Vercel address. Read-only: it only sends GETs.
+# Uses the repository variable PUBLIC_URL, else the Vercel address. Read-only: it only sends GETs
+# (and checks out frontend/public, to compare the search-engine verification files).
 name: Launch check
 
 on:
@@ -23,6 +24,9 @@ jobs:
     env:
       URL: ${{ vars.PUBLIC_URL || 'https://gjurm.vercel.app' }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          sparse-checkout: frontend/public
       - name: Check the live site
         run: |
           set -u
@@ -87,6 +91,13 @@ jobs:
           robots="$(get -f "$URL/robots.txt" || true)"
           echo "$robots" | grep -qi "^Sitemap: $URL/sitemap.xml" && ok "robots.txt points at $URL/sitemap.xml" \
             || bad "robots.txt does not point at $URL/sitemap.xml: $(echo "$robots" | grep -i sitemap)"
+
+          # Search engines must be able to verify the site (the file in frontend/public)
+          for f in $(ls frontend/public/google*.html 2>/dev/null); do
+            name="$(basename "$f")"
+            [ "$(get -f "$URL/$name" || true)" = "$(cat "$f")" ] && ok "Google verification file $name is served" \
+              || bad "$URL/$name does not serve the verification file (deploy pending?)"
+          done
 
           # 5. Link previews in chat apps
           id="$(echo "$stories" | jq -r '.items[0].id // empty')"
