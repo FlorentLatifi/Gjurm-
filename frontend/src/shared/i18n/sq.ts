@@ -438,8 +438,8 @@ export const sq: Record<string, string> = {
     "Si i mbledh, i analizon dhe i paraqet GJURMË të dhënat e lajmeve, dhe kufizimet e saj.",
   "Pipeline freshness and source health.": "Freskia e mbledhjes dhe gjendja e burimeve.",
   "System status": "Gjendja e sistemit",
-  "Live health of the collection pipeline. It runs automatically every 15 minutes.":
-    "Gjendja e drejtpërdrejtë e mbledhjes së lajmeve. Ajo punon automatikisht çdo 15 minuta.",
+  "Live health of the collection pipeline. It runs automatically every 30 minutes.":
+    "Gjendja e drejtpërdrejtë e mbledhjes së lajmeve. Ajo punon automatikisht çdo 30 minuta.",
   Pipeline: "Mbledhja",
   "Last successful run": "Ekzekutimi i fundit i suksesshëm",
   "Last run result": "Rezultati i ekzekutimit të fundit",
@@ -555,8 +555,8 @@ export const sq: Record<string, string> = {
   "What Albanian and Balkan media are reporting right now: topics, people, tone.":
     "Çfarë po raportojnë tani mediat shqiptare dhe ballkanike: tema, persona, ton.",
   "What the news is talking about": "Për çfarë flasin lajmet",
-  "Albanian-language and regional outlets, read every 15 minutes and analysed by AI.":
-    "Media shqipfolëse dhe rajonale, të lexuara çdo 15 minuta dhe të analizuara nga AI.",
+  "Albanian-language and regional outlets, read every 30 minutes and analysed by AI.":
+    "Media shqipfolëse dhe rajonale, të lexuara çdo 30 minuta dhe të analizuara nga AI.",
   "Showing {range}.": "Shfaqet {range}.",
   "Articles today": "Artikuj sot",
   "vs yesterday": "kundrejt dje",

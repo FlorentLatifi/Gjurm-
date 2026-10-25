@@ -4,7 +4,7 @@ import { apiGet, type Params } from "@/shared/api/client";
 
 /**
  * How long each kind of data stays fresh (docs/architecture/frontend_system.md §2). The
- * pipeline refreshes every 15 minutes and the API sends `max-age=60`.
+ * pipeline refreshes every 30 minutes and the API sends `max-age=60`.
  */
 export const FRESHNESS = {
   /** stories, story pages, blindspots, articles: new items arrive all day */

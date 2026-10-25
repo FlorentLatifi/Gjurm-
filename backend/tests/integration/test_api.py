@@ -484,6 +484,10 @@ def test_public_status_is_cached_briefly_and_reports_lost_sources(
     assert first.headers["Cache-Control"] == "public, max-age=30"
     assert c.get("/api/v1/status").json() == first.json() and len(calls) == 1
 
+    with db() as s, s.begin():  # a run in progress is not a problem
+        s.add(PipelineRun(trigger="schedule", stages=["ingest"], status="running"))
+    running = TestClient(create_app(api_settings, db)).get("/api/v1/status").json()
+    assert running["last_run_status"] == "running" and running["status"] == "ok"
     with db() as s, s.begin():  # one outlet auto-disabled after failing in a row
         s.execute(
             update(Source)

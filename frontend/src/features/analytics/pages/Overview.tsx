@@ -48,7 +48,7 @@ export default function OverviewPage() {
         <div>
           <h1>{t("What the news is talking about")}</h1>
           <p>
-            {t("Albanian-language and regional outlets, read every 15 minutes and analysed by AI.")}
+            {t("Albanian-language and regional outlets, read every 30 minutes and analysed by AI.")}
             {rangeText && <> {t("Showing {range}.", { range: rangeText })}</>}
           </p>
         </div>
