@@ -33,7 +33,11 @@ sources:
     language: sq
     country: XK
     enabled: true
-    ownership: private
+    ownership: media_group
+    owner: "Lluka family (also RTV Dukagjini)"
+    bias: center
+    factuality: high
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Headlines about the governing Vetëvendosje and the opposition PDK, LDK and AAK (sample 21–25 Oct 2026, n=19) are statement-based and give both camps a voice; no partisan tie of the owners found. Kosovo Press Council: no complaint in the 2020–21 Çohu monitoring; one complaint partly upheld in 2025 (truthfulness, right of reply). Confidence: medium. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: Verified 2026-09-24 — RSS 2.0, 30 items, title/link/date 100%. Highest-volume Kosovo portal.
 
   - slug: koha
@@ -44,7 +48,11 @@ sources:
     language: sq
     country: XK
     enabled: true
-    ownership: private
+    ownership: media_group
+    owner: "Flaka Surroi (Koha Group: KTV, Koha.net)"
+    bias: center
+    factuality: high
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Kosovo's paper of record since 1997. The owner's columns are often critical of the Kurti government, but the sampled news headlines (21–25 Oct 2026, n=33) report government and opposition alike, the opposition's internal disputes included. Founder Veton Surroi left the outlet for politics in 2004. Confidence: medium. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: Verified 2026-09-24 — 20 items, fields 100%. Kosovo newspaper of record.
 
   - slug: gazeta-express
@@ -55,7 +63,11 @@ sources:
     language: sq
     country: XK
     enabled: true
-    ownership: private
+    ownership: media_group
+    owner: "Media Works (Media A.B.C. Holding B.V.)"
+    bias: center
+    factuality: mixed
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Sampled headlines (21–25 Oct 2026, n=16) are neutral and cover all parties. Former director Berat Buzhala was a PDK member of parliament (2010–13) and the largest shareholder 2018–21; ownership has since passed to a Dutch holding linked to the ABC group (Media Ownership Monitor). Factuality mixed: among the most complained-about outlets at the Kosovo Press Council in 2020–21 (18 complaints, Çohu) and found in breach of the right of reply in an NGO Aktiv case. Confidence: low (perspective), medium (factuality). Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: Verified 2026-09-24 — 10 items (short window; frequent polling needed).
 
   - slug: kallxo
@@ -67,7 +79,10 @@ sources:
     country: XK
     enabled: true
     ownership: nonprofit
-    owner: BIRN Kosovo and Internews Kosova
+    owner: "BIRN Kosovo and Internews Kosova"
+    bias: center
+    factuality: high
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Non-profit investigative newsroom (BIRN Kosovo, Internews Kosova), donor-funded with published partners; EU Award for Investigative Journalism (2023); runs the Krypometri fact-checks. Its investigations target whichever party governs; sampled headlines (n=5) are neutral. Confidence: high. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: Verified 2026-09-24 — 11 items. BIRN Kosovo — investigative, justice, fact-checking. HTTP 403 in the 2026-10-05 check after an OK 2026-09-28 one; Gazeta Express showed the same one-off 403 on 2026-09-28, so kept enabled (20 failures in a row auto-disable it).
 
   - slug: evropa-e-lire
@@ -79,7 +94,10 @@ sources:
     country: XK
     enabled: true
     ownership: public_international
-    owner: Radio Free Europe/Radio Liberty
+    owner: "Radio Free Europe/Radio Liberty"
+    bias: center
+    factuality: high
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Albanian-language service of RFE/RL, a US-government-funded international broadcaster with a statutory editorial firewall; attributed, wire-style reporting on all parties (sample n=4). Confidence: high. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: Feed found by validator autodiscovery 2026-09-24 (20 items). RFE/RL Albanian service.
 
   # ------------------------------------------------------------------ verified 2026-09-28 + 2026-10-05
@@ -92,7 +110,10 @@ sources:
     country: AL
     enabled: true
     ownership: nonprofit
-    owner: BIRN Albania
+    owner: "BIRN Albania"
+    bias: center
+    factuality: high
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Non-profit investigative newsroom (BIRN Albania), donor-funded; watchdog reporting on those in power (e.g. the SPAK charges against Belinda Balluku) without advocacy for the opposition; one of the outlets ODIHR monitored in 2025. Confidence: high. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: Verified 2026-09-28 and 2026-10-05 — 10 items, fields 100%. BIRN Albania — investigative.
 
   - slug: euronews-albania
@@ -104,6 +125,10 @@ sources:
     country: AL
     enabled: true
     ownership: private
+    owner: "Inter Media Group (Vasil Mero 67%, Theodhor Çami 33%)"
+    bias: lean_left
+    factuality: unrated
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Lean left here means closer to the governing Socialist Party. In the sample (21–25 Oct 2026) 11 of the 15 headlines on the student protests relay Prime Minister Rama's statements and framing (\"violence by ANTIFA radicals\", \"funded by organised crime\"), against 3 for the opposition. ODIHR (2025): most Albanian outlets are perceived as aligned with the ruling party. Owners per Media Ownership Monitor. Factuality not rated: no record found. Confidence: medium. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: Verified 2026-09-28 and 2026-10-05 — 10 items, fields 100%. Albanian broadcaster.
 
   - slug: balkanweb
@@ -114,7 +139,11 @@ sources:
     language: sq
     country: AL
     enabled: true
-    ownership: private
+    ownership: media_group
+    owner: "Focus Group (Irfan Hysenbelliu; also News24, Gazeta Shqiptare)"
+    bias: lean_right
+    factuality: unrated
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Lean right here means further from the governing Socialist Party. Most of the 41 sampled headlines on Rama (21–25 Oct 2026) frame the government negatively (\"regime\", \"Rama lied\", calls for his resignation) and give prominence to opposition and protest voices; the owner's group has been in open conflict with the Rama government since 2022. Not a mouthpiece of the Democratic Party: it also runs criticism of Berisha, who attacked the group in 2026. Factuality not rated: no record found. Confidence: medium. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: Verified 2026-09-28 and 2026-10-05 — 10 items, fields 100%. Albanian news portal.
 
   - slug: portalb
@@ -126,6 +155,9 @@ sources:
     country: MK
     enabled: true
     ownership: private
+    bias: center
+    factuality: high
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Albanian-language portal in North Macedonia, founded in 2012 as a project of the Metamorphosis Foundation; publishes a Journalism Trust Initiative transparency report (2025). Sampled headlines (n=3) report the government (VMRO-DPMNE) and its critics alike. Confidence: low (small sample). Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: Verified 2026-09-28 and 2026-10-05 — 10 items, fields 100%. Albanian-language news from North Macedonia.
 
   - slug: reporteri
@@ -137,6 +169,9 @@ sources:
     country: XK
     enabled: true
     ownership: private
+    bias: center
+    factuality: unrated
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Sampled headlines (21–25 Oct 2026, n=27) give both camps a voice, opposition criticism of the Kurti government included; the owner is not publicly documented (no Media Ownership Monitor entry found). Factuality not rated: no press-council or fact-check record found. Confidence: low. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: Verified 2026-09-28 and 2026-10-05 — 21 items, fields 100%. Kosovo news portal.
 
   # ------------------------------------------------------------------ excluded (evidence)
@@ -204,7 +239,11 @@ sources:
     language: sq
     country: XK
     enabled: true
-    ownership: unknown
+    ownership: private
+    owner: "Blerim Shala"
+    bias: center
+    factuality: unrated
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Sampled headlines (n=8) are neutral. The owner and publisher, Blerim Shala, has been listed as an AAK vice-president (Kallxo biography) and later as an adviser to the president: a possible lean toward the opposition that the headlines do not show; to be re-checked at the next review. Factuality not rated: no record found. Confidence: low. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: "Verified 2026-10-21 — 10 items via the autodiscovered feed, title/link/date 100%. Kosovo daily: politics, current affairs."
 
   - slug: rtk
@@ -226,7 +265,11 @@ sources:
     language: sq
     country: XK
     enabled: true
-    ownership: unknown
+    ownership: media_group
+    owner: "Ekrem Lluka (majority; Lluka family, also Telegrafi)"
+    bias: center
+    factuality: unrated
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Sampled headlines (21–25 Oct 2026, n=26) follow the PDK leadership crisis closely, one with framing favourable to the government (\"Kurti told them on 5 October, 17 days later PDK 'understands'\"), alongside the opposition parties' criticism of each other: not enough for a lean. Factuality not rated: no record found. Confidence: low. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo broadcaster and portal."
 
   - slug: indeksonline
@@ -237,7 +280,11 @@ sources:
     language: sq
     country: XK
     enabled: true
-    ownership: unknown
+    ownership: private
+    owner: "Faton Shoshi"
+    bias: center
+    factuality: mixed
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Sampled headlines (21–25 Oct 2026, n=14) are neutral and cover both camps. Factuality mixed: the most complained-about outlet at the Kosovo Press Council in 2020–21, with 18 of 30 complaints upheld (Çohu monitoring), mostly on privacy and truthful reporting. Owner per Media Ownership Monitor. Confidence: low (perspective), medium (factuality). Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: "Verified 2026-10-21 — 11 items, title/link/date 100%. Kosovo news portal."
 
   - slug: lajmi-net
@@ -248,7 +295,10 @@ sources:
     language: sq
     country: XK
     enabled: true
-    ownership: unknown
+    ownership: private
+    bias: center
+    factuality: unrated
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Sampled headlines (21–25 Oct 2026, n=30) carry both government framing (\"Kurti had warned PDK on 5 October\") and opposition demands of Kurti (\"Gjini asks Kurti to account for the strategic dialogue\"); the owner is not publicly documented. Factuality not rated: no record found. Confidence: low. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo news portal."
 
   - slug: sinjali
@@ -259,7 +309,10 @@ sources:
     language: sq
     country: XK
     enabled: true
-    ownership: unknown
+    ownership: private
+    bias: center
+    factuality: unrated
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Sampled headlines (21–25 Oct 2026, n=12) are statement-based and include opposition criticism of the Kurti government; the owner is not publicly documented. Factuality not rated: no record found. Confidence: low. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo news portal."
 
   - slug: insajderi
@@ -303,7 +356,11 @@ sources:
     language: sq
     country: XK
     enabled: true
-    ownership: unknown
+    ownership: nonprofit
+    owner: "Action for Democratic Society (ADS)"
+    bias: center
+    factuality: very_high
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Fact-checking programme of the NGO Action for Democratic Society; assessed compliant with the IFCN Code of Principles (2021, 2023) and a verified EFCSN member; donor-funded. Debunks false claims about every side (sample: false claims about Kurti and about Rama). Confidence: high. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo fact-checking."
 
   - slug: ekonomia-online
@@ -314,7 +371,10 @@ sources:
     language: sq
     country: XK
     enabled: true
-    ownership: unknown
+    ownership: private
+    bias: center
+    factuality: unrated
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Business and economy portal; sampled political headlines (21–25 Oct 2026, n=12) are statement-based and cover both camps; the owner is not publicly documented. Factuality not rated: no record found. Confidence: low. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo business and economy."
 
   - slug: shqiptarja
@@ -359,6 +419,10 @@ sources:
     country: AL
     enabled: true
     ownership: public
+    owner: "Radio Televizioni Shqiptar (public broadcaster)"
+    bias: lean_left
+    factuality: unrated
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Lean left here means closer to the governing Socialist Party. Public broadcaster whose board appointments lack safeguards (ODIHR 2025; IPI). In the sample (21–25 Oct 2026) nearly all of the 17 headlines naming Rama relay his statements and framing (the opposition PD as \"the mother of violence\"), against 3 for the opposition leader. Factuality not rated: no record found. Confidence: medium. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Albanian public broadcaster."
 
   - slug: syri
@@ -435,5 +499,9 @@ sources:
     language: sq
     country: AL
     enabled: true
-    ownership: unknown
+    ownership: nonprofit
+    owner: "Faktoje (NGO)"
+    bias: center
+    factuality: very_high
+    ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Albania's only IFCN signatory (since 2020) and an EFCSN member; NGO funded by international donors under a published funding policy; checks statements of every party. Confidence: high. Next review 2027-01. Evidence: docs/RATINGS.md."
     notes: "Verified 2026-10-21 — 9 items, title/link/date 100%. Albanian fact-checking."
