@@ -8,10 +8,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from gjurme.config import Settings
-from gjurme.db.models import Article, FeedFetch, FeedItem, Source
+from gjurme.db.models import Article, DataQualityResult, FeedFetch, FeedItem, Source
 from gjurme.ingestion.ingest import ingest_all
 from gjurme.ingestion.processor import process_pending
-from gjurme.quality.checks import check_source_freshness
+from gjurme.quality.checks import check_source_freshness, run_checks
 from tests.conftest import feed_server, fixture_bytes
 from tests.integration.helpers import add_source, pubdate, rss
 
@@ -108,6 +108,30 @@ def test_an_outage_on_this_side_does_not_disable_the_sources(db, settings, make_
         assert all(src.is_active and src.consecutive_failures == 0 for src in sources)
         assert _count(s, FeedFetch) == 12  # the failed fetches are still logged
         assert check_source_freshness(s).status == "fail"  # but nothing is being collected
+
+
+def test_a_source_quiet_for_hours_is_reported_not_a_failed_run(db, settings, make_fetcher) -> None:
+    """Overnight an outlet can go 6 h without a successful fetch: the freshness check names it
+    (with when it last worked) and the quality stage still stores its results."""
+    with db() as s, s.begin():
+        for slug in ("aa", "bb"):
+            add_source(s, slug, f"https://{slug}.example.com/feed/")
+        quiet = s.scalar(select(Source).where(Source.slug == "aa"))
+        assert quiet is not None
+        quiet.last_success_at = datetime(2026, 10, 26, 0, 30, tzinfo=UTC)
+    with db() as s, s.begin():
+        results = {r.name: r for r in run_checks(s, None)}
+    stale = results["source_freshness_6h"].details["stale_sources"]
+    assert {
+        "slug": "aa",
+        "last_success_at": "2026-10-26T00:30:00Z",
+        "consecutive_failures": 0,
+    } in stale
+    with db() as s:
+        stored = s.scalar(
+            select(DataQualityResult).where(DataQualityResult.check_name == "source_freshness_6h")
+        )
+        assert stored is not None and stored.details["stale_sources"] == stale
 
 
 def test_an_auto_disabled_source_is_probed_again_and_recovers(db, settings, make_fetcher) -> None:
