@@ -8,6 +8,7 @@ alerts can reference concrete numbers.
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -234,7 +235,8 @@ def check_source_freshness(s: Session) -> CheckResult:
         dict(r._mapping)
         for r in s.execute(
             text("""
-            SELECT slug, last_success_at, consecutive_failures FROM core.sources
+            SELECT slug, to_char(last_success_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+                   AS last_success_at, consecutive_failures FROM core.sources
             WHERE is_active AND (last_success_at IS NULL
                                  OR last_success_at < now() - interval '6 hours')
             ORDER BY slug
@@ -456,11 +458,18 @@ def run_checks(session: Session, run_id: int | None) -> list[CheckResult]:
                 status=result.status,
                 observed=result.observed,
                 threshold=result.threshold,
-                details=result.details,
+                details=_jsonable(result.details),
             )
         )
     session.flush()
     return results
+
+
+def _jsonable(details: dict[str, Any]) -> dict[str, Any]:
+    """Details go into a JSONB column: a value JSON has no type for (a timestamp a check took
+    from SQL) becomes its text instead of failing the whole quality stage."""
+    out: dict[str, Any] = json.loads(json.dumps(details, default=str))
+    return out
 
 
 def summarize(results: list[CheckResult]) -> dict[str, Any]:
