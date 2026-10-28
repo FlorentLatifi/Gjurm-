@@ -1,0 +1,18 @@
+# Findings the CI image scan accepts in the API image (.github/workflows/ci.yml, job "images").
+# Only scanner false positives belong here, each by rule and exact path. CVEs are fixed, never
+# listed (ADR-017).
+secrets:
+  # The anthropic SDK's docstrings say that sending {"type": "service_account"} as an agent's
+  # execution identity stores the default. This rule matches that text alone; a real service-account
+  # key file has "private_key" and "client_email", and these files have neither (anthropic 1.17.0,
+  # wheel hash as in uv.lock, checked 2026-10-28). The .pyc keeps the agents.py method docstrings.
+  - id: gcp-service-account
+    statement: Docstring text in the anthropic SDK, not a credential.
+    paths:
+      - "/app/.venv/lib/python3.*/site-packages/anthropic/resources/beta/agents/agents.py"
+      - "/app/.venv/lib/python3.*/site-packages/anthropic/resources/beta/agents/__pycache__/agents.cpython-*.pyc"
+      - "/app/.venv/lib/python3.*/site-packages/anthropic/types/beta/agent_create_params.py"
+      - "/app/.venv/lib/python3.*/site-packages/anthropic/types/beta/agent_update_params.py"
+      - "/app/.venv/lib/python3.*/site-packages/anthropic/types/beta/beta_managed_agents_agent.py"
+      - "/app/.venv/lib/python3.*/site-packages/anthropic/types/beta/beta_managed_agents_session_agent.py"
+      - "/app/.venv/lib/python3.*/site-packages/anthropic/types/beta/beta_managed_agents_session_thread_agent.py"

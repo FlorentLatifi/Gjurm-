@@ -211,6 +211,8 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
+          # Scanner false positives in third-party files, each by rule and exact path; never a CVE.
+          trivyignores: ${{ matrix.component == 'api' && 'backend/.trivyignore.yaml' || '' }}
       # Log in only after the third-party scanner ran, so it never sees registry credentials.
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
