@@ -16,7 +16,7 @@ Every side of the Albanian-language news, as on Ground News: articles grouped in
 - Made the pipeline **idempotent and self-operating**: advisory-lock overlap protection, crash recovery, 15 data-quality checks per run, webhook alerting, an external uptime/freshness monitor, nightly backups with automated restore verification, and deploys with health-checked automatic rollback.
 - **Measured performance at one year of data** (365k articles, 1.09M entity mentions). Profiling with `EXPLAIN ANALYZE` led to a covering-index migration, query rewrites and a fix for PostgreSQL generic-plan regressions: entity analytics became 1.5–4.5× faster with identical results.
 - **Rebuilt the frontend by measurement**: lint-enforced layers, one query builder per page whose requests start alongside the page's code, and an editorial design system. Every change was timed on a throttled phone against the previous build, and two that looked better but measured slower were reverted. A shared story now shows its content 0.25 s sooner and layout shift fell from 0.33 to 0.002; bundle budgets and a compile-time API contract guard it in CI.
-- Wrote **300 backend tests** (109 against real PostgreSQL, including failure injection for timeouts, malformed feeds, LLM errors, budget exhaustion and crashes), **53 component tests** and **72 Playwright end-to-end tests** with axe-core accessibility checks. CI runs lint, strict typing, secret scanning, dependency audits, bundle budgets and Trivy image scanning.
+- Wrote **378 backend tests** (123 against real PostgreSQL, including failure injection for timeouts, malformed feeds, LLM errors, budget exhaustion and crashes), **67 frontend tests** and **92 Playwright end-to-end tests** with axe-core accessibility checks. CI runs lint, strict typing, secret scanning, dependency audits, bundle budgets and Trivy image scanning.
 - Found and fixed issues **before production** through testing and scanning: an HTTP-304 bug that would have auto-disabled healthy sources, 17 HIGH CVEs in an upstream web-server binary (rebuilt from source), and IP addresses in logs that contradicted the published privacy statement.
 
 Short version (one line):
@@ -26,7 +26,7 @@ Short version (one line):
 
 > I built **GJURMË** ("trace" in Albanian), an open-source Ground News for Albanian-language media.
 >
-> Every 15 minutes it reads news feeds from Kosovo, Albania and North Macedonia, groups the articles that report the same event into one story, and shows who covered it: by perspective, region and ownership, who reported first, and what one side barely covered. Claude classifies each headline (topic, tone, people, places) for a dashboard of what dominates coverage and who is suddenly in the news.
+> Every 30 minutes it reads news feeds from Kosovo, Albania and North Macedonia, groups the articles that report the same event into one story, and shows who covered it: by perspective, region and ownership, who reported first, and what one side barely covered. Claude classifies each headline (topic, tone, people, places) for a dashboard of what dominates coverage and who is suddenly in the news.
 >
 > The engineering is the part I enjoyed most:
 > • The model can't invent names: every extracted entity has to be found in the source text, with Albanian inflection handled.
@@ -43,7 +43,7 @@ Short version (one line):
 
 ## 30-second pitch
 
-"GJURMË is a Ground News for Albanian-language media. It reads outlets in Kosovo, Albania and North Macedonia every 15 minutes, groups the articles that report the same event into stories, and shows who covered each one — by perspective, region and ownership — and what one side missed. Claude tags each article with topic, tone and the people and places involved; it checks that the AI didn't invent anything and keeps spending under a hard daily cap. I built the whole thing: the data pipeline, the AI layer, the API, the frontend, the tests, and the deployment and monitoring."
+"GJURMË is a Ground News for Albanian-language media. It reads outlets in Kosovo, Albania and North Macedonia every 30 minutes, groups the articles that report the same event into stories, and shows who covered each one — by perspective, region and ownership — and what one side missed. Claude tags each article with topic, tone and the people and places involved; it checks that the AI didn't invent anything and keeps spending under a hard daily cap. I built the whole thing: the data pipeline, the AI layer, the API, the frontend, the tests, and the deployment and monitoring."
 
 ## 2-minute explanation
 
@@ -98,7 +98,7 @@ Untrusted input everywhere: feed content (XSS, prompt injection), feed URLs (SSR
 Enrichment is the bottleneck and the cost driver: the Message Batches API (half price) for non-urgent work, then more concurrency. For analytics, a daily rollup table of entity × day counts. Rate limiting and caching would move from process memory to the edge or Redis once there are several API replicas. PostgreSQL itself would be fine for a long time.
 
 **What's something you're not happy with yet?**
-Source coverage still leans to Kosovo: six of ten outlets. Story grouping without embeddings misses some paraphrases and can merge "X meets Y" with "X meets Z" on the same day. The real outlets have no perspective ratings yet, because that is an editorial judgement to document, not to guess. And model quality hasn't been evaluated on real articles yet, because that needs the API key.
+Source coverage still leans to Kosovo: 13 of 19 outlets. Story grouping without embeddings misses some paraphrases and can merge "X meets Y" with "X meets Z" on the same day. The real outlets have no perspective ratings yet, because that is an editorial judgement to document, not to guess. And model quality hasn't been evaluated on real articles yet, because that needs the API key.
 
 **A bug your tests caught that would have hurt in production?**
 httpx treats a `304 Not Modified` as a redirect. The fetcher would have tried to follow it, failed, and after 20 runs auto-disabled every healthy source that supports conditional GET. That's exactly the feeds you most want to keep.
