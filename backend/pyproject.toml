@@ -5,7 +5,7 @@ description = "GJURMË — AI-powered Albanian & Balkan news intelligence: RSS i
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
-    "fastapi>=0.141,<0.147",
+    "fastapi>=0.141,<0.163",
     "uvicorn[standard]>=0.53,<0.55",
     "sqlalchemy>=2.0.54,<2.2",
     "alembic>=1.20,<1.21",
