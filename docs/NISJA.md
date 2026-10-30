@@ -34,7 +34,7 @@ GitHub → **Actions → Source validation → Run workflow**:
 
 | Fusha | Vlera |
 |---|---|
-| Branch | `claude/gallant-franklin-2uhex2` (dega kryesore) |
+| Branch | `florent/gallant-franklin-2uhex2` (dega kryesore) |
 | `enrich_limit` | `30` (kosto rreth $0.10–0.20, kufi i fortë $0.60) |
 | `export_headlines` | `0` |
 
@@ -118,7 +118,7 @@ Nëse del i kuq ❌, hape dhe shiko hapin e kuq:
 
 4. **Deploy**. Pas 2–3 minutash del *Congratulations!* → **Continue to Dashboard** → **Visit**.
 
-Prej tani Vercel e boton faqen vetë sa herë që ndryshon dega kryesore (`claude/gallant-franklin-2uhex2`). Për çdo PR krijon edhe një faqe provë (*preview*).
+Prej tani Vercel e boton faqen vetë sa herë që ndryshon dega kryesore (`florent/gallant-franklin-2uhex2`). Për çdo PR krijon edhe një faqe provë (*preview*).
 
 ### B5. Kontrollo 👤
 
@@ -196,7 +196,7 @@ GitHub i nis run-et e planifikuara me vonesë kur është i ngarkuar. Në tetor 
      - `Accept` = `application/vnd.github+json`
      - `Authorization` = `Bearer github_pat_...` (çelësi nga hapi 1)
      - `X-GitHub-Api-Version` = `2022-11-28`
-   - **Request body:** `{"ref":"claude/gallant-franklin-2uhex2","inputs":{"task":"pipeline"}}`
+   - **Request body:** `{"ref":"florent/gallant-franklin-2uhex2","inputs":{"task":"pipeline"}}`
 6. **Create**. Pastaj **Test run**: duhet të kthejë **204**. Te **Actions → Free hosting** del një run i ri me *workflow_dispatch*.
 
 Kontroll pas një dite: **Actions → Free hosting** duhet të ketë një run çdo 30 minuta (secili 1–4 minuta), dhe **Actions → Uptime monitor** duhet të jetë i gjelbër. Kopja rezervë bëhet vetë me run-in e parë pas 7 ditësh.

@@ -115,7 +115,7 @@ function AboutEn({ topics, status }: AboutProps) {
           two signals agree — its owners' documented ties, the framing of its own headlines, and how much
           room each camp gets. The first review (October 2026) rated 16 of the 19 outlets center, two lean
           left and one lean right; the evidence for each is in the 
-          <a href="https://github.com/FlorentLatifi/Gjurm-/blob/claude/gallant-franklin-2uhex2/docs/RATINGS.md">ratings review</a>.</li>
+          <a href="https://github.com/FlorentLatifi/Gjurm-/blob/florent/gallant-franklin-2uhex2/docs/RATINGS.md">ratings review</a>.</li>
         <li><strong>Ownership</strong> (private company, media group, public broadcaster,
           international public media, non-profit …) comes from public information about the
           publisher.</li>
