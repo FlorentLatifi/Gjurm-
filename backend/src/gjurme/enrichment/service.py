@@ -86,6 +86,7 @@ def build_provider(settings: Settings) -> LLMProvider:
             api_key=settings.llm_api_key,
             response_format=settings.llm_response_format,
             requests_per_minute=settings.llm_requests_per_minute,
+            reasoning_effort=settings.llm_reasoning_effort,
         )
     if settings.anthropic_api_key is None or not settings.anthropic_api_key.get_secret_value():
         raise ConfigurationError("ANTHROPIC_API_KEY is not set (or set LLM_PROVIDER=fake)")
@@ -186,6 +187,7 @@ def build_fallback_provider(settings: Settings) -> LLMProvider | None:
         api_key=settings.llm_fallback_api_key,
         response_format=settings.llm_fallback_response_format,
         requests_per_minute=settings.llm_fallback_requests_per_minute,
+        reasoning_effort=settings.llm_fallback_reasoning_effort,
     )
 
 
@@ -197,6 +199,7 @@ def _openai_compatible(
     api_key: Any,
     response_format: Any,
     requests_per_minute: int,
+    reasoning_effort: Any,
 ) -> OpenAICompatibleProvider:
     register_price(model, settings.llm_price_input_per_mtok, settings.llm_price_output_per_mtok)
     return OpenAICompatibleProvider(
@@ -208,6 +211,7 @@ def _openai_compatible(
         max_retries=settings.llm_sdk_max_retries,
         response_format=response_format,
         requests_per_minute=requests_per_minute,
+        reasoning_effort=reasoning_effort,
     )
 
 

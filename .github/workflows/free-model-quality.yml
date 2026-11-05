@@ -30,7 +30,11 @@ on:
         type: boolean
         default: false
       response_format:
-        description: "With hosted: json_schema, json_object (Groq) or prompt. Empty: the variable"
+        description: "With hosted: json_schema, json_object or prompt. Empty: the variable"
+        type: string
+        default: ""
+      reasoning_effort:
+        description: "Reasoning models (gpt-oss, qwen3): none, low, medium or high. Empty: not sent"
         type: string
         default: ""
       enrich_limit:
@@ -135,11 +139,13 @@ jobs:
             ${{ inputs.hosted && (inputs.response_format || vars.LLM_RESPONSE_FORMAT)
             || 'json_schema' }}
           LLM_REQUESTS_PER_MINUTE: ${{ inputs.hosted && (vars.LLM_REQUESTS_PER_MINUTE || '10') || '0' }}
+          LLM_REASONING_EFFORT: ${{ inputs.reasoning_effort }}
           LLM_TIMEOUT_SECONDS: "600"
           ENRICH_CONCURRENCY: "1"
           ENRICH_CIRCUIT_BREAKER_THRESHOLD: "10"
         run: |
           [ -n "$LLM_API_KEY" ] || unset LLM_API_KEY
+          [ -n "$LLM_REASONING_EFFORT" ] || unset LLM_REASONING_EFFORT
           export ENRICH_MAX_PER_RUN="$LIMIT"
           uv run gjurme run --stages enrich,quality | tee "$RUNNER_TEMP/run-enrich.json"
       - name: Quality review (every result)

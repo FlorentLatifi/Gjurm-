@@ -85,6 +85,8 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr | None = None  # not needed for a local model
     llm_response_format: Literal["json_schema", "json_object", "prompt"] = "json_schema"
     llm_requests_per_minute: int = Field(default=0, ge=0)  # 0 = no pacing; free tiers need it
+    # For reasoning models (gpt-oss, qwen3): "low" leaves room for the JSON. None = not sent.
+    llm_reasoning_effort: Literal["none", "low", "medium", "high"] | None = None
     # A second OpenAI-compatible model (e.g. another free tier) for when the first one's quota is
     # used up or it keeps failing: it takes the rest of the run's queue and time.
     llm_fallback_base_url: str | None = None
@@ -92,6 +94,7 @@ class Settings(BaseSettings):
     llm_fallback_model: str | None = None
     llm_fallback_response_format: Literal["json_schema", "json_object", "prompt"] = "json_schema"
     llm_fallback_requests_per_minute: int = Field(default=0, ge=0)
+    llm_fallback_reasoning_effort: Literal["none", "low", "medium", "high"] | None = None
     # USD per million tokens for models not in enrichment/pricing.py. 0 for local/free models,
     # which means the daily budget never stops them; ENRICH_MAX_PER_RUN still bounds each run.
     llm_price_input_per_mtok: float = Field(default=0.0, ge=0)

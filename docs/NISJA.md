@@ -465,8 +465,8 @@ Te log-u i hapit *Check the configuration* të çdo run-i shkruhet `analysis: op
 
 1. **Një model i dytë falas (Groq), opsional.** Kur Gemini kthen 429 ("quota"), Groq merr pjesën tjetër të run-it.
    - **console.groq.com** → *API Keys* → *Create API Key*. Te GitHub, secret-i `LLM_FALLBACK_API_KEY`.
-   - Provoje: **Actions → Free model quality → Run workflow**, ✅ `hosted`, ✅ `fallback_key`, `base_url` = `https://api.groq.com/openai/v1`, `response_format` = `json_object`, `model` = një model nga lista te *console.groq.com → Models* (p.sh. `llama-3.3-70b-versatile`).
-   - Nëse të pëlqen, te **Variables**: `LLM_FALLBACK_BASE_URL` = `https://api.groq.com/openai/v1` dhe `LLM_FALLBACK_MODEL` = modeli. (`LLM_FALLBACK_RESPONSE_FORMAT` është `json_object` dhe `LLM_FALLBACK_REQUESTS_PER_MINUTE` 20, si parazgjedhje.)
+   - Provoje: **Actions → Free model quality → Run workflow**, ✅ `hosted`, ✅ `fallback_key`, `base_url` = `https://api.groq.com/openai/v1`, `model` = `openai/gpt-oss-120b`, `response_format` = `json_schema`, `reasoning_effort` = `low`. Modelet Llama te Groq janë vetëm për *Enterprise* (nëntor 2026); lista: *console.groq.com/docs/models*.
+   - Nëse të pëlqen, te **Variables**: `LLM_FALLBACK_BASE_URL` = `https://api.groq.com/openai/v1`, `LLM_FALLBACK_MODEL` = `openai/gpt-oss-120b`, `LLM_FALLBACK_RESPONSE_FORMAT` = `json_schema`, `LLM_FALLBACK_REASONING_EFFORT` = `low`. (Pa këtë të fundit, gpt-oss e harxhon hapësirën e përgjigjes duke "menduar".)
 2. **Rregullat me fjalë kyçe, gjithmonë.** Një lajm që asnjë model nuk e analizoi brenda 60 minutash (variabla `ENRICH_RULES_AFTER_MINUTES`) merr analizën me rregulla, që të ketë temë, ton dhe emra. Faqja e tregon këtë. Për t'i kaluar më vonë te AI: **Free hosting → task: `reanalyse`**. Gjatë pritjes ata lajme e mbajnë analizën me rregulla.
 
 **Kthimi mbrapsht:** fshi variablën `LLM_BASE_URL`. Nëse ekziston secret-i `ANTHROPIC_API_KEY` përdoret Claude, përndryshe rregullat me fjalë kyçe. Kur ka edhe `LLM_BASE_URL` edhe `ANTHROPIC_API_KEY`, fiton modeli falas.
