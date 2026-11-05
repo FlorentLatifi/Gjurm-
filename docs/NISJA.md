@@ -133,8 +133,9 @@ Prej tani Vercel e boton faqen vetë sa herë që ndryshon dega kryesore (`flore
 2. **Njoftime në telefon** (opsionale, falas, pa llogari): instalo aplikacionin **ntfy** dhe abonohu te një temë me emër të rastësishëm, p.sh. `gjurme-7f3k9q`. Te GitHub shto secret-in `ALERT_WEBHOOK_URL` = `https://ntfy.sh/gjurme-7f3k9q` dhe variablën `ALERT_WEBHOOK_FORMAT` = `ntfy`. Të vjen njoftim kur një run dështon, kur bien mediat ose kur databaza mbushet.
 3. **healthchecks.io** (opsionale, falas): krijo kontrollin *pipeline* (period 30 minuta, tolerancë 1 orë) dhe vendose URL-në e tij si secret `HEALTHCHECK_PING_URL`. Të njofton nëse run-et ndalen.
 4. **Kontakti te faqja About** (opsionale): Vercel → projekti → **Settings → Environment Variables** → `VITE_CONTACT_URL` = `mailto:email-yt@...` → **Deployments → … → Redeploy**.
-5. **Claude** (opsionale): shto secret-in `ANTHROPIC_API_KEY`. Run-et e ardhshme e përdorin vetë, me kufi ditor $2. Pastaj **Actions → Free hosting → Run workflow → task: `reanalyse`** i ri-analizon me Claude lajmet që i kishin analizuar rregullat. Banneri *rule-based* zhduket vetë.
-6. **Domain i yti** (opsionale, rreth $10 në vit): Vercel → projekti → **Settings → Domains → Add**. Pas një **Redeploy**, faqja e merr adresën e re vetë. Ndrysho edhe `PUBLIC_URL` te GitHub.
+5. **AI falas** (opsionale, $0): një model falas në internet (Google Gemini ose Groq) në vend të rregullave, sipas [AI falas pa server](#2-ai-falas-pa-server-faqja-online-pjesa-b).
+6. **Claude** (opsionale): shto secret-in `ANTHROPIC_API_KEY`. Run-et e ardhshme e përdorin vetë, me kufi ditor $2. Pastaj **Actions → Free hosting → Run workflow → task: `reanalyse`** i ri-analizon me Claude lajmet që i kishin analizuar rregullat. Banneri *rule-based* zhduket vetë.
+7. **Domain i yti** (opsionale, rreth $10 në vit): Vercel → projekti → **Settings → Domains → Add**. Pas një **Redeploy**, faqja e merr adresën e re vetë. Ndrysho edhe `PUBLIC_URL` te GitHub.
 
 ### B7. Kufijtë falas
 
@@ -436,7 +437,35 @@ GitHub → **Actions → Free model quality → Run workflow**:
 
 Pas 10–20 minutash, te **Summary** e sheh për çdo lajm temën, tonin, emrat dhe përmbledhjen, si dhe sa sekonda iu desh modelit për një lajm. Krahasoje me raportin e Claude-it (Pjesa A) dhe me rregullat.
 
-### 2. Modeli lokal në serverin Oracle
+### 2. AI falas pa server (faqja online, Pjesa B)
+
+Faqja pa server (Vercel + Neon + GitHub Actions) mund të përdorë një model AI falas në internet në vend të Claude-it. Të gjitha këto shërbime flasin formatin e OpenAI, prandaj aplikacioni i përdor pa ndryshim kodi. Zgjidh njërin:
+
+| | Google Gemini (rekomandohet) | Groq |
+|---|---|---|
+| Çelësi | **aistudio.google.com** → *Get API key* → *Create API key* | **console.groq.com** → *API Keys* → *Create API Key* |
+| `LLM_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai/` | `https://api.groq.com/openai/v1` |
+| `LLM_MODEL` | `gemini-2.5-flash-lite` (ose modeli “Flash-Lite” më i ri që shfaq AI Studio) | `llama-3.3-70b-versatile` |
+| `LLM_RESPONSE_FORMAT` | mos e vendos (`json_schema`) | `json_object` |
+| `LLM_REQUESTS_PER_MINUTE` | `10` | `20` |
+
+Kufijtë e ofertave falas (kërkesa në minutë dhe në ditë) ndryshojnë pa njoftim: kontrolloji te faqja e shërbimit dhe vendos `LLM_REQUESTS_PER_MINUTE` pak më poshtë kufirit. Oferta falas mund t'i përdorë të dhënat për trajnim; këtu dërgohen vetëm titujt dhe fragmentet e lajmeve publike.
+
+**Hapat (rreth 10 minuta):**
+
+1. Merr çelësin falas sipas tabelës (nuk kërkon kartë).
+2. GitHub → **Settings → Secrets and variables → Actions → Secrets → New repository secret**: `LLM_API_KEY` = çelësi.
+3. **Mat cilësinë para se ta ndezësh:** **Actions → Free model quality → Run workflow**, shëno ✅ `hosted`, te `base_url` shkruaj `LLM_BASE_URL` e tabelës, te `model` emrin e modelit, `enrich_limit` = `15`. Pas disa minutash, te **Summary** shiko temën, tonin, emrat dhe përmbledhjen shqip për çdo lajm. Nëse shqipja nuk të pëlqen, provo një model tjetër këtu, pa prekur faqen live.
+4. **Ndeze te faqja live:** në të njëjtën faqe të GitHub, skeda **Variables → New repository variable**: `LLM_BASE_URL`, `LLM_MODEL`, dhe sipas tabelës `LLM_RESPONSE_FORMAT` e `LLM_REQUESTS_PER_MINUTE`. Variabla `LLM_BASE_URL` e ndez modelin që në run-in e ardhshëm.
+5. **Actions → Free hosting → Run workflow → task: `reanalyse`**: i ri-analizon me modelin lajmet që i kishin analizuar rregullat. Çdo run analizon deri në 10 minuta; ato që mbeten vazhdojnë në run-et e ardhshme, dhe kur arrihet kufiri ditor i ofertës falas, të nesërmen. Banneri te faqja tregon sa përqind analizohen ende me rregulla, dhe zhduket kur të gjitha lajmet e 30 ditëve të fundit janë analizuar me AI.
+
+Te log-u i hapit *Check the configuration* të çdo run-i shkruhet `analysis: openai_compatible (<modeli>)`. Nëse shfaqen gabime 429 (shumë kërkesa), ul `LLM_REQUESTS_PER_MINUTE`. Nëse modeli refuzon formatin (gabim 400 për `response_format`), vendos `LLM_RESPONSE_FORMAT` = `json_object`, ose `prompt`.
+
+**Kthimi mbrapsht:** fshi variablën `LLM_BASE_URL`. Nëse ekziston secret-i `ANTHROPIC_API_KEY` përdoret Claude, përndryshe rregullat me fjalë kyçe. Kur ka edhe `LLM_BASE_URL` edhe `ANTHROPIC_API_KEY`, fiton modeli falas.
+
+Edhe një server Ollama i yti (p.sh. ai i hapit 3 më poshtë, nëse e hap në internet me HTTPS dhe fjalëkalim) mund të përdoret kështu: `LLM_BASE_URL=https://<serveri>/v1`.
+
+### 3. Modeli lokal në serverin Oracle
 
 Modeli kërkon më shumë memorie se sa aplikacioni vetë. Në hapin C3 zgjidh **2 OCPU dhe 12 GB** (i gjithë limiti falas). Nëse VM-ja është krijuar me 4 GB, ndryshoja madhësinë te Oracle: *Instance → Edit → Shape*.
 
@@ -464,7 +493,7 @@ ENRICH_CONCURRENCY=1
 dc exec scheduler gjurme enrich-requeue --provider fake    # ri-analizo me modelin lajmet e rregullave
 ```
 
-### 3. Kalimi te Claude më vonë
+### 4. Kalimi te Claude më vonë
 
 Ndrysho vetëm `.env` (`LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `LLM_MODEL`, `LLM_DAILY_BUDGET_USD`), rinise me `./deploy.sh`, dhe ri-analizo me `dc exec scheduler gjurme enrich-requeue --provider openai_compatible`. Kontejnerin e modelit lokal e ndal duke hequr `COMPOSE_PROFILES=local-llm` dhe me `dc stop ollama`.
 

@@ -11,6 +11,7 @@ Control flow per run::
         persist (sequentially, main thread): attempt row + current state + bridges
         consecutive failures ≥ threshold → circuit open, stop
         fatal error (auth / unknown model) → stop immediately
+        rate limit still hit after the provider's retries → stop, attempts kept
 """
 
 from __future__ import annotations
@@ -125,6 +126,7 @@ class EnrichStats:
     skipped_reason: str | None = None
     spent_today_usd: Decimal = Decimal(0)
     time_limited: bool = False  # stopped starting calls after ENRICH_MAX_SECONDS
+    rate_limited: bool = False  # the provider still said 429 after its retries (quota used up)
 
     def as_dict(self) -> dict[str, Any]:
         calls = self.attempted - self.cached
@@ -147,6 +149,7 @@ class EnrichStats:
             "circuit_open": self.circuit_open,
             "fatal_error": self.fatal_error,
             "time_limited": self.time_limited,
+            "rate_limited": self.rate_limited,
             "skipped_reason": self.skipped_reason,
         }
 
@@ -466,9 +469,10 @@ def persist_outcome(
         apply_output(session, item.article_id, outcome.output, attempts=attempt)
         session.flush()
         return row.id
-    if outcome.fatal:
-        # Configuration problem (bad key, unknown model): not the article's fault — leave it
-        # queued without consuming one of its attempts.
+    if outcome.fatal or outcome.error_kind == "rate_limited":
+        # Configuration problem (bad key, unknown model) or a used-up rate limit (a free tier's
+        # daily quota): not the article's fault — leave it queued without consuming one of its
+        # attempts.
         return None
     # refused → never retry; otherwise retry until attempts are exhausted
     terminal = outcome.status == "refused"
@@ -641,6 +645,14 @@ def run_enrichment(
                     stop_dispatch = True
                     log.error(
                         "fatal LLM error — stopping enrichment", extra={"error": outcome.error}
+                    )
+                if outcome.error_kind == "rate_limited" and not stats.rate_limited:
+                    # The provider already retried with backoff: the quota is used up for now,
+                    # and every further call would fail the same way. The rest waits.
+                    stats.rate_limited = stop_dispatch = True
+                    log.warning(
+                        "LLM rate limit reached; the rest waits for the next run",
+                        extra={"error": outcome.error},
                     )
                 if (
                     consecutive_failures >= settings.enrich_circuit_breaker_threshold
