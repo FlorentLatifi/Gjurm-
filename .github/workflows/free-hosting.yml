@@ -132,6 +132,10 @@ jobs:
         env:
           TASK: ${{ inputs.task }}
         run: |
+          # Values pasted from a web page can carry a tab or spaces around them.
+          for name in LLM_BASE_URL LLM_MODEL LLM_FALLBACK_BASE_URL LLM_FALLBACK_MODEL; do
+            export "$name=$(echo "${!name}" | xargs)"
+          done
           # Unset the optional secrets that are empty: an empty value is not "not configured".
           for name in ANTHROPIC_API_KEY LLM_BASE_URL LLM_API_KEY LLM_MODEL LLM_FALLBACK_BASE_URL \
             LLM_FALLBACK_API_KEY LLM_FALLBACK_MODEL LLM_REASONING_EFFORT \

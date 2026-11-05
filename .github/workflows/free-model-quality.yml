@@ -103,12 +103,15 @@ jobs:
         env:
           HOSTED_BASE_URL: ${{ inputs.base_url || vars.LLM_BASE_URL }}
         run: |
+          MODEL="$(echo "$MODEL" | xargs)"
           if ! [[ "$MODEL" =~ ^[A-Za-z0-9._:/-]{1,80}$ ]]; then
             echo "::error::invalid model tag"; exit 1
           fi
           if ! [[ "$LIMIT" =~ ^[0-9]+$ ]] || (( LIMIT < 1 || LIMIT > 40 )); then
             echo "::error::enrich_limit must be between 1 and 40"; exit 1
           fi
+          # Inputs pasted from a web page can carry a tab or spaces around them.
+          HOSTED_BASE_URL="$(echo "$HOSTED_BASE_URL" | xargs)"
           if [ "$HOSTED" = true ] && ! [[ "$HOSTED_BASE_URL" =~ ^https?://[^[:space:]]+$ ]]; then
             echo "::error::hosted needs base_url (or the LLM_BASE_URL variable) and the LLM_API_KEY secret. docs/NISJA.md, \"AI falas pa server\"."
             exit 1
@@ -144,6 +147,9 @@ jobs:
           ENRICH_CONCURRENCY: "1"
           ENRICH_CIRCUIT_BREAKER_THRESHOLD: "10"
         run: |
+          LLM_BASE_URL="$(echo "$LLM_BASE_URL" | xargs)"
+          LLM_MODEL="$(echo "$LLM_MODEL" | xargs)"
+          export LLM_BASE_URL LLM_MODEL
           [ -n "$LLM_API_KEY" ] || unset LLM_API_KEY
           [ -n "$LLM_REASONING_EFFORT" ] || unset LLM_REASONING_EFFORT
           export ENRICH_MAX_PER_RUN="$LIMIT"
@@ -153,6 +159,11 @@ jobs:
         env:
           PGPASSWORD: ci-only-password
         run: |
+          if ! psql -h localhost -U gjurme -d gjurme -tAc "SELECT 1 FROM core.enrichments LIMIT 1" \
+               >/dev/null 2>&1; then
+            echo "No review: an earlier step stopped before any article was analysed."
+            exit 1
+          fi
           review="$RUNNER_TEMP/free-model-quality-review.md"
           q() { psql -h localhost -U gjurme -d gjurme -P pager=off -c "$1"; }
           {
