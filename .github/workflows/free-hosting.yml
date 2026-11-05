@@ -64,6 +64,10 @@ jobs:
       #     server reachable from the internet. Variables LLM_BASE_URL and LLM_MODEL, secret
       #     LLM_API_KEY; optional variables LLM_RESPONSE_FORMAT and LLM_REQUESTS_PER_MINUTE
       #     (docs/NISJA.md, "AI falas pa server");
+      #     A second free model takes over when the first one's daily quota is used up:
+      #     variables LLM_FALLBACK_BASE_URL and LLM_FALLBACK_MODEL, secret LLM_FALLBACK_API_KEY
+      #     (e.g. Groq). An article no model analysed within ENRICH_RULES_AFTER_MINUTES (60)
+      #     gets the keyword rules, so every article has a topic, tone and names;
       #  2. Claude when the ANTHROPIC_API_KEY secret is set;
       #  3. otherwise the disclosed keyword-rule analysis (ADR-018).
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -76,6 +80,12 @@ jobs:
       LLM_RESPONSE_FORMAT: ${{ vars.LLM_RESPONSE_FORMAT || 'json_schema' }}
       # Free tiers limit requests per minute; 429s are retried with backoff anyway.
       LLM_REQUESTS_PER_MINUTE: ${{ vars.LLM_REQUESTS_PER_MINUTE || '10' }}
+      LLM_FALLBACK_BASE_URL: ${{ vars.LLM_FALLBACK_BASE_URL }}
+      LLM_FALLBACK_API_KEY: ${{ secrets.LLM_FALLBACK_API_KEY }}
+      LLM_FALLBACK_MODEL: ${{ vars.LLM_FALLBACK_MODEL }}
+      LLM_FALLBACK_RESPONSE_FORMAT: ${{ vars.LLM_FALLBACK_RESPONSE_FORMAT || 'json_object' }}
+      LLM_FALLBACK_REQUESTS_PER_MINUTE: ${{ vars.LLM_FALLBACK_REQUESTS_PER_MINUTE || '20' }}
+      ENRICH_RULES_AFTER_MINUTES: ${{ vars.ENRICH_RULES_AFTER_MINUTES || '60' }}
       # Every run stops analysing after 10 minutes; what is left waits for the next run.
       ENRICH_MAX_SECONDS: ${{ vars.ENRICH_MAX_SECONDS || '600' }}
       ALLOW_FAKE_LLM_IN_PRODUCTION: "true"
@@ -109,15 +119,20 @@ jobs:
             echo "::error::LLM_BASE_URL is set, so add the LLM_MODEL variable too (e.g. gemini-flash-lite-latest). docs/NISJA.md, \"AI falas pa server\"."
             exit 1
           fi
-          echo "analysis: $LLM_PROVIDER${LLM_MODEL:+ ($LLM_MODEL)}"
+          if [ -n "$LLM_FALLBACK_BASE_URL" ] && [ -z "$LLM_FALLBACK_MODEL" ]; then
+            echo "::error::LLM_FALLBACK_BASE_URL is set, so add the LLM_FALLBACK_MODEL variable too. docs/NISJA.md, \"AI falas pa server\"."
+            exit 1
+          fi
+          echo "analysis: $LLM_PROVIDER${LLM_MODEL:+ ($LLM_MODEL)}${LLM_FALLBACK_MODEL:+, then $LLM_FALLBACK_MODEL}"
       - run: uv sync --frozen --no-dev
       - name: Migrate, then one scheduler tick
         env:
           TASK: ${{ inputs.task }}
         run: |
           # Unset the optional secrets that are empty: an empty value is not "not configured".
-          for name in ANTHROPIC_API_KEY LLM_BASE_URL LLM_API_KEY LLM_MODEL HEALTHCHECK_PING_URL \
-            ALERT_WEBHOOK_URL PUBLIC_BASE_URL; do
+          for name in ANTHROPIC_API_KEY LLM_BASE_URL LLM_API_KEY LLM_MODEL LLM_FALLBACK_BASE_URL \
+            LLM_FALLBACK_API_KEY LLM_FALLBACK_MODEL HEALTHCHECK_PING_URL ALERT_WEBHOOK_URL \
+            PUBLIC_BASE_URL; do
             [ -n "${!name}" ] || unset "$name"
           done
           # A deployed configuration must carry an admin token; nothing here serves the admin

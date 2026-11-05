@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from itertools import pairwise
 from typing import Any
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from gjurme.config import Settings
@@ -16,7 +16,7 @@ from gjurme.db.models import Article, ArticleEntity, ArticleTopic, Enrichment, E
 from gjurme.enrichment.pricing import Usage
 from gjurme.enrichment.prompt import PROMPT_VERSION
 from gjurme.enrichment.providers import FakeProvider, LLMError, LLMResult
-from gjurme.enrichment.service import requeue, run_enrichment
+from gjurme.enrichment.service import enrich_stage, requeue, run_enrichment
 from gjurme.ingestion.normalize import normalize_key, sha256_hex
 from gjurme.runtime_settings import ENRICHMENT_PAUSE, put_setting
 from tests.integration.helpers import add_source
@@ -450,3 +450,87 @@ def test_first_claude_call_of_a_run_goes_alone(db, settings) -> None:
     first_end = spans[0][1]
     assert len(spans) == 5 and all(start >= first_end for start, _ in spans[1:])
     assert any(b[0] < a[1] for a, b in pairwise(spans[1:]))  # then in parallel
+
+
+# --- the fallback chain: first model, fallback model, keyword rules ---------------------------
+QUOTA = LLMError("rate_limited", "HTTP 429: quota", retryable=True)
+
+
+def _age(db: sessionmaker[Session], ids: list[int], hours: float) -> None:
+    with db() as s, s.begin():
+        s.execute(
+            update(Article)
+            .where(Article.id.in_(ids))
+            .values(ingested_at=datetime.now(UTC) - timedelta(hours=hours))
+        )
+
+
+def _with_fallback(settings: Settings, monkeypatch: pytest.MonkeyPatch, fallback: Any) -> Settings:
+    monkeypatch.setattr("gjurme.enrichment.service.build_fallback_provider", lambda _s: fallback)
+    return settings.model_copy(update={"enrich_concurrency": 1})
+
+
+def test_fallback_model_takes_over_when_the_quota_is_used_up(db, settings, monkeypatch) -> None:
+    ids = _articles(db, 4)
+    backup = ScriptedProvider([GOOD], model="llama-backup", name="openai_compatible")
+    cfg = _with_fallback(settings, monkeypatch, backup)
+    result = enrich_stage(db, cfg, ScriptedProvider([QUOTA]))
+    assert result["rate_limited"] and not result["circuit_open"]
+    assert result["fallback"]["succeeded"] == 4 and backup.calls == 4
+    assert "rules" not in result
+    with db() as s:
+        models = set(s.scalars(select(Enrichment.model).where(Enrichment.is_current)))
+        assert models == {"llama-backup"}
+        assert {s.get(Article, i).enrichment_status for i in ids} == {"succeeded"}  # type: ignore[union-attr]
+
+
+def test_no_fallback_while_the_first_model_works(db, settings, monkeypatch) -> None:
+    _articles(db, 3)
+    backup = ScriptedProvider([GOOD], model="llama-backup", name="openai_compatible")
+    cfg = _with_fallback(settings, monkeypatch, backup)
+    result = enrich_stage(db, cfg, ScriptedProvider([GOOD]))
+    assert result["succeeded"] == 3 and "fallback" not in result and backup.calls == 0
+
+
+def test_rules_analyse_what_no_model_could_in_time(db, settings, monkeypatch) -> None:
+    old = _articles(db, 3)
+    _age(db, old[:2], hours=2)
+    cfg = _with_fallback(settings, monkeypatch, None).model_copy(
+        update={"enrich_rules_after_minutes": 60}
+    )
+    result = enrich_stage(db, cfg, ScriptedProvider([QUOTA]))
+    assert result["rules"]["succeeded"] == 2
+    with db() as s:
+        providers = dict(
+            s.execute(
+                select(Enrichment.article_id, Enrichment.provider).where(Enrichment.is_current)
+            ).all()
+        )
+        assert providers == {old[0]: "fake", old[1]: "fake"}
+        fresh = s.get(Article, old[2])
+        assert fresh is not None and fresh.enrichment_status == "pending"  # still the model's
+
+
+def test_rules_leave_articles_that_wait_for_a_better_analysis(db, settings, monkeypatch) -> None:
+    """After `reanalyse`, articles keep their rule analysis until the model reaches them; the
+    rules must not take them back."""
+    ids = _articles(db, 2)
+    run_enrichment(db, settings, FakeProvider())
+    with db() as s, s.begin():
+        assert requeue(s, provider="fake") == 2
+    _age(db, ids, hours=5)
+    cfg = _with_fallback(settings, monkeypatch, None).model_copy(
+        update={"enrich_rules_after_minutes": 60}
+    )
+    result = enrich_stage(db, cfg, ScriptedProvider([QUOTA]))
+    assert "rules" not in result
+    with db() as s:
+        assert set(s.scalars(select(Article.enrichment_status))) == {"pending"}
+
+
+def test_rules_never_run_when_the_rules_are_the_model(db, settings, monkeypatch) -> None:
+    ids = _articles(db, 2)
+    _age(db, ids, hours=2)
+    cfg = settings.model_copy(update={"enrich_rules_after_minutes": 60})
+    result = enrich_stage(db, cfg, FakeProvider())
+    assert result["succeeded"] == 2 and "rules" not in result and "fallback" not in result

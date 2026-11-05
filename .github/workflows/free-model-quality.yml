@@ -25,6 +25,14 @@ on:
         description: "With hosted: the server's URL. Empty: the LLM_BASE_URL variable"
         type: string
         default: ""
+      fallback_key:
+        description: "With hosted: use the LLM_FALLBACK_API_KEY secret (the second model, e.g. Groq)"
+        type: boolean
+        default: false
+      response_format:
+        description: "With hosted: json_schema, json_object (Groq) or prompt. Empty: the variable"
+        type: string
+        default: ""
       enrich_limit:
         description: "Articles to analyse (1-40; locally CPU-only, roughly 20-60 s each)"
         type: number
@@ -119,9 +127,13 @@ jobs:
           LLM_PROVIDER: openai_compatible
           LLM_BASE_URL: >-
             ${{ inputs.hosted && (inputs.base_url || vars.LLM_BASE_URL) || 'http://localhost:11434/v1' }}
-          LLM_API_KEY: ${{ inputs.hosted && secrets.LLM_API_KEY || '' }}
+          LLM_API_KEY: >-
+            ${{ inputs.hosted && (inputs.fallback_key && secrets.LLM_FALLBACK_API_KEY
+            || secrets.LLM_API_KEY) || '' }}
           LLM_MODEL: ${{ env.MODEL }}
-          LLM_RESPONSE_FORMAT: ${{ inputs.hosted && vars.LLM_RESPONSE_FORMAT || 'json_schema' }}
+          LLM_RESPONSE_FORMAT: >-
+            ${{ inputs.hosted && (inputs.response_format || vars.LLM_RESPONSE_FORMAT)
+            || 'json_schema' }}
           LLM_REQUESTS_PER_MINUTE: ${{ inputs.hosted && (vars.LLM_REQUESTS_PER_MINUTE || '10') || '0' }}
           LLM_TIMEOUT_SECONDS: "600"
           ENRICH_CONCURRENCY: "1"

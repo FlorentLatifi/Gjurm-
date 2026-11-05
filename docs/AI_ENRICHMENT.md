@@ -205,6 +205,12 @@ Settings (all in `.env`, see `deploy/.env.example`):
 
 **On the free path without a server** (`free-hosting.yml`), the repository variable `LLM_BASE_URL` switches the live pipeline to this provider, ahead of `ANTHROPIC_API_KEY`; with it go the variable `LLM_MODEL`, the secret `LLM_API_KEY` and the optional variables `LLM_RESPONSE_FORMAT` and `LLM_REQUESTS_PER_MINUTE` (10 by default). Hosted free tiers such as Google Gemini's (`https://generativelanguage.googleapis.com/v1beta/openai/`) or Groq's (`https://api.groq.com/openai/v1`, with `LLM_RESPONSE_FORMAT=json_object`) need no GPU; their limits and terms change, so measure first: *Free model quality* with `hosted` ticked runs the same review against the hosted model. Steps in Albanian: [NISJA.md](NISJA.md#2-ai-falas-pa-server-faqja-online-pjesa-b).
 
+**When a free quota runs out** (Gemini's free tier ran out after about 250–300 requests on 2026-11-05, while the outlets publish several hundred articles a day), the ENRICH stage falls back in two steps (`enrich_stage` in `enrichment/service.py`):
+1. **A second model** (`LLM_FALLBACK_BASE_URL`, `LLM_FALLBACK_MODEL`, `LLM_FALLBACK_API_KEY`, `LLM_FALLBACK_RESPONSE_FORMAT`, `LLM_FALLBACK_REQUESTS_PER_MINUTE`), e.g. Groq's free tier, takes the rest of the queue and of `ENRICH_MAX_SECONDS` when the first model stops early: a 429 after its retries, the circuit breaker or a fatal error. A 429 no longer counts towards the circuit breaker.
+2. **The keyword rules** analyse every article still without any analysis `ENRICH_RULES_AFTER_MINUTES` after ingestion (0 = off; 60 on the free path), so each article has a topic, tone and names, disclosed as rule-based. Articles that have an analysis and wait for a better one (`enrich-requeue`) keep it and are left to the model.
+
+The stage's stats are the first model's, with `fallback` and `rules` added when those ran.
+
 **Measure before switching.** *Actions → Free model quality → Run workflow* runs the live pipeline on GitHub's runner with Ollama and a model of your choice (default `gemma3:4b`, 1–40 articles, $0) and publishes the same review report as the Claude test, plus the time per article. A push that changes the provider or the workflow compares `gemma3:4b`, `qwen3:4b` and `gemma3:12b` in parallel jobs.
 
 Measured with prompt v1.2 on 2026-10-17 (live headlines, GitHub's 4-core CPU runner, 10-minute stage limit):

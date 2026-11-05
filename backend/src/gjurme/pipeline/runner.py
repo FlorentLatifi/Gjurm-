@@ -24,7 +24,7 @@ from gjurme.alerts.engine import AlertDispatcher, evaluate_run
 from gjurme.config import Settings
 from gjurme.db.models import PipelineRun
 from gjurme.enrichment.providers import LLMProvider
-from gjurme.enrichment.service import build_provider, run_enrichment
+from gjurme.enrichment.service import build_provider, enrich_stage
 from gjurme.ingestion.fetcher import FeedFetcher, build_http_client
 from gjurme.ingestion.ingest import ingest_all
 from gjurme.ingestion.processor import process_pending
@@ -215,7 +215,7 @@ def _run_stage(
             return process_pending(s, settings).as_dict()
     if stage == "enrich":
         llm = provider or build_provider(settings)
-        return run_enrichment(session_factory, settings, llm, run_id=run_id).as_dict()
+        return enrich_stage(session_factory, settings, llm, run_id=run_id)
     if stage == "cluster":
         with session_factory() as s:
             return cluster_pending(s, settings).as_dict()

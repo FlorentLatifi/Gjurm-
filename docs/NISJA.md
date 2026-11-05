@@ -461,6 +461,14 @@ Kufijtë e ofertave falas (kërkesa në minutë dhe në ditë) ndryshojnë pa nj
 
 Te log-u i hapit *Check the configuration* të çdo run-i shkruhet `analysis: openai_compatible (<modeli>)`. Nëse shfaqen gabime 429 (shumë kërkesa), ul `LLM_REQUESTS_PER_MINUTE`. Nëse modeli refuzon formatin (gabim 400 për `response_format`), vendos `LLM_RESPONSE_FORMAT` = `json_object`, ose `prompt`.
 
+**Kur mbaron kuota ditore.** Oferta falas e Gemini mjafton për rreth 250–300 kërkesa në ditë (5 nëntor 2026), ndërsa faqja merr disa qindra lajme në ditë. Prandaj ka dy rezerva:
+
+1. **Një model i dytë falas (Groq), opsional.** Kur Gemini kthen 429 ("quota"), Groq merr pjesën tjetër të run-it.
+   - **console.groq.com** → *API Keys* → *Create API Key*. Te GitHub, secret-i `LLM_FALLBACK_API_KEY`.
+   - Provoje: **Actions → Free model quality → Run workflow**, ✅ `hosted`, ✅ `fallback_key`, `base_url` = `https://api.groq.com/openai/v1`, `response_format` = `json_object`, `model` = një model nga lista te *console.groq.com → Models* (p.sh. `llama-3.3-70b-versatile`).
+   - Nëse të pëlqen, te **Variables**: `LLM_FALLBACK_BASE_URL` = `https://api.groq.com/openai/v1` dhe `LLM_FALLBACK_MODEL` = modeli. (`LLM_FALLBACK_RESPONSE_FORMAT` është `json_object` dhe `LLM_FALLBACK_REQUESTS_PER_MINUTE` 20, si parazgjedhje.)
+2. **Rregullat me fjalë kyçe, gjithmonë.** Një lajm që asnjë model nuk e analizoi brenda 60 minutash (variabla `ENRICH_RULES_AFTER_MINUTES`) merr analizën me rregulla, që të ketë temë, ton dhe emra. Faqja e tregon këtë. Për t'i kaluar më vonë te AI: **Free hosting → task: `reanalyse`**. Gjatë pritjes ata lajme e mbajnë analizën me rregulla.
+
 **Kthimi mbrapsht:** fshi variablën `LLM_BASE_URL`. Nëse ekziston secret-i `ANTHROPIC_API_KEY` përdoret Claude, përndryshe rregullat me fjalë kyçe. Kur ka edhe `LLM_BASE_URL` edhe `ANTHROPIC_API_KEY`, fiton modeli falas.
 
 Edhe një server Ollama i yti (p.sh. ai i hapit 3 më poshtë, nëse e hap në internet me HTTPS dhe fjalëkalim) mund të përdoret kështu: `LLM_BASE_URL=https://<serveri>/v1`.

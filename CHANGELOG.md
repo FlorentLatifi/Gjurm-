@@ -5,6 +5,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 ## [Unreleased]
 
 ### Added
+- **A fallback when a free model's quota runs out.** On 2026-11-05 Gemini's free tier ran out after about 250–300 requests, while the outlets publish several hundred articles a day. A second model (`LLM_FALLBACK_*`, e.g. Groq's free tier) now takes over for the rest of the run when the first one stops early, and any article no model analysed within `ENRICH_RULES_AFTER_MINUTES` (60 on the free path) gets the disclosed keyword-rule analysis instead of none. A used-up rate limit no longer trips the circuit breaker. *Free model quality* can test the second model (`fallback_key`, `response_format`).
+
+### Added
 - **A free AI model on the live site, without a server** ([ADR-019](docs/DECISIONS.md#adr-019-free-models-through-an-openai-compatible-provider)). The *Free hosting* workflow uses any OpenAI-compatible server when the repository variable `LLM_BASE_URL` is set (with `LLM_MODEL` and the secret `LLM_API_KEY`), e.g. Google Gemini's or Groq's free tier, ahead of Claude and the keyword rules. *Free model quality* can test that hosted model (`hosted`, `base_url`) before it is switched on. Steps in Albanian in [NISJA.md](docs/NISJA.md#2-ai-falas-pa-server-faqja-online-pjesa-b).
 
 ### Fixed
