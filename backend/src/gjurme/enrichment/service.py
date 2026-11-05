@@ -22,7 +22,7 @@ from collections import Counter
 from collections.abc import Callable, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -79,18 +79,11 @@ def build_provider(settings: Settings) -> LLMProvider:
     if settings.llm_provider == "openai_compatible":
         if not settings.llm_base_url:
             raise ConfigurationError("LLM_BASE_URL is not set (e.g. http://ollama:11434/v1)")
-        register_price(
-            settings.llm_model,
-            settings.llm_price_input_per_mtok,
-            settings.llm_price_output_per_mtok,
-        )
-        return OpenAICompatibleProvider(
+        return _openai_compatible(
+            settings,
             base_url=settings.llm_base_url,
             model=settings.llm_model,
-            api_key=settings.llm_api_key.get_secret_value() if settings.llm_api_key else None,
-            max_output_tokens=settings.llm_max_output_tokens,
-            timeout_seconds=settings.llm_timeout_seconds,
-            max_retries=settings.llm_sdk_max_retries,
+            api_key=settings.llm_api_key,
             response_format=settings.llm_response_format,
             requests_per_minute=settings.llm_requests_per_minute,
         )
@@ -178,6 +171,44 @@ class CallOutcome:
     error_kind: str | None = None
     fatal: bool = False
     model: str = ""
+
+
+def build_fallback_provider(settings: Settings) -> LLMProvider | None:
+    """The second model (LLM_FALLBACK_*), or None when none is configured."""
+    if not settings.llm_fallback_base_url:
+        return None
+    if not settings.llm_fallback_model:
+        raise ConfigurationError("LLM_FALLBACK_MODEL is not set (LLM_FALLBACK_BASE_URL is)")
+    return _openai_compatible(
+        settings,
+        base_url=settings.llm_fallback_base_url,
+        model=settings.llm_fallback_model,
+        api_key=settings.llm_fallback_api_key,
+        response_format=settings.llm_fallback_response_format,
+        requests_per_minute=settings.llm_fallback_requests_per_minute,
+    )
+
+
+def _openai_compatible(
+    settings: Settings,
+    *,
+    base_url: str,
+    model: str,
+    api_key: Any,
+    response_format: Any,
+    requests_per_minute: int,
+) -> OpenAICompatibleProvider:
+    register_price(model, settings.llm_price_input_per_mtok, settings.llm_price_output_per_mtok)
+    return OpenAICompatibleProvider(
+        base_url=base_url,
+        model=model,
+        api_key=api_key.get_secret_value() if api_key else None,
+        max_output_tokens=settings.llm_max_output_tokens,
+        timeout_seconds=settings.llm_timeout_seconds,
+        max_retries=settings.llm_sdk_max_retries,
+        response_format=response_format,
+        requests_per_minute=requests_per_minute,
+    )
 
 
 # ---------------------------------------------------------------------------------------------
@@ -500,7 +531,9 @@ def run_enrichment(
     run_id: int | None = None,
     article_ids: Iterable[int] | None = None,
     on_budget_exhausted: Callable[[], None] | None = None,
+    max_seconds: float | None = None,
 ) -> EnrichStats:
+    """Analyse the queue with one provider. ``max_seconds`` overrides ENRICH_MAX_SECONDS."""
     stats = EnrichStats()
     if not settings.enrichment_enabled:
         stats.skipped_reason = "disabled by ENRICHMENT_ENABLED=false"
@@ -526,9 +559,8 @@ def run_enrichment(
     pending: dict[Future[CallOutcome], QueueItem] = {}
     queue_iter = iter(queue)
     stop_dispatch = False
-    deadline = (
-        time.monotonic() + settings.enrich_max_seconds if settings.enrich_max_seconds else None
-    )
+    limit_seconds = settings.enrich_max_seconds if max_seconds is None else max_seconds
+    deadline = time.monotonic() + limit_seconds if limit_seconds else None
     # Anthropic prompt caching: a cached system prompt can be read only once the first response
     # has started, and runs are further apart than the cache lives. Sent together, the first
     # calls of a run would each pay a cache write; sent first and alone, one call writes it.
@@ -578,7 +610,9 @@ def run_enrichment(
             consecutive_failures = 0
         else:
             stats.failed[outcome.error_kind or outcome.status] += 1
-            if outcome.status != "refused":
+            # A used-up rate limit stops the stage by itself (below); it says nothing about
+            # whether the provider is broken, so it does not trip the circuit breaker.
+            if outcome.status != "refused" and outcome.error_kind != "rate_limited":
                 consecutive_failures += 1
 
     with ThreadPoolExecutor(
@@ -667,6 +701,81 @@ def run_enrichment(
     stats.spent_today_usd = budget.spent
     log.info("enrichment done", extra=stats.as_dict())
     return stats
+
+
+RULES_FALLBACK_MAX = 2000  # articles per run; the rules take milliseconds each
+
+
+def enrich_stage(
+    session_factory: Callable[[], Session],
+    settings: Settings,
+    provider: LLMProvider,
+    *,
+    run_id: int | None = None,
+) -> dict[str, Any]:
+    """The ENRICH stage: the configured model, then the fallback model, then the rules.
+
+    The fallback model (LLM_FALLBACK_*) takes over when the first model stops early: its quota
+    is used up (429), it keeps failing (circuit breaker) or it is misconfigured. It gets the
+    time left of ENRICH_MAX_SECONDS. Then any article that no model analysed within
+    ENRICH_RULES_AFTER_MINUTES gets the keyword-rule analysis. The returned stats are the first
+    model's, with ``fallback`` and ``rules`` added when those ran, so alerts and the run status
+    still describe the configured model.
+    """
+    started = time.monotonic()
+    stats = run_enrichment(session_factory, settings, provider, run_id=run_id)
+    result: dict[str, Any] = stats.as_dict()
+    fallback = None if provider.name == "fake" else build_fallback_provider(settings)
+    if fallback is not None and (stats.rate_limited or stats.circuit_open or stats.fatal_error):
+        remaining: float | None = None
+        if settings.enrich_max_seconds:
+            remaining = settings.enrich_max_seconds - (time.monotonic() - started)
+        if remaining is None or remaining > 30:
+            log.info(
+                "first model stopped early; the fallback model takes the rest",
+                extra={"fallback_model": fallback.model},
+            )
+            result["fallback"] = run_enrichment(
+                session_factory, settings, fallback, run_id=run_id, max_seconds=remaining or 0
+            ).as_dict()
+    if settings.enrich_rules_after_minutes and provider.name != "fake":
+        with session_factory() as session:
+            ids = rules_fallback_due(session, settings)
+        if ids:
+            rules_settings = settings.model_copy(
+                update={"enrich_max_per_run": len(ids), "enrich_max_seconds": 0}
+            )
+            result["rules"] = run_enrichment(
+                session_factory, rules_settings, FakeProvider(), run_id=run_id, article_ids=ids
+            ).as_dict()
+            log.info(
+                "articles no model analysed in time got the keyword-rule analysis",
+                extra={"articles": len(ids), "after_minutes": settings.enrich_rules_after_minutes},
+            )
+    return result
+
+
+def rules_fallback_due(session: Session, settings: Settings) -> list[int]:
+    """Articles still without any analysis ENRICH_RULES_AFTER_MINUTES after ingestion.
+
+    Articles that have an analysis and wait for a better one (``enrich-requeue``) are left to
+    the model: they keep showing the analysis they have meanwhile.
+    """
+    waited = datetime.now(UTC) - timedelta(minutes=settings.enrich_rules_after_minutes)
+    analysed = select(Enrichment.article_id).where(Enrichment.is_current.is_(True))
+    return list(
+        session.scalars(
+            select(Article.id)
+            .where(
+                Article.is_hidden.is_(False),
+                Article.enrichment_status.in_(("pending", "failed")),
+                Article.ingested_at < waited,
+                Article.id.not_in(analysed),
+            )
+            .order_by(Article.published_at.desc())
+            .limit(RULES_FALLBACK_MAX)
+        )
+    )
 
 
 def requeue(

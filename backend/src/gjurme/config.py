@@ -85,6 +85,13 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr | None = None  # not needed for a local model
     llm_response_format: Literal["json_schema", "json_object", "prompt"] = "json_schema"
     llm_requests_per_minute: int = Field(default=0, ge=0)  # 0 = no pacing; free tiers need it
+    # A second OpenAI-compatible model (e.g. another free tier) for when the first one's quota is
+    # used up or it keeps failing: it takes the rest of the run's queue and time.
+    llm_fallback_base_url: str | None = None
+    llm_fallback_api_key: SecretStr | None = None
+    llm_fallback_model: str | None = None
+    llm_fallback_response_format: Literal["json_schema", "json_object", "prompt"] = "json_schema"
+    llm_fallback_requests_per_minute: int = Field(default=0, ge=0)
     # USD per million tokens for models not in enrichment/pricing.py. 0 for local/free models,
     # which means the daily budget never stops them; ENRICH_MAX_PER_RUN still bounds each run.
     llm_price_input_per_mtok: float = Field(default=0.0, ge=0)
@@ -101,6 +108,10 @@ class Settings(BaseSettings):
     # must not hold up the next feed fetches, and feeds that list only their latest 10 items
     # would overflow meanwhile. The rest of the queue waits for the next run.
     enrich_max_seconds: int = Field(default=600, ge=0)
+    # An article no model could analyse within this many minutes gets the keyword-rule analysis
+    # (disclosed as such), so it still has a topic, tone and names (0 = never). Articles that
+    # already have an analysis and only wait for a better one keep it instead.
+    enrich_rules_after_minutes: int = Field(default=0, ge=0)
     enrichment_enabled: bool = True
     allow_fake_llm_in_production: bool = False
 
