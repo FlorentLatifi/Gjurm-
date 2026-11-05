@@ -445,7 +445,7 @@ Faqja pa server (Vercel + Neon + GitHub Actions) mund të përdorë një model A
 |---|---|---|
 | Çelësi | **aistudio.google.com** → *Get API key* → *Create API key* | **console.groq.com** → *API Keys* → *Create API Key* |
 | `LLM_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai/` | `https://api.groq.com/openai/v1` |
-| `LLM_MODEL` | `gemini-2.5-flash-lite` (ose modeli “Flash-Lite” më i ri që shfaq AI Studio) | `llama-3.3-70b-versatile` |
+| `LLM_MODEL` | `gemini-flash-lite-latest` (emër që ndjek gjithmonë versionin aktual; emrat me numër, si `gemini-2.5-flash-lite`, hiqen me kohë: “no longer available to new users”) | `llama-3.3-70b-versatile` |
 | `LLM_RESPONSE_FORMAT` | mos e vendos (`json_schema`) | `json_object` |
 | `LLM_REQUESTS_PER_MINUTE` | `10` | `20` |
 

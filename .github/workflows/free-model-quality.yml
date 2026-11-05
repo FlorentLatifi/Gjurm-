@@ -176,6 +176,12 @@ jobs:
           } > "$review"
           cat "$review" >> "$GITHUB_STEP_SUMMARY"
           cat "$review"
+          ok=$(psql -h localhost -U gjurme -d gjurme -tAc "SELECT count(*) FROM core.enrichments
+               WHERE provider = 'openai_compatible' AND status = 'succeeded';")
+          if [ "$ok" = 0 ]; then
+            echo "::error::The model analysed no article: see the errors above (an unknown or retired model is HTTP 404)."
+            exit 1
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
