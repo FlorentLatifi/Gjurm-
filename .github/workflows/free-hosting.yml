@@ -106,7 +106,7 @@ jobs:
             exit 1
           fi
           if [ "$LLM_PROVIDER" = openai_compatible ] && [ -z "$LLM_MODEL" ]; then
-            echo "::error::LLM_BASE_URL is set, so add the LLM_MODEL variable too (e.g. gemini-2.5-flash-lite). docs/NISJA.md, \"AI falas pa server\"."
+            echo "::error::LLM_BASE_URL is set, so add the LLM_MODEL variable too (e.g. gemini-flash-lite-latest). docs/NISJA.md, \"AI falas pa server\"."
             exit 1
           fi
           echo "analysis: $LLM_PROVIDER${LLM_MODEL:+ ($LLM_MODEL)}"
