@@ -28,7 +28,8 @@ on:
     inputs:
       task:
         description: "pipeline: one run now. reanalyse: queue what the keyword rules analysed for
-          Claude (after adding ANTHROPIC_API_KEY), then one run. backup: a backup now."
+          the AI (after adding a free model or ANTHROPIC_API_KEY), then one run. backup: a
+          backup now."
         type: choice
         options: [pipeline, reanalyse, backup]
         default: pipeline
@@ -57,9 +58,26 @@ jobs:
       GJURME_ENV: production
       LOG_FORMAT: text
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      # Claude when a key is set, otherwise the disclosed keyword-rule analysis (ADR-018).
+      # The analysis, first match wins:
+      #  1. a free model (ADR-019) when the repository variable LLM_BASE_URL is set: any
+      #     OpenAI-compatible server, e.g. Google Gemini's or Groq's free tier, or an Ollama
+      #     server reachable from the internet. Variables LLM_BASE_URL and LLM_MODEL, secret
+      #     LLM_API_KEY; optional variables LLM_RESPONSE_FORMAT and LLM_REQUESTS_PER_MINUTE
+      #     (docs/NISJA.md, "AI falas pa server");
+      #  2. Claude when the ANTHROPIC_API_KEY secret is set;
+      #  3. otherwise the disclosed keyword-rule analysis (ADR-018).
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      LLM_PROVIDER: ${{ secrets.ANTHROPIC_API_KEY != '' && 'anthropic' || 'fake' }}
+      LLM_PROVIDER: >-
+        ${{ (vars.LLM_BASE_URL != '' && 'openai_compatible') ||
+        (secrets.ANTHROPIC_API_KEY != '' && 'anthropic') || 'fake' }}
+      LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_MODEL: ${{ vars.LLM_MODEL }}
+      LLM_RESPONSE_FORMAT: ${{ vars.LLM_RESPONSE_FORMAT || 'json_schema' }}
+      # Free tiers limit requests per minute; 429s are retried with backoff anyway.
+      LLM_REQUESTS_PER_MINUTE: ${{ vars.LLM_REQUESTS_PER_MINUTE || '10' }}
+      # Every run stops analysing after 10 minutes; what is left waits for the next run.
+      ENRICH_MAX_SECONDS: ${{ vars.ENRICH_MAX_SECONDS || '600' }}
       ALLOW_FAKE_LLM_IN_PRODUCTION: "true"
       HEALTHCHECK_PING_URL: ${{ secrets.HEALTHCHECK_PING_URL }}
       ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
@@ -87,13 +105,19 @@ jobs:
             echo "::error::Add the DATABASE_URL secret (Settings → Secrets and variables → Actions). docs/NISJA.md, part B."
             exit 1
           fi
+          if [ "$LLM_PROVIDER" = openai_compatible ] && [ -z "$LLM_MODEL" ]; then
+            echo "::error::LLM_BASE_URL is set, so add the LLM_MODEL variable too (e.g. gemini-2.5-flash-lite). docs/NISJA.md, \"AI falas pa server\"."
+            exit 1
+          fi
+          echo "analysis: $LLM_PROVIDER${LLM_MODEL:+ ($LLM_MODEL)}"
       - run: uv sync --frozen --no-dev
       - name: Migrate, then one scheduler tick
         env:
           TASK: ${{ inputs.task }}
         run: |
           # Unset the optional secrets that are empty: an empty value is not "not configured".
-          for name in ANTHROPIC_API_KEY HEALTHCHECK_PING_URL ALERT_WEBHOOK_URL PUBLIC_BASE_URL; do
+          for name in ANTHROPIC_API_KEY LLM_BASE_URL LLM_API_KEY LLM_MODEL HEALTHCHECK_PING_URL \
+            ALERT_WEBHOOK_URL PUBLIC_BASE_URL; do
             [ -n "${!name}" ] || unset "$name"
           done
           # A deployed configuration must carry an admin token; nothing here serves the admin

@@ -235,6 +235,22 @@ def test_circuit_breaker_stops_the_stage(db, settings) -> None:
     assert stats.circuit_open and provider.calls == 3
 
 
+def test_used_up_rate_limit_stops_and_keeps_attempts(db, settings) -> None:
+    """A free tier's daily quota (429 after the provider's own retries) is not the articles'
+    fault: the stage stops, and no article loses an attempt to it."""
+    _articles(db, 5)
+    cfg = settings.model_copy(update={"enrich_concurrency": 1})
+    provider = ScriptedProvider([LLMError("rate_limited", "HTTP 429: quota", retryable=True)])
+    stats = run_enrichment(db, cfg, provider)
+    assert stats.rate_limited and not stats.circuit_open and provider.calls == 1
+    assert stats.as_dict()["rate_limited"] is True
+    with db() as s:
+        assert set(s.scalars(select(Article.enrichment_attempts))) == {0}
+        assert set(s.scalars(select(Article.enrichment_status))) == {"pending"}
+    # the next run, with quota again, analyses them all
+    assert run_enrichment(db, cfg, ScriptedProvider([GOOD])).succeeded == 5
+
+
 def test_fatal_error_stops_immediately_and_keeps_attempts(db, settings) -> None:
     _articles(db, 5)
     cfg = settings.model_copy(update={"enrich_concurrency": 1})

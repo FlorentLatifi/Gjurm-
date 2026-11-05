@@ -201,6 +201,9 @@ Settings (all in `.env`, see `deploy/.env.example`):
 - `LLM_TIMEOUT_SECONDS=600` and `ENRICH_CONCURRENCY=1` for a local model on CPU.
 - `LLM_PRICE_INPUT_PER_MTOK` / `LLM_PRICE_OUTPUT_PER_MTOK`: 0 by default, so the daily budget never stops a free model and `ENRICH_MAX_PER_RUN` bounds each run. Set them for a paid endpoint and the budget applies as for Claude. Prices of known Claude models cannot be overridden.
 - Temperature is 0 and reasoning notes (`<think>…</think>`) are stripped.
+- A 429 that outlasts the retries (a free tier's daily quota) stops the stage without costing any article an attempt; the rest waits for the next run (`rate_limited` in the run's stats).
+
+**On the free path without a server** (`free-hosting.yml`), the repository variable `LLM_BASE_URL` switches the live pipeline to this provider, ahead of `ANTHROPIC_API_KEY`; with it go the variable `LLM_MODEL`, the secret `LLM_API_KEY` and the optional variables `LLM_RESPONSE_FORMAT` and `LLM_REQUESTS_PER_MINUTE` (10 by default). Hosted free tiers such as Google Gemini's (`https://generativelanguage.googleapis.com/v1beta/openai/`) or Groq's (`https://api.groq.com/openai/v1`, with `LLM_RESPONSE_FORMAT=json_object`) need no GPU; their limits and terms change, so measure first: *Free model quality* with `hosted` ticked runs the same review against the hosted model. Steps in Albanian: [NISJA.md](NISJA.md#2-ai-falas-pa-server-faqja-online-pjesa-b).
 
 **Measure before switching.** *Actions → Free model quality → Run workflow* runs the live pipeline on GitHub's runner with Ollama and a model of your choice (default `gemma3:4b`, 1–40 articles, $0) and publishes the same review report as the Claude test, plus the time per article. A push that changes the provider or the workflow compares `gemma3:4b`, `qwen3:4b` and `gemma3:12b` in parallel jobs.
 

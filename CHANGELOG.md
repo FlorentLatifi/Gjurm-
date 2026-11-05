@@ -5,6 +5,12 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 ## [Unreleased]
 
 ### Added
+- **A free AI model on the live site, without a server** ([ADR-019](docs/DECISIONS.md#adr-019-free-models-through-an-openai-compatible-provider)). The *Free hosting* workflow uses any OpenAI-compatible server when the repository variable `LLM_BASE_URL` is set (with `LLM_MODEL` and the secret `LLM_API_KEY`), e.g. Google Gemini's or Groq's free tier, ahead of Claude and the keyword rules. *Free model quality* can test that hosted model (`hosted`, `base_url`) before it is switched on. Steps in Albanian in [NISJA.md](docs/NISJA.md#2-ai-falas-pa-server-faqja-online-pjesa-b).
+
+### Fixed
+- **A used-up rate limit no longer uses up articles' attempts.** A 429 that outlasted the provider's retries counted as a failed attempt, so a free tier's daily quota would have left articles unanalysed for good after three runs. Enrichment now stops at the first such 429 and the articles wait for the next run.
+
+### Added
 - **Every outlet is rated** ([RATINGS.md](docs/RATINGS.md), [ADR-031](docs/DECISIONS.md#adr-031-perspective-in-albanian-language-media-means-closeness-to-the-two-political-camps)): perspective, factuality and ownership for the 19 enabled outlets, each with a dated basis and confidence on its page. Left/right means closeness to the two political camps (Vetëvendosje and PS on the left; PDK, LDK, AAK and PD on the right). From public records (Media Ownership Monitor, press-council decisions, IFCN/EFCSN, ODIHR) and a review of 536 headlines: 16 center, Euronews Albania and RTSH lean left, BalkanWeb lean right; factuality very high for the two fact-checkers, high for six, mixed for Gazeta Express and Indeksonline, unrated where no record exists. The perspective lens and perspective blindspots now work. The daily launch check also confirms the search-engine verification files are served.
 
 ### Added
