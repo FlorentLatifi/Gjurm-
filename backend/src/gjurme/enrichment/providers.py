@@ -186,6 +186,7 @@ class AnthropicProvider:
 # OpenAI-compatible chat completions — local models (Ollama, llama.cpp) and free hosted tiers
 # =============================================================================================
 ResponseFormat = Literal["json_schema", "json_object", "prompt"]
+ReasoningEffort = Literal["none", "low", "medium", "high"]
 
 # Reasoning models served locally (Qwen3, DeepSeek-R1 …) may prefix the answer with their notes.
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
@@ -227,6 +228,7 @@ class OpenAICompatibleProvider:
         api_key: str | None = None,
         response_format: ResponseFormat = "json_schema",
         requests_per_minute: int = 0,
+        reasoning_effort: ReasoningEffort | None = None,
         transport: httpx.BaseTransport | None = None,
         sleep: Any = time.sleep,
     ) -> None:
@@ -243,6 +245,7 @@ class OpenAICompatibleProvider:
         self._max_tokens = max_output_tokens
         self._max_retries = max_retries
         self._format = response_format
+        self._reasoning_effort = reasoning_effort
         self._interval = 60.0 / requests_per_minute if requests_per_minute > 0 else 0.0
         self._next_slot = 0.0
         self._lock = threading.Lock()
@@ -264,6 +267,10 @@ class OpenAICompatibleProvider:
             "max_tokens": self._max_tokens,
             "temperature": 0,
         }
+        if self._reasoning_effort:
+            # Reasoning models (gpt-oss, qwen3, Gemini 2.5+) spend completion tokens thinking
+            # before the JSON; "low" keeps that short enough to fit LLM_MAX_OUTPUT_TOKENS.
+            body["reasoning_effort"] = self._reasoning_effort
         if self._format == "json_schema":
             body["response_format"] = {
                 "type": "json_schema",

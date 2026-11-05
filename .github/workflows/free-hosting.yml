@@ -85,6 +85,9 @@ jobs:
       LLM_FALLBACK_MODEL: ${{ vars.LLM_FALLBACK_MODEL }}
       LLM_FALLBACK_RESPONSE_FORMAT: ${{ vars.LLM_FALLBACK_RESPONSE_FORMAT || 'json_object' }}
       LLM_FALLBACK_REQUESTS_PER_MINUTE: ${{ vars.LLM_FALLBACK_REQUESTS_PER_MINUTE || '20' }}
+      # gpt-oss and other reasoning models: keep the thinking short (low), so the JSON fits.
+      LLM_REASONING_EFFORT: ${{ vars.LLM_REASONING_EFFORT }}
+      LLM_FALLBACK_REASONING_EFFORT: ${{ vars.LLM_FALLBACK_REASONING_EFFORT }}
       ENRICH_RULES_AFTER_MINUTES: ${{ vars.ENRICH_RULES_AFTER_MINUTES || '60' }}
       # Every run stops analysing after 10 minutes; what is left waits for the next run.
       ENRICH_MAX_SECONDS: ${{ vars.ENRICH_MAX_SECONDS || '600' }}
@@ -131,7 +134,8 @@ jobs:
         run: |
           # Unset the optional secrets that are empty: an empty value is not "not configured".
           for name in ANTHROPIC_API_KEY LLM_BASE_URL LLM_API_KEY LLM_MODEL LLM_FALLBACK_BASE_URL \
-            LLM_FALLBACK_API_KEY LLM_FALLBACK_MODEL HEALTHCHECK_PING_URL ALERT_WEBHOOK_URL \
+            LLM_FALLBACK_API_KEY LLM_FALLBACK_MODEL LLM_REASONING_EFFORT \
+            LLM_FALLBACK_REASONING_EFFORT HEALTHCHECK_PING_URL ALERT_WEBHOOK_URL \
             PUBLIC_BASE_URL; do
             [ -n "${!name}" ] || unset "$name"
           done

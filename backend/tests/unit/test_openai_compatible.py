@@ -130,6 +130,14 @@ def test_request_shape_and_success() -> None:
     assert out.entities[0].name == "Qeveria e Kosovës"
 
 
+def test_reasoning_effort_is_sent_only_when_set() -> None:
+    endpoint = Recorder(ok(json.dumps(OUTPUT)), ok(json.dumps(OUTPUT)))
+    make(endpoint).complete(SYSTEM_PROMPT, "u", OUTPUT_JSON_SCHEMA)
+    make(endpoint, reasoning_effort="low").complete(SYSTEM_PROMPT, "u", OUTPUT_JSON_SCHEMA)
+    assert "reasoning_effort" not in endpoint.body(0)
+    assert endpoint.body(1)["reasoning_effort"] == "low"
+
+
 def test_api_key_is_sent_as_bearer_token() -> None:
     endpoint = Recorder(ok(json.dumps(OUTPUT)))
     make(endpoint, api_key="free-tier-key").complete(SYSTEM_PROMPT, "u", OUTPUT_JSON_SCHEMA)
