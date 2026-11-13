@@ -4,6 +4,12 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Changed
+- **The front page ranks coverage against age.** "Most covered" counted outlets alone, so the biggest story of the last three days led the page until it left the range, up to two days after its last report. The count is now halved for every third of the range since the story's latest report (24 h for the feed's three days, at least 12 h): yesterday's ten-outlet story ranks with today's five-outlet one, and a month still ranks by coverage. Blindspots use the same order.
+
+### Fixed
+- **A broken fallback model no longer goes unnoticed.** Alerts and the run's status read only the first model's stats, so with Gemini's quota used up and Groq's key revoked a run ended `succeeded` and the keyword rules analysed everything. A fatal error or open circuit breaker of the fallback model now alerts (`llm_fallback_fatal_error`, `llm_fallback_circuit_open`) and ends the run `partial`. A new quality check, `rule_based_share_24h`, warns when the rules analysed more than half of the last 24 hours although a model is configured, and alerts above 90 %. `enrichment_failure_rate_24h` no longer counts a used-up quota (429) as a failure.
+
 ### Added
 - **A fallback when a free model's quota runs out.** On 2026-11-05 Gemini's free tier ran out after about 250–300 requests, while the outlets publish several hundred articles a day. A second model (`LLM_FALLBACK_*`, e.g. Groq's free tier) now takes over for the rest of the run when the first one stops early, and any article no model analysed within `ENRICH_RULES_AFTER_MINUTES` (60 on the free path) gets the disclosed keyword-rule analysis instead of none. A used-up rate limit no longer trips the circuit breaker. *Free model quality* can test the second model (`fallback_key`, `response_format`). `LLM_REASONING_EFFORT` / `LLM_FALLBACK_REASONING_EFFORT` send `reasoning_effort` to reasoning models such as Groq's `openai/gpt-oss-120b` (Groq's Llama models are Enterprise-only since 2026), so their thinking leaves room for the JSON.
 

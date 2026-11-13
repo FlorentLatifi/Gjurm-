@@ -243,7 +243,14 @@ def _overall_status(stats: dict[str, Any], stage_errors: dict[str, str]) -> str:
         return "failed"
     ingest = stats.get("ingest") or {}
     enrich = stats.get("enrich") or {}
-    if ingest.get("sources_failed") or enrich.get("circuit_open") or enrich.get("fatal_error"):
+    fallback = enrich.get("fallback") or {}
+    if (
+        ingest.get("sources_failed")
+        or enrich.get("circuit_open")
+        or enrich.get("fatal_error")
+        or fallback.get("circuit_open")
+        or fallback.get("fatal_error")
+    ):
         return "partial"
     return "succeeded"
 
