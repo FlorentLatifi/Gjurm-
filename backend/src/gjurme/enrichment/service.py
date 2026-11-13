@@ -4,7 +4,8 @@ Control flow per run::
 
     kill switch? ─yes→ skip
     queue = pending ∪ failed-with-attempts-left, newest first, ≤ ENRICH_MAX_PER_RUN
-    for each article:
+            (then, for a model: what the keyword rules analysed provisionally)
+    for each article (LLM_BATCH_SIZE of them share one request):
         cache hit (same input hash + prompt + model)?  → reuse, cost 0
         budget.try_reserve(estimate)?  no → stop dispatching (rest stays pending)
         provider.complete → parse/repair/validate → ground entities
@@ -37,10 +38,12 @@ from gjurme.enrichment.budget import BudgetGuard, spent_today
 from gjurme.enrichment.grounding import ground_entities, split_proper_names
 from gjurme.enrichment.pricing import Usage, cost_usd, estimate_call_cost, register_price
 from gjurme.enrichment.prompt import (
+    BATCH_INSTRUCTION,
     PROMPT_VERSION,
     SYSTEM_PROMPT,
     ArticleInput,
     input_hash,
+    render_batch_message,
     render_user_message,
 )
 from gjurme.enrichment.providers import (
@@ -51,11 +54,13 @@ from gjurme.enrichment.providers import (
     OpenAICompatibleProvider,
 )
 from gjurme.enrichment.schema import (
+    BATCH_JSON_SCHEMA,
     OUTPUT_JSON_SCHEMA,
     SCHEMA_VERSION,
     EnrichmentOutput,
     InvalidOutputError,
     parse_output,
+    split_batch,
 )
 from gjurme.ingestion.normalize import normalize_key
 from gjurme.runtime_settings import enrichment_paused
@@ -65,6 +70,8 @@ log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT_TOKENS_EST = len(SYSTEM_PROMPT) // 3 + 400  # + schema overhead
 RAW_RESPONSE_MAX = 20_000
+# Room for one article's answer in a request for several (two summaries, names, labels).
+BATCH_OUTPUT_TOKENS_PER_ARTICLE = 600
 
 
 class ConfigurationError(RuntimeError):
@@ -103,6 +110,9 @@ def build_provider(settings: Settings) -> LLMProvider:
 @dataclass(slots=True)
 class EnrichStats:
     queued: int = 0
+    queued_upgrades: int = 0  # of those: analysed by the keyword rules, waiting for a model
+    batches: int = 0  # requests that carried more than one article
+    batch_fallbacks: int = 0  # articles asked for again alone after such a request
     attempted: int = 0
     succeeded: int = 0
     cached: int = 0
@@ -126,6 +136,9 @@ class EnrichStats:
         calls = self.attempted - self.cached
         return {
             "queued": self.queued,
+            "queued_upgrades": self.queued_upgrades,
+            "batches": self.batches,
+            "batch_fallbacks": self.batch_fallbacks,
             "attempted": self.attempted,
             "succeeded": self.succeeded,
             "cached": self.cached,
@@ -154,6 +167,8 @@ class QueueItem:
     attempts: int
     article: ArticleInput
     input_hash: str
+    # The article has the keyword rules' analysis and keeps it if this attempt fails.
+    upgrade: bool = False
 
 
 @dataclass(slots=True)
@@ -172,6 +187,10 @@ class CallOutcome:
     error_kind: str | None = None
     fatal: bool = False
     model: str = ""
+    # False for all but one article of a request that failed as a whole: one failed request
+    # is one failure for the circuit breaker, however many articles it carried.
+    counts_for_breaker: bool = True
+    batch_fallback: bool = False  # asked for again alone after a request for several
 
 
 def build_fallback_provider(settings: Settings) -> LLMProvider | None:
@@ -219,12 +238,22 @@ def _openai_compatible(
 # Queue
 # ---------------------------------------------------------------------------------------------
 def load_queue(
-    session: Session, settings: Settings, model: str, article_ids: Iterable[int] | None = None
+    session: Session,
+    settings: Settings,
+    model: str,
+    article_ids: Iterable[int] | None = None,
+    *,
+    upgrade_rules: bool = False,
 ) -> list[QueueItem]:
+    """Articles to analyse, newest first. With ``upgrade_rules`` (a model is asking and
+    ENRICH_RULES_UPGRADE_HOURS is set), the articles the keyword rules analysed in those hours
+    follow the ones that have no analysis yet."""
+    is_upgrade = Article.enrichment_status == "succeeded"
     query = (
         select(
             Article.id,
             Article.enrichment_attempts,
+            is_upgrade.label("upgrade"),
             Article.title,
             Article.excerpt,
             Article.published_date,
@@ -236,20 +265,40 @@ def load_queue(
     if article_ids is not None:
         query = query.where(Article.id.in_(list(article_ids)))
     else:
-        query = query.where(
-            or_(
-                Article.enrichment_status == "pending",
-                (Article.enrichment_status == "failed")
-                & (Article.enrichment_attempts < settings.enrich_max_attempts),
+        due = [
+            Article.enrichment_status == "pending",
+            (Article.enrichment_status == "failed")
+            & (Article.enrichment_attempts < settings.enrich_max_attempts),
+        ]
+        if upgrade_rules and settings.enrich_rules_upgrade_hours:
+            since = datetime.now(UTC) - timedelta(hours=settings.enrich_rules_upgrade_hours)
+            by_rules = select(Enrichment.article_id).where(
+                Enrichment.is_current.is_(True), Enrichment.provider == FakeProvider.name
             )
-        )
-    query = query.order_by(Article.published_at.desc()).limit(settings.enrich_max_per_run)
+            due.append(
+                is_upgrade
+                & (Article.enrichment_attempts < settings.enrich_max_attempts)
+                & (Article.ingested_at >= since)
+                & Article.id.in_(by_rules)
+            )
+        query = query.where(or_(*due))
+    query = query.order_by(is_upgrade, Article.published_at.desc()).limit(
+        settings.enrich_max_per_run
+    )
     items = []
     for row in session.execute(query):
         art = ArticleInput(
             source_name=row.name, published=row.published_date, title=row.title, excerpt=row.excerpt
         )
-        items.append(QueueItem(row.id, row.enrichment_attempts, art, input_hash(art, model)))
+        items.append(
+            QueueItem(
+                row.id,
+                row.enrichment_attempts,
+                art,
+                input_hash(art, model),
+                upgrade=article_ids is None and bool(row.upgrade),
+            )
+        )
     return items
 
 
@@ -345,8 +394,14 @@ def call_llm(provider: LLMProvider, item: QueueItem, estimate: Decimal) -> CallO
         raw_text=result.text,
         model=provider.model,
     )
+    return _finish(outcome, result.text)
+
+
+def _finish(outcome: CallOutcome, text: str | None) -> CallOutcome:
+    """Parse, repair, validate and ground one article's answer into ``outcome``."""
+    item = outcome.item
     try:
-        output, flags = parse_output(result.text)
+        output, flags = parse_output(text)
     except InvalidOutputError as exc:
         outcome.status, outcome.error, outcome.error_kind = "invalid", str(exc)[:1000], "invalid"
         return outcome
@@ -361,6 +416,119 @@ def call_llm(provider: LLMProvider, item: QueueItem, estimate: Decimal) -> CallO
         output = output.model_copy(update={"entities": kept})
     outcome.output, outcome.flags = output, flags
     return outcome
+
+
+def _share(usage: Usage, parts: int) -> list[Usage]:
+    """``usage`` of one request divided over the ``parts`` articles it carried (sums exactly)."""
+
+    def split(total: int) -> list[int]:
+        return [total // parts + (1 if i < total % parts else 0) for i in range(parts)]
+
+    return [
+        Usage(*tokens)
+        for tokens in zip(
+            split(usage.input_tokens),
+            split(usage.output_tokens),
+            split(usage.cache_read_tokens),
+            split(usage.cache_write_tokens),
+            strict=True,
+        )
+    ]
+
+
+def _add(a: Usage, b: Usage) -> Usage:
+    return Usage(
+        a.input_tokens + b.input_tokens,
+        a.output_tokens + b.output_tokens,
+        a.cache_read_tokens + b.cache_read_tokens,
+        a.cache_write_tokens + b.cache_write_tokens,
+    )
+
+
+def call_llm_batch(
+    provider: LLMProvider, batch: list[tuple[QueueItem, Decimal]], max_output_tokens: int
+) -> list[CallOutcome]:
+    """One request for several articles (worker thread — no DB access); one outcome each.
+
+    Each article's answer goes through the same parse, repair, validation and grounding as a
+    request of its own. An article whose answer is missing or invalid is asked for again alone,
+    as is every article when the request's answer is unusable as a whole (not JSON, cut off,
+    declined, rejected): one odd article or a model that cannot follow the batch format must
+    not cost the others their analysis. A used-up quota, a configuration error and a failed
+    connection are the request's, not the format's: every article gets that failure.
+    """
+    if len(batch) == 1:
+        return [call_llm(provider, *batch[0])]
+    shares = [Usage() for _ in batch]
+    texts: dict[int, str] = {}
+    result = None
+    try:
+        result = provider.complete(
+            SYSTEM_PROMPT + BATCH_INSTRUCTION,
+            render_batch_message([item.article for item, _ in batch]),
+            BATCH_JSON_SCHEMA,
+            max_output_tokens=max_output_tokens,
+        )
+    except LLMError as exc:
+        shares = _share(exc.usage, len(batch))
+        if exc.fatal or exc.kind not in ("truncated", "refused", "bad_request"):
+            return [
+                CallOutcome(
+                    item=item,
+                    estimate=estimate,
+                    status="failed",
+                    usage=shares[i],
+                    cost=cost_usd(provider.model, shares[i]),
+                    raw_text=exc.raw_text if i == 0 else None,
+                    error=str(exc)[:1000],
+                    error_kind=exc.kind,
+                    fatal=exc.fatal,
+                    request_id=exc.request_id,
+                    model=provider.model,
+                    counts_for_breaker=i == 0,
+                )
+                for i, (item, estimate) in enumerate(batch)
+            ]
+    except Exception as exc:  # defensive: an SDK bug must not kill the stage
+        log.exception("unexpected provider error")
+        return [
+            CallOutcome(
+                item=item,
+                estimate=estimate,
+                status="failed",
+                error=f"unexpected: {type(exc).__name__}: {exc}"[:1000],
+                error_kind="unexpected",
+                model=provider.model,
+                counts_for_breaker=i == 0,
+            )
+            for i, (item, estimate) in enumerate(batch)
+        ]
+    else:
+        shares = _share(result.usage, len(batch))
+        texts = split_batch(result.text, len(batch))
+    outcomes = []
+    for i, (item, estimate) in enumerate(batch):
+        outcome = None
+        if result is not None and i + 1 in texts:
+            outcome = _finish(
+                CallOutcome(
+                    item=item,
+                    estimate=estimate,
+                    status="succeeded",
+                    latency_ms=result.latency_ms,
+                    request_id=result.request_id,
+                    raw_text=texts[i + 1],
+                    model=provider.model,
+                ),
+                texts[i + 1],
+            )
+        if outcome is None or outcome.status != "succeeded":
+            outcome = call_llm(provider, item, estimate)
+            outcome.batch_fallback = True
+        outcome.usage = _add(outcome.usage, shares[i])
+        outcome.cost = cost_usd(provider.model, outcome.usage)
+        outcomes.append(outcome)
+    return outcomes
 
 
 # ---------------------------------------------------------------------------------------------
@@ -511,6 +679,14 @@ def persist_outcome(
         return None
     # refused → never retry; otherwise retry until attempts are exhausted
     terminal = outcome.status == "refused"
+    if item.upgrade:
+        # The article keeps the keyword rules' analysis and its status; only the tries count.
+        session.execute(
+            update(Article)
+            .where(Article.id == item.article_id)
+            .values(enrichment_attempts=max_attempts if terminal else attempt)
+        )
+        return None
     session.execute(
         update(Article)
         .where(Article.id == item.article_id)
@@ -536,8 +712,10 @@ def run_enrichment(
     article_ids: Iterable[int] | None = None,
     on_budget_exhausted: Callable[[], None] | None = None,
     max_seconds: float | None = None,
+    batch_size: int = 1,
 ) -> EnrichStats:
-    """Analyse the queue with one provider. ``max_seconds`` overrides ENRICH_MAX_SECONDS."""
+    """Analyse the queue with one provider. ``max_seconds`` overrides ENRICH_MAX_SECONDS;
+    ``batch_size`` articles share one request (never for the keyword rules)."""
     stats = EnrichStats()
     if not settings.enrichment_enabled:
         stats.skipped_reason = "disabled by ENRICHMENT_ENABLED=false"
@@ -549,18 +727,22 @@ def run_enrichment(
             stats.skipped_reason = f"paused by operator: {reason or 'no reason given'}"
             log.warning("enrichment paused", extra={"reason": reason})
             return stats
-        queue = load_queue(session, settings, provider.model, article_ids)
+        is_model = provider.name != FakeProvider.name
+        queue = load_queue(session, settings, provider.model, article_ids, upgrade_rules=is_model)
         stats.spent_today_usd = spent_today(session)
         cache = ResultCache(session, (item.input_hash for item in queue), provider.model)
     stats.queued = len(queue)
+    stats.queued_upgrades = sum(item.upgrade for item in queue)
     if not queue:
         return stats
+    if not is_model:
+        batch_size = 1
 
     budget = BudgetGuard(
         settings.llm_daily_budget_usd, stats.spent_today_usd, on_exhausted=on_budget_exhausted
     )
     consecutive_failures = 0
-    pending: dict[Future[CallOutcome], QueueItem] = {}
+    pending: set[Future[list[CallOutcome]]] = set()
     queue_iter = iter(queue)
     stop_dispatch = False
     limit_seconds = settings.enrich_max_seconds if max_seconds is None else max_seconds
@@ -616,66 +798,78 @@ def run_enrichment(
             stats.failed[outcome.error_kind or outcome.status] += 1
             # A used-up rate limit stops the stage by itself (below); it says nothing about
             # whether the provider is broken, so it does not trip the circuit breaker.
-            if outcome.status != "refused" and outcome.error_kind != "rate_limited":
+            if (
+                outcome.status != "refused"
+                and outcome.error_kind != "rate_limited"
+                and outcome.counts_for_breaker
+            ):
                 consecutive_failures += 1
 
     with ThreadPoolExecutor(
         max_workers=settings.enrich_concurrency, thread_name_prefix="enrich"
     ) as pool:
         while True:
-            # Fill the worker pool.
+            # Fill the worker pool: each worker takes one request of up to batch_size articles.
             limit = 1 if warm_cache else settings.enrich_concurrency
             while not stop_dispatch and len(pending) < limit:
-                if deadline is not None and time.monotonic() > deadline:
-                    stats.time_limited = stop_dispatch = True
-                    log.info(
-                        "enrichment time limit reached; the rest waits for the next run",
-                        extra={"max_seconds": settings.enrich_max_seconds},
+                batch: list[tuple[QueueItem, Decimal]] = []
+                while len(batch) < batch_size:
+                    if deadline is not None and time.monotonic() > deadline:
+                        stats.time_limited = stop_dispatch = True
+                        log.info(
+                            "enrichment time limit reached; the rest waits for the next run",
+                            extra={"max_seconds": settings.enrich_max_seconds},
+                        )
+                        break
+                    item = next(queue_iter, None)
+                    if item is None:
+                        stop_dispatch = True
+                        break
+                    cached = cache.find(item.input_hash, item.article_id)
+                    if cached is not None:
+                        out = EnrichmentOutput.model_validate(cached.output)
+                        record(
+                            CallOutcome(
+                                item=item,
+                                estimate=Decimal(0),
+                                status="cached",
+                                output=out,
+                                model=provider.model,
+                            ),
+                            cached_from=cached,
+                        )
+                        continue
+                    estimate = estimate_call_cost(
+                        provider.model,
+                        len(item.article.title) + len(item.article.excerpt or ""),
+                        SYSTEM_PROMPT_TOKENS_EST,
+                        settings.llm_max_output_tokens,
                     )
-                    break
-                item = next(queue_iter, None)
-                if item is None:
-                    stop_dispatch = True
-                    break
-                cached = cache.find(item.input_hash, item.article_id)
-                if cached is not None:
-                    out = EnrichmentOutput.model_validate(cached.output)
-                    record(
-                        CallOutcome(
-                            item=item,
-                            estimate=Decimal(0),
-                            status="cached",
-                            output=out,
-                            model=provider.model,
-                        ),
-                        cached_from=cached,
+                    if not budget.try_reserve(estimate):
+                        stats.budget_exhausted = True
+                        stop_dispatch = True
+                        log.warning(
+                            "daily LLM budget reached",
+                            extra={
+                                "budget_usd": float(budget.budget),
+                                "spent_usd": float(budget.spent),
+                            },
+                        )
+                        break
+                    batch.append((item, estimate))
+                if batch:
+                    stats.batches += len(batch) > 1
+                    room = max(
+                        settings.llm_max_output_tokens,
+                        BATCH_OUTPUT_TOKENS_PER_ARTICLE * len(batch),
                     )
-                    continue
-                estimate = estimate_call_cost(
-                    provider.model,
-                    len(item.article.title) + len(item.article.excerpt or ""),
-                    SYSTEM_PROMPT_TOKENS_EST,
-                    settings.llm_max_output_tokens,
-                )
-                if not budget.try_reserve(estimate):
-                    stats.budget_exhausted = True
-                    stop_dispatch = True
-                    log.warning(
-                        "daily LLM budget reached",
-                        extra={
-                            "budget_usd": float(budget.budget),
-                            "spent_usd": float(budget.spent),
-                        },
-                    )
-                    break
-                pending[pool.submit(call_llm, provider, item, estimate)] = item
+                    pending.add(pool.submit(call_llm_batch, provider, batch, room))
             if not pending:
                 break
-            done, _ = wait(pending, return_when=FIRST_COMPLETED)
-            for fut in done:
-                pending.pop(fut)
-                outcome = fut.result()
+            done, pending = wait(pending, return_when=FIRST_COMPLETED)
+            for outcome in (o for fut in done for o in fut.result()):
                 warm_cache = False
+                stats.batch_fallbacks += outcome.batch_fallback
                 budget.settle(outcome.estimate, outcome.cost)
                 record(outcome)
                 if outcome.fatal and not stats.fatal_error:
@@ -727,7 +921,9 @@ def enrich_stage(
     still describe the configured model.
     """
     started = time.monotonic()
-    stats = run_enrichment(session_factory, settings, provider, run_id=run_id)
+    stats = run_enrichment(
+        session_factory, settings, provider, run_id=run_id, batch_size=settings.llm_batch_size
+    )
     result: dict[str, Any] = stats.as_dict()
     fallback = None if provider.name == "fake" else build_fallback_provider(settings)
     if fallback is not None and (stats.rate_limited or stats.circuit_open or stats.fatal_error):
@@ -740,7 +936,12 @@ def enrich_stage(
                 extra={"fallback_model": fallback.model},
             )
             result["fallback"] = run_enrichment(
-                session_factory, settings, fallback, run_id=run_id, max_seconds=remaining or 0
+                session_factory,
+                settings,
+                fallback,
+                run_id=run_id,
+                max_seconds=remaining or 0,
+                batch_size=settings.llm_fallback_batch_size,
             ).as_dict()
     if settings.enrich_rules_after_minutes and provider.name != "fake":
         with session_factory() as session:
@@ -760,12 +961,15 @@ def enrich_stage(
 
 
 def rules_fallback_due(session: Session, settings: Settings) -> list[int]:
-    """Articles still without any analysis ENRICH_RULES_AFTER_MINUTES after ingestion.
+    """Articles still without any analysis ENRICH_RULES_AFTER_MINUTES after ingestion, or at
+    once when the rules' analysis is provisional (ENRICH_RULES_UPGRADE_HOURS): the article then
+    stays queued for a model, so nothing is gained by keeping it out of its story meanwhile.
 
     Articles that have an analysis and wait for a better one (``enrich-requeue``) are left to
     the model: they keep showing the analysis they have meanwhile.
     """
-    waited = datetime.now(UTC) - timedelta(minutes=settings.enrich_rules_after_minutes)
+    wait_minutes = 0 if settings.enrich_rules_upgrade_hours else settings.enrich_rules_after_minutes
+    waited = datetime.now(UTC) - timedelta(minutes=wait_minutes)
     analysed = select(Enrichment.article_id).where(Enrichment.is_current.is_(True))
     return list(
         session.scalars(

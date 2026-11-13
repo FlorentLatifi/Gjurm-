@@ -66,8 +66,9 @@ jobs:
       #     (docs/NISJA.md, "AI falas pa server");
       #     A second free model takes over when the first one's daily quota is used up:
       #     variables LLM_FALLBACK_BASE_URL and LLM_FALLBACK_MODEL, secret LLM_FALLBACK_API_KEY
-      #     (e.g. Groq). An article no model analysed within ENRICH_RULES_AFTER_MINUTES (60)
-      #     gets the keyword rules, so every article has a topic, tone and names;
+      #     (e.g. Groq). An article no model analysed in a run gets the keyword rules at the
+      #     end of it, so it has a topic, tone and names and reaches its story at once; for
+      #     ENRICH_RULES_UPGRADE_HOURS (48) it stays queued for a model, after the new articles;
       #  2. Claude when the ANTHROPIC_API_KEY secret is set;
       #  3. otherwise the disclosed keyword-rule analysis (ADR-018).
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -80,6 +81,13 @@ jobs:
       LLM_RESPONSE_FORMAT: ${{ vars.LLM_RESPONSE_FORMAT || 'json_schema' }}
       # Free tiers limit requests per minute; 429s are retried with backoff anyway.
       LLM_REQUESTS_PER_MINUTE: ${{ vars.LLM_REQUESTS_PER_MINUTE || '10' }}
+      # Articles per request. A free tier counts requests a day, and the instructions are about
+      # thirty times the size of one article: five a request is five times the articles a day.
+      # A batch whose answer cannot be used is repeated article by article. 1 = one each.
+      LLM_BATCH_SIZE: ${{ vars.LLM_BATCH_SIZE || '5' }}
+      # The second model stays at one article a request unless set: Groq's free tier counts
+      # tokens a minute, which a larger request can exceed.
+      LLM_FALLBACK_BATCH_SIZE: ${{ vars.LLM_FALLBACK_BATCH_SIZE || '1' }}
       LLM_FALLBACK_BASE_URL: ${{ vars.LLM_FALLBACK_BASE_URL }}
       LLM_FALLBACK_API_KEY: ${{ secrets.LLM_FALLBACK_API_KEY }}
       LLM_FALLBACK_MODEL: ${{ vars.LLM_FALLBACK_MODEL }}
@@ -89,6 +97,9 @@ jobs:
       LLM_REASONING_EFFORT: ${{ vars.LLM_REASONING_EFFORT }}
       LLM_FALLBACK_REASONING_EFFORT: ${{ vars.LLM_FALLBACK_REASONING_EFFORT }}
       ENRICH_RULES_AFTER_MINUTES: ${{ vars.ENRICH_RULES_AFTER_MINUTES || '60' }}
+      # The rules' analysis is provisional: a model replaces it within this many hours when its
+      # quota allows (0 = the rules wait ENRICH_RULES_AFTER_MINUTES and their analysis is final).
+      ENRICH_RULES_UPGRADE_HOURS: ${{ vars.ENRICH_RULES_UPGRADE_HOURS || '48' }}
       # Every run stops analysing after 10 minutes; what is left waits for the next run.
       ENRICH_MAX_SECONDS: ${{ vars.ENRICH_MAX_SECONDS || '600' }}
       ALLOW_FAKE_LLM_IN_PRODUCTION: "true"

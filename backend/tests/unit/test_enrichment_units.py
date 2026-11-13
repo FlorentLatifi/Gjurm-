@@ -338,3 +338,41 @@ class TestProviders:
     )
     def test_thinking_parameters_per_model(self, model: str, expected: dict[str, object]) -> None:
         assert _thinking_kwargs(model) == expected
+
+
+class TestBatch:
+    """Several articles in one request: the answer is taken apart by article id."""
+
+    def test_split_keeps_only_usable_entries(self) -> None:
+        from gjurme.enrichment.schema import split_batch
+
+        answer = {
+            "results": [
+                {"id": 1, "analysis": {"a": 1}},
+                {"id": "2", "analysis": {"b": 2}},  # an id as text is still that id
+                {"id": 3, "analysis": "not an object"},
+                {"id": 7, "analysis": {}},  # no such article
+                {"id": 4, "analysis": {"c": 3}},
+                {"id": 4, "analysis": {"c": 4}},  # twice: which one is right?
+                {"id": True, "analysis": {}},
+                "noise",
+            ]
+        }
+        got = split_batch("```json\n" + json.dumps(answer) + "\n```", 5)
+        assert {k: json.loads(v) for k, v in got.items()} == {1: {"a": 1}, 2: {"b": 2}}
+        assert split_batch("not json", 3) == {} and split_batch(None, 3) == {}
+        assert split_batch('{"result": []}', 3) == {}
+
+    def test_batch_message_numbers_the_articles(self) -> None:
+        from datetime import date
+
+        from gjurme.enrichment.prompt import ArticleInput, render_batch_message
+
+        arts = [ArticleInput("Koha", date(2026, 11, 1), f"Titulli {i}", None) for i in (1, 2)]
+        text = render_batch_message(arts)
+        assert text.count("<article id=") == 2 and "<article>" not in text
+        assert (
+            text.index('<article id="1">')
+            < text.index("Titulli 1")
+            < text.index('<article id="2">')
+        )

@@ -95,6 +95,12 @@ class Settings(BaseSettings):
     llm_fallback_response_format: Literal["json_schema", "json_object", "prompt"] = "json_schema"
     llm_fallback_requests_per_minute: int = Field(default=0, ge=0)
     llm_fallback_reasoning_effort: Literal["none", "low", "medium", "high"] | None = None
+    # Articles sent in one request (1 = one request per article). The instructions and the
+    # schema are about thirty times the size of one headline with its excerpt, and free tiers
+    # count requests per day: five articles a request is five times the articles a day. A batch
+    # whose answer cannot be used is repeated article by article.
+    llm_batch_size: int = Field(default=1, ge=1, le=20)
+    llm_fallback_batch_size: int = Field(default=1, ge=1, le=20)
     # USD per million tokens for models not in enrichment/pricing.py. 0 for local/free models,
     # which means the daily budget never stops them; ENRICH_MAX_PER_RUN still bounds each run.
     llm_price_input_per_mtok: float = Field(default=0.0, ge=0)
@@ -115,6 +121,12 @@ class Settings(BaseSettings):
     # (disclosed as such), so it still has a topic, tone and names (0 = never). Articles that
     # already have an analysis and only wait for a better one keep it instead.
     enrich_rules_after_minutes: int = Field(default=0, ge=0)
+    # With this above 0 the keyword-rule analysis is provisional: the rules then analyse what no
+    # model did at the end of the same run (no ENRICH_RULES_AFTER_MINUTES wait, so the article
+    # reaches its story at once), and for this many hours after ingestion the article stays
+    # queued for a model, after the articles that have no analysis yet (0 = the rules' analysis
+    # is final, until `enrich-requeue --provider fake`).
+    enrich_rules_upgrade_hours: int = Field(default=0, ge=0)
     enrichment_enabled: bool = True
     allow_fake_llm_in_production: bool = False
 

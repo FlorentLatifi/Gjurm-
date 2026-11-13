@@ -235,3 +235,54 @@ def parse_output(raw_text: str | None) -> tuple[EnrichmentOutput, dict[str, Any]
             f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}" for err in exc.errors()[:5]
         )
         raise InvalidOutputError(f"schema validation failed: {details}") from exc
+
+
+# Several articles in one request (LLM_BATCH_SIZE): one entry per article, by its id.
+BATCH_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["results"],
+    "properties": {
+        "results": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["id", "analysis"],
+                "properties": {"id": {"type": "integer"}, "analysis": OUTPUT_JSON_SCHEMA},
+            },
+        }
+    },
+}
+
+
+def split_batch(raw_text: str | None, count: int) -> dict[int, str]:
+    """The answer to a request for ``count`` articles, as each article's own JSON text by id
+    (1..count), ready for ``parse_output``. An article the answer leaves out, names twice or
+    gives no object for is missing from the result; so is every article when the answer is not
+    the expected JSON at all. The caller asks for those again, one by one."""
+    text = (raw_text or "").strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        text = text[text.find("{") :]
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+    results = data.get("results") if isinstance(data, dict) else data
+    if not isinstance(results, list):
+        return {}
+    found: dict[int, str] = {}
+    twice: set[int] = set()
+    for entry in results:
+        if not isinstance(entry, dict):
+            continue
+        ident, analysis = entry.get("id"), entry.get("analysis")
+        if isinstance(ident, str) and ident.strip().isdigit():
+            ident = int(ident)
+        if type(ident) is not int or not 1 <= ident <= count or not isinstance(analysis, dict):
+            continue
+        if ident in found:
+            twice.add(ident)
+        found[ident] = json.dumps(analysis, ensure_ascii=False)
+    return {i: t for i, t in found.items() if i not in twice}

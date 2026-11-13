@@ -16,7 +16,7 @@ from gjurme.db.models import Article, ArticleEntity, ArticleTopic, Enrichment, E
 from gjurme.enrichment.pricing import Usage
 from gjurme.enrichment.prompt import PROMPT_VERSION
 from gjurme.enrichment.providers import FakeProvider, LLMError, LLMResult
-from gjurme.enrichment.service import enrich_stage, requeue, run_enrichment
+from gjurme.enrichment.service import enrich_stage, load_queue, requeue, run_enrichment
 from gjurme.ingestion.normalize import normalize_key, sha256_hex
 from gjurme.runtime_settings import ENRICHMENT_PAUSE, put_setting
 from tests.integration.helpers import add_source
@@ -579,3 +579,186 @@ def test_rules_never_run_when_the_rules_are_the_model(db, settings, monkeypatch)
     cfg = settings.model_copy(update={"enrich_rules_after_minutes": 60})
     result = enrich_stage(db, cfg, FakeProvider())
     assert result["succeeded"] == 2 and "rules" not in result and "fallback" not in result
+
+
+# --- several articles in one request (LLM_BATCH_SIZE) -----------------------------------------
+def _batch(*entries: Any) -> dict[str, Any]:
+    """A batch answer: (id, analysis) pairs."""
+    return {"results": [{"id": i, "analysis": a} for i, a in entries]}
+
+
+@dataclass
+class BatchProvider(ScriptedProvider):
+    """Scripted, and records what each request carried."""
+
+    model: str = "gemini-test"
+    name: str = "openai_compatible"
+    requests: list[tuple[int, int | None]] = field(default_factory=list)  # (articles, tokens)
+
+    def complete(  # type: ignore[override]
+        self,
+        system: str,
+        user: str,
+        schema: dict[str, Any],
+        *,
+        max_output_tokens: int | None = None,
+    ) -> LLMResult:
+        self.requests.append((user.count("<headline>"), max_output_tokens))
+        assert ("Several articles in one request" in system) == ("results" in schema["properties"])
+        return super().complete(system, user, schema)
+
+
+def _batched(settings: Settings, size: int) -> Settings:
+    return settings.model_copy(update={"enrich_concurrency": 1, "llm_batch_size": size})
+
+
+def test_several_articles_share_one_request(db, settings) -> None:
+    ids = _articles(db, 5)
+    provider = BatchProvider(
+        [_batch((1, GOOD), (2, GOOD), (3, GOOD)), _batch((2, GOOD), (1, GOOD))],
+        usage=Usage(input_tokens=3001, output_tokens=900),
+    )
+    stats = run_enrichment(db, _batched(settings, 3), provider, batch_size=3)
+    assert provider.requests == [(3, 1800), (2, 1500)]  # room for three answers, then the floor
+    assert (stats.succeeded, stats.batches, stats.batch_fallbacks) == (5, 2, 0)
+    assert stats.entities_dropped_ungrounded == 5  # grounded article by article
+    assert (stats.input_tokens, stats.output_tokens) == (6002, 1800)  # shared out exactly
+    with db() as s:
+        assert {s.get(Article, i).enrichment_status for i in ids} == {"succeeded"}  # type: ignore[union-attr]
+        rows = s.scalars(select(Enrichment).where(Enrichment.is_current)).all()
+        assert len(rows) == 5 and {r.model for r in rows} == {"gemini-test"}
+        assert sorted(r.input_tokens for r in rows) == [1000, 1000, 1001, 1500, 1501]
+
+
+def test_an_article_missing_from_a_batch_answer_is_asked_for_alone(db, settings) -> None:
+    """One odd article must not cost the others their analysis, nor go without one."""
+    _articles(db, 4)
+    broken = {**GOOD, "primary_topic": "not_a_topic"}
+    provider = BatchProvider([_batch((1, GOOD), (2, broken), (4, GOOD), (9, GOOD)), GOOD, GOOD])
+    stats = run_enrichment(db, _batched(settings, 4), provider, batch_size=4)
+    assert provider.requests == [(4, 2400), (1, None), (1, None)]
+    assert (stats.succeeded, stats.batches, stats.batch_fallbacks) == (4, 1, 2)
+    assert not stats.failed
+
+
+@pytest.mark.parametrize(
+    "answer",
+    ["sure, here are the results", LLMError("truncated", "output hit max_tokens", retryable=True)],
+)
+def test_an_unusable_batch_answer_falls_back_to_single_requests(db, settings, answer) -> None:
+    _articles(db, 3)
+    provider = BatchProvider([answer, GOOD])
+    stats = run_enrichment(db, _batched(settings, 3), provider, batch_size=3)
+    assert provider.requests == [(3, 1800), (1, None), (1, None), (1, None)]
+    assert (stats.succeeded, stats.batch_fallbacks) == (3, 3) and not stats.failed
+
+
+def test_a_used_up_quota_on_a_batch_costs_no_article_an_attempt(db, settings) -> None:
+    ids = _articles(db, 6)
+    provider = BatchProvider([QUOTA])
+    stats = run_enrichment(db, _batched(settings, 3), provider, batch_size=3)
+    assert stats.rate_limited and provider.calls == 1 and not stats.circuit_open
+    with db() as s:
+        arts = [s.get(Article, i) for i in ids]
+        assert {(a.enrichment_status, a.enrichment_attempts) for a in arts if a} == {("pending", 0)}
+
+
+def test_a_failed_batch_is_one_failure_for_the_circuit_breaker(db, settings) -> None:
+    _articles(db, 6)
+    down = LLMError("server_error", "HTTP 503", retryable=True)
+    provider = BatchProvider([down, GOOD])  # five in the failed request, then one alone
+    cfg = _batched(settings, 5).model_copy(update={"enrich_circuit_breaker_threshold": 2})
+    stats = run_enrichment(db, cfg, provider, batch_size=5)
+    assert not stats.circuit_open and stats.failed == {"server_error": 5}
+    assert stats.succeeded == 1 and provider.requests == [(5, 3000), (1, None)]
+
+
+def test_the_keyword_rules_are_never_batched(db, settings) -> None:
+    _articles(db, 3)
+    stats = run_enrichment(db, _batched(settings, 3), FakeProvider(), batch_size=3)
+    assert stats.succeeded == 3 and stats.batches == 0
+
+
+# --- the rules' analysis as a provisional one (ENRICH_RULES_UPGRADE_HOURS) --------------------
+def _providers(db: sessionmaker[Session]) -> dict[int, str]:
+    with db() as s:
+        rows = s.execute(
+            select(Enrichment.article_id, Enrichment.provider).where(Enrichment.is_current)
+        ).all()
+    return {r.article_id: r.provider for r in rows}
+
+
+def test_rules_step_in_at_once_and_a_model_upgrades_them_later(db, settings, monkeypatch) -> None:
+    """Without the wait an article reaches its story in the run that fetched it; the model
+    replaces the rules' analysis when its quota is back."""
+    ids = _articles(db, 3)
+    cfg = _with_fallback(settings, monkeypatch, None).model_copy(
+        update={"enrich_rules_after_minutes": 60, "enrich_rules_upgrade_hours": 48}
+    )
+    first = enrich_stage(db, cfg, ScriptedProvider([QUOTA]))
+    assert first["rules"]["succeeded"] == 3  # no 60-minute wait
+    assert set(_providers(db).values()) == {"fake"}
+    with db() as s:
+        assert set(s.scalars(select(Article.enrichment_status))) == {"succeeded"}
+
+    model = ScriptedProvider([GOOD], model="gemini-test", name="openai_compatible")
+    second = enrich_stage(db, cfg, model)
+    assert (second["queued"], second["queued_upgrades"], second["succeeded"]) == (3, 3, 3)
+    assert "rules" not in second and set(_providers(db)) == set(ids)
+    assert set(_providers(db).values()) == {"openai_compatible"}
+    assert enrich_stage(db, cfg, model)["queued"] == 0  # upgraded once
+
+
+def test_new_articles_go_before_upgrades_and_old_rule_analyses_stay(
+    db, settings, monkeypatch
+) -> None:
+    old = _articles(db, 4)
+    cfg = _with_fallback(settings, monkeypatch, None).model_copy(
+        update={"enrich_rules_after_minutes": 60, "enrich_rules_upgrade_hours": 48}
+    )
+    enrich_stage(db, cfg, ScriptedProvider([QUOTA]))
+    _age(db, old[:2], hours=72)  # outside the window: the rules' analysis is final
+    with db() as s, s.begin():
+        src_id = s.scalar(select(Article.source_id).limit(1))
+        s.add(
+            Article(
+                source_id=src_id,
+                url="https://src.example.com/new",
+                canonical_url="https://src.example.com/new",
+                url_hash=sha256_hex("new"),
+                title="Kuvendi miraton buxhetin",
+                title_normalized=normalize_key("Kuvendi miraton buxhetin"),
+                title_hash=sha256_hex("Kuvendi miraton buxhetin"),
+                language="sq",
+                published_at=datetime(2026, 9, 20, 8, 0, tzinfo=UTC),  # older than the others
+                published_date=date(2026, 9, 20),
+                content_hash=sha256_hex("new"),
+            )
+        )
+    with db() as s:
+        queue = load_queue(s, cfg, "gemini-test", upgrade_rules=True)
+        assert [q.upgrade for q in queue] == [False, True, True]
+        assert {q.article_id for q in queue if q.upgrade} == set(old[2:])
+        assert not [q for q in load_queue(s, cfg, "fake") if q.upgrade]  # only a model upgrades
+
+
+def test_a_failed_upgrade_keeps_the_rules_analysis(db, settings, monkeypatch) -> None:
+    ids = _articles(db, 1)
+    cfg = _with_fallback(settings, monkeypatch, None).model_copy(
+        update={"enrich_rules_after_minutes": 60, "enrich_rules_upgrade_hours": 48}
+    )
+    enrich_stage(db, cfg, ScriptedProvider([QUOTA]))
+    model = ScriptedProvider(["{not json"], model="gemini-test", name="openai_compatible")
+    for expected_attempts in (2, 3):
+        result = enrich_stage(db, cfg, model)
+        assert result["failed"] == {"invalid": 1} and "rules" not in result
+        with db() as s:
+            art = s.get(Article, ids[0])
+            assert art is not None and art.enrichment_status == "succeeded"
+            assert art.enrichment_attempts == expected_attempts and art.sentiment_label
+    assert _providers(db) == {ids[0]: "fake"}
+    assert enrich_stage(db, cfg, model)["queued"] == 0  # out of tries: the rules' stays
+    with db() as s:
+        from gjurme.quality.checks import check_enrichment_consistency
+
+        assert check_enrichment_consistency(s).status == "pass"

@@ -13,6 +13,7 @@ price.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from html import escape
@@ -132,6 +133,27 @@ def render_user_message(article: ArticleInput) -> str:
         f"<headline>{escape(article.title, quote=False)}</headline>\n"
         f"<excerpt>{excerpt}</excerpt>\n"
         "</article>"
+    )
+
+
+# Appended to the system prompt when several articles go in one request (LLM_BATCH_SIZE). The
+# analysis instructions above stay as they are, so PROMPT_VERSION and the cache key do too.
+BATCH_INSTRUCTION = """
+
+## Several articles in one request
+The user message holds several articles, each in its own <article id="N"> element. Analyse \
+each one on its own, exactly as described above: never carry a name, topic, tone or fact from \
+one article into another, even when they report the same event. Respond with one JSON object \
+{"results": [...]} holding one entry per article, in the order given: {"id": N, "analysis": \
+{...}}, where "analysis" is the JSON object described above for that article. Every article \
+must have exactly one entry."""
+
+
+def render_batch_message(articles: Sequence[ArticleInput]) -> str:
+    """Several articles for one request; ids are 1..n in the order given."""
+    return "\n".join(
+        render_user_message(a).replace("<article>", f'<article id="{i}">', 1)
+        for i, a in enumerate(articles, start=1)
     )
 
 
