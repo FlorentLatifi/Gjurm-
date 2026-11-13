@@ -35,8 +35,22 @@ REGION_ABOUT_SHARE = 0.5
 
 # The only SQL spliced into a query (``_PAGE_SQL.format``): a whitelisted ORDER BY. All user input
 # is passed as bound parameters.
+#
+# "top" is the number of outlets, halved for every half-life since the story's latest report:
+# counted alone, the biggest story of the range led the front page until it left the range, two
+# days after its last report. The half-life is a third of the range (8 h per day, at least 12 h):
+# 24 h for the feed's three days, so yesterday's ten-outlet story ranks with today's five-outlet
+# one, and a month still ranks by coverage rather than by date. Age is counted from the end of
+# the range when that is in the past.
+_HALF_LIFE_HOURS = "GREATEST(12, 8 * (CAST(:end AS date) - CAST(:start AS date) + 1))"
+_AGE_HOURS = (
+    "GREATEST(extract(epoch FROM LEAST(now(), CAST(:end AS date) + 1) - agg.last_at), 0) / 3600.0"
+)
 STORY_SORTS = {
-    "top": "agg.source_count DESC, agg.article_count DESC, agg.last_at DESC, agg.story_id DESC",
+    "top": (
+        f"agg.source_count * power(0.5, {_AGE_HOURS} / {_HALF_LIFE_HOURS}) DESC, "
+        "agg.source_count DESC, agg.article_count DESC, agg.last_at DESC, agg.story_id DESC"
+    ),
     "latest": "agg.last_at DESC, agg.story_id DESC",
 }
 

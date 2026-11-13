@@ -84,6 +84,23 @@ class TestAlertRules:
         )
         assert "llm_fatal_error" in keys and "llm_circuit_open" not in keys
 
+    def test_a_broken_fallback_model_alerts(self) -> None:
+        """The first model's quota is used up every day; when the second model then fails, the
+        keyword rules take every article and nothing else would say so."""
+        from gjurme.pipeline.runner import _overall_status
+
+        quota_only = {"enrich": {"rate_limited": True, "fallback": {"succeeded": 4}}}
+        assert not _keys(evaluate_run("succeeded", quota_only))
+        assert _overall_status(quota_only, {}) == "succeeded"
+
+        bad_key = {"enrich": {"rate_limited": True, "fallback": {"fatal_error": "auth: HTTP 401"}}}
+        assert _keys(evaluate_run("partial", bad_key)) == {"llm_fallback_fatal_error"}
+        assert _overall_status(bad_key, {}) == "partial"
+
+        failing = {"enrich": {"rate_limited": True, "fallback": {"circuit_open": True}}}
+        assert _keys(evaluate_run("partial", failing)) == {"llm_fallback_circuit_open"}
+        assert _overall_status(failing, {}) == "partial"
+
     @pytest.mark.parametrize("fmt", ["slack", "discord", "ntfy", "generic"])
     def test_payload_formats(self, fmt: str) -> None:
         body, headers = _format_payload(fmt, Alert("k", "critical", "T", "M"), "production")

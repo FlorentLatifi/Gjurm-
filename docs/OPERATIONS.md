@@ -46,6 +46,7 @@ admin alerts | jq '.[0:5]'
 | `llm_budget_exhausted:<date>` | warning | Daily LLM budget reached; the rest waits for tomorrow | Expected on busy days. If it happens daily: raise `LLM_DAILY_BUDGET_USD`, lower volume, or switch model ([AI_ENRICHMENT.md](AI_ENRICHMENT.md#cost-controls)). |
 | `llm_fatal_error` | critical | Auth or permission error, or unknown model | Check `ANTHROPIC_API_KEY` (revoked? out of credit?) and `LLM_MODEL`. Nothing was consumed; fix `.env`, `dc up -d scheduler`. |
 | `llm_circuit_open` | critical | 5 consecutive LLM failures in a run | `admin failures` for the errors. Timeouts or 5xx usually mean an Anthropic incident (check status.anthropic.com); the next run retries automatically. |
+| `llm_fallback_fatal_error`, `llm_fallback_circuit_open` | critical | The second model (`LLM_FALLBACK_*`) has a bad key or unknown model, or failed 5 times in a row, after the first model's quota ran out. The run ends `partial`; the keyword rules take what no model analysed | Check `LLM_FALLBACK_API_KEY` and `LLM_FALLBACK_MODEL` (free tiers retire models); the run's log names the error. |
 | `dq:<check>` | warning | A data-quality check failed (or volume anomaly warned) | See the check table below. |
 
 ## Data-quality checks
@@ -58,7 +59,8 @@ Run after every pipeline run (and on demand: `gj quality`). Results are in `ops.
 | `duplicate_rate_24h` | 24 h | > 95% (info) | A feed republishing old items |
 | `estimated_publication_dates_24h` | 24 h | > 20% | A feed dropped or broke its dates |
 | `enrichment_backlog_6h` | still due an analysis > 6 h after arriving (pending, or failed with attempts left) | > 200 / > 1000 | Budget too small, enrichment paused, or LLM failing |
-| `enrichment_failure_rate_24h` | 24 h | > 10% / > 30% (critical) | LLM incident, bad key, schema problem |
+| `enrichment_failure_rate_24h` | 24 h | > 10% / > 30% (critical) | LLM incident, bad key, schema problem. A used-up quota (429) is not counted; `details.rate_limited` has their number |
+| `rule_based_share_24h` | analysed in 24 h, when a model is configured (≥ 20 articles) | > 50% / > 90% by the keyword rules | The models' free quotas do not cover the volume, or a model stopped (key, retired model). Above 90% it alerts. With `LLM_PROVIDER=fake` the share is only recorded |
 | `enrichment_consistency` | all | any (critical) | `succeeded` article without a current enrichment, or the reverse (a bug) |
 | `story_backlog_2h` | unclustered > 2 h after it could be clustered (analysed, or `STORY_ENRICHMENT_WAIT_MINUTES` passed) | > 50 / > 500 | CLUSTER stage failing or skipped (`gjurme cluster` runs it alone) |
 | `malformed_entities` | all | any | Empty or markup-like entity names (prompt or repair regression) |

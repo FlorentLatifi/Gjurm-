@@ -897,3 +897,26 @@ def escape_attr(value: str) -> str:
     from html import escape
 
     return escape(value, quote=True)
+
+
+def test_top_stories_weigh_coverage_against_age(
+    db: sessionmaker[Session], settings: Settings, client: TestClient
+) -> None:
+    """Counted by outlets alone, the biggest story of the range led the front page for days."""
+    with db() as s, s.begin():
+        src = {slug: rated_source(s, slug) for slug in OUTLETS}
+        old, fresh = NOW - timedelta(hours=50), NOW - timedelta(hours=1)
+        for i, slug in enumerate(("majtas", "qendra", "djathtas")):
+            article(s, src[slug], "Kuvendi miraton buxhetin e shtetit", old + timedelta(minutes=i))
+        for i, slug in enumerate(("tirana", "pavleresuar")):
+            article(
+                s, src[slug], "Zjarr i madh në qendër të Prizrenit", fresh + timedelta(minutes=i)
+            )
+    with db() as s:
+        cluster_pending(s, settings)
+    # four days: a half-life of 32 h, so 3 outlets 50 h ago weigh 1.0 and 2 outlets now 2.0
+    top = client.get("/api/v1/stories", params={"days": 4, "min_sources": 2}).json()["items"]
+    assert [(i["source_count"], i["title"][:5]) for i in top] == [(2, "Zjarr"), (3, "Kuven")]
+    # a month: a half-life of 10 days, and the count of outlets decides again
+    month = client.get("/api/v1/stories", params={"days": 30, "min_sources": 2}).json()["items"]
+    assert [i["source_count"] for i in month] == [3, 2]

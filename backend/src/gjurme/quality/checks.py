@@ -132,11 +132,18 @@ def check_enrichment_backlog(s: Session) -> CheckResult:
 
 
 def check_enrichment_failure_rate(s: Session) -> CheckResult:
+    """Calls that failed, of those a model answered. A used-up quota (429 after the retries) is
+    left out: on a free tier it happens every day, the fallback model or the rules then take
+    over, and counted here it would hide a model that really is failing."""
     row = s.execute(
         text("""
-        SELECT count(*) FILTER (WHERE status IN ('failed', 'invalid', 'refused')) AS failed,
-               count(*) FILTER (WHERE status <> 'cached') AS total
-        FROM core.enrichments WHERE created_at >= now() - interval '24 hours'
+        SELECT count(*) FILTER (WHERE status IN ('failed', 'invalid', 'refused')
+                                  AND NOT quota) AS failed,
+               count(*) FILTER (WHERE status <> 'cached' AND NOT quota) AS total,
+               count(*) FILTER (WHERE quota) AS rate_limited
+        FROM (SELECT status, coalesce(status = 'failed' AND error LIKE 'rate_limited:%', false)
+                         AS quota
+              FROM core.enrichments WHERE created_at >= now() - interval '24 hours') e
     """)
     ).one()
     rate = _rate(row.failed, row.total)
@@ -146,7 +153,39 @@ def check_enrichment_failure_rate(s: Session) -> CheckResult:
         _grade(rate, 0.10, 0.30),
         rate,
         0.10,
-        {"failed": row.failed, "attempts": row.total},
+        {"failed": row.failed, "attempts": row.total, "rate_limited": row.rate_limited},
+    )
+
+
+RULE_BASED_WARN, RULE_BASED_FAIL = 0.5, 0.9
+RULE_BASED_MIN_ARTICLES = 20
+
+
+def check_rule_based_share(s: Session) -> CheckResult:
+    """How much of the last 24 hours the keyword rules analysed although a model is configured
+    (the rules take what no model analysed in time, ENRICH_RULES_AFTER_MINUTES). A high share
+    means the models' quotas do not cover the volume, or a model stopped working: nothing else
+    reports that, because every article still ends up analysed. Where the rules are the
+    configured analysis (LLM_PROVIDER=fake, ADR-018) the share is only recorded."""
+    row = s.execute(
+        text("""
+        SELECT count(*) FILTER (WHERE e.provider = 'fake') AS rules, count(*) AS total
+        FROM core.articles a
+        JOIN core.enrichments e ON e.article_id = a.id AND e.is_current
+        WHERE a.enriched_at >= now() - interval '24 hours' AND a.enrichment_status = 'succeeded'
+    """)
+    ).one()
+    share = _rate(row.rules, row.total)
+    details = {"rule_based": row.rules, "analysed": row.total}
+    if get_settings().llm_provider == "fake" or row.total < RULE_BASED_MIN_ARTICLES:
+        return CheckResult("rule_based_share_24h", "info", "pass", share, None, details)
+    return CheckResult(
+        "rule_based_share_24h",
+        "warning",
+        _grade(share, RULE_BASED_WARN, RULE_BASED_FAIL),
+        share,
+        RULE_BASED_WARN,
+        details,
     )
 
 
@@ -421,6 +460,7 @@ CHECKS: tuple[Callable[[Session], CheckResult], ...] = (
     check_estimated_dates,
     check_enrichment_backlog,
     check_enrichment_failure_rate,
+    check_rule_based_share,
     check_enrichment_consistency,
     check_story_backlog,
     check_malformed_entities,

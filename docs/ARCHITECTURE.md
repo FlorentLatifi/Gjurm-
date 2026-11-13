@@ -73,7 +73,7 @@ sequenceDiagram
         M-->>S: structured output
         S->>C: validate, ground entities, enrichments + bridges
         S->>C: cluster new articles into stories (TF-IDF, name guards, 48 h span)
-        S->>O: 15 data-quality checks → data_quality_results
+        S->>O: 16 data-quality checks → data_quality_results
         S->>O: alert evaluation → alert_events (+ webhook)
         S->>O: pipeline_runs(status, per-stage stats)
     end
@@ -135,7 +135,7 @@ backend/src/gjurme/
   analytics/queries.py every analytical query (parameterized SQL)
   analytics/stories.py story feed, story detail, blindspots, source profiles
   stories/             similarity (tokens, TF-IDF, name guards), clustering stage, review report
-  quality/checks.py    15 data-quality checks
+  quality/checks.py    16 data-quality checks
   alerts/engine.py     alert rules, dedup, webhook delivery
   pipeline/            runner, advisory locking, scheduler loop, retention
   api/                 FastAPI app, routers (public, ops/admin), schemas, security, metrics
@@ -166,7 +166,7 @@ Every public answer carries a weak `ETag` (a hash of its body). A browser that s
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/stories` | Stories that started in the range, with coverage by perspective, factuality, ownership and region, tone, first reporter, outlets and blindspots. `topic`, `country` (an outlet from there covered it), `q`, `min_sources`, `sort=top\|latest`, `page`, `page_size` (≤ 50) |
+| GET | `/stories` | Stories that started in the range, with coverage by perspective, factuality, ownership and region, tone, first reporter, outlets and blindspots. `topic`, `country` (an outlet from there covered it), `q`, `min_sources`, `sort=top\|latest` (`top`: outlets, halved for every third of the range since the story's latest report), `page`, `page_size` (≤ 50) |
 | GET | `/stories/blindspots` | Stories one side (`kind=perspective`) or one country's outlets (`kind=region`) barely covered; the rule is in `method` |
 | GET | `/stories/{id}` | One story: every outlet's headline (linked to the original) with the outlet's ratings, first report, entities, topics, related stories |
 | GET | `/sources/{slug}` | One outlet: ratings and their basis, ownership, stories covered, first reports, exclusives, overlapping outlets, topic and name focus, recent stories |

@@ -175,6 +175,51 @@ def test_low_confidence_counts_a_model_not_the_keyword_rules(db, settings) -> No
     assert result.details == {"low_confidence": 2, "enriched": 2, "rule_based": 2}
 
 
+def test_a_used_up_quota_is_not_a_failure_rate(db, settings) -> None:
+    """A free tier's quota runs out daily (429): the check is for a model that really fails."""
+    from gjurme.quality.checks import check_enrichment_failure_rate
+
+    ids = _articles(db, 4)
+    run_enrichment(db, settings, ScriptedProvider([GOOD, GOOD]), article_ids=ids[:2])
+    quota = LLMError("rate_limited", "HTTP 429: quota", retryable=True)
+    run_enrichment(db, settings, ScriptedProvider([quota]), article_ids=ids[2:3])
+    with db() as s:
+        result = check_enrichment_failure_rate(s)
+    assert (result.status, result.observed) == ("pass", 0.0)
+    assert result.details == {"failed": 0, "attempts": 2, "rate_limited": 1}
+    broken = LLMError("server_error", "HTTP 500", retryable=True)
+    run_enrichment(db, settings, ScriptedProvider([broken]), article_ids=ids[3:])
+    with db() as s:
+        result = check_enrichment_failure_rate(s)
+    assert result.status == "fail" and result.details["failed"] == 1
+
+
+def test_rule_based_share_warns_only_where_a_model_is_configured(
+    db, settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every article ends up analysed whichever model stopped, so the share of the keyword
+    rules is the only sign that the models no longer cover the news."""
+    from gjurme.quality import checks
+
+    ids = _articles(db, 20)
+    model = settings.model_copy(update={"llm_provider": "openai_compatible"})
+    monkeypatch.setattr(checks, "get_settings", lambda: model)
+    run_enrichment(db, settings, ScriptedProvider([GOOD] * 8), article_ids=ids[:8])
+    run_enrichment(db, settings, FakeProvider(), article_ids=ids[8:])
+    with db() as s:
+        mixed = checks.check_rule_based_share(s)
+    assert (mixed.status, mixed.observed) == ("warn", 0.6)
+    assert mixed.details == {"rule_based": 12, "analysed": 20}
+
+    run_enrichment(db, settings, FakeProvider(), article_ids=ids[:7])
+    with db() as s:
+        assert checks.check_rule_based_share(s).status == "fail"  # 19 of 20: alerts
+        rules_mode = settings.model_copy(update={"llm_provider": "fake"})
+        monkeypatch.setattr(checks, "get_settings", lambda: rules_mode)
+        chosen = checks.check_rule_based_share(s)
+    assert (chosen.status, chosen.severity, chosen.observed) == ("pass", "info", 0.95)
+
+
 def test_invalid_output_recorded_and_retried_later(db, settings) -> None:
     [aid] = _articles(db, 1)
     stats = run_enrichment(db, settings, ScriptedProvider(["{not json"]))

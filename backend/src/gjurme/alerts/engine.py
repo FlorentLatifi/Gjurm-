@@ -102,6 +102,28 @@ def evaluate_run(run_status: str, stats: dict[str, Any]) -> list[Alert]:
                 {"failed": enrich.get("failed", {})},
             )
         )
+    # The second model (LLM_FALLBACK_*) reports under ``fallback``: when it breaks too, the
+    # keyword rules quietly take every article, so it needs an alert of its own.
+    fallback = enrich.get("fallback") or {}
+    if fallback.get("fatal_error"):
+        alerts.append(
+            Alert(
+                "llm_fallback_fatal_error",
+                "critical",
+                "Fallback LLM configuration error",
+                f"The fallback model stopped: {fallback['fatal_error']}",
+            )
+        )
+    elif fallback.get("circuit_open"):
+        alerts.append(
+            Alert(
+                "llm_fallback_circuit_open",
+                "critical",
+                "Fallback model circuit breaker open",
+                "Repeated consecutive failures of the fallback model in this run.",
+                {"failed": fallback.get("failed", {})},
+            )
+        )
     for check in (stats.get("quality") or {}).get("results", []):
         if check["status"] == "fail" or (
             check["name"] in ("article_volume_anomaly", "database_size")
