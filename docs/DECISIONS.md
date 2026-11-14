@@ -187,7 +187,7 @@ Short records of the decisions that shape the system: context, the decision, and
 ## ADR-029: An outside clock for the free pipeline
 **Context.** Four days after launch on the free path (ADR-027), GitHub had started the 30-minute schedule every 2 to 5 hours, and the weekly backup not at all. The site read "stale" most of the time, and the uptime monitor failed and e-mailed. Outlets whose feeds hold 10 items lost news between runs (`feed_overflow_24h`). Each late run then had 150–180 articles to handle. From a GitHub runner every database statement is a round trip of ~100–150 ms to Neon, so a run took 10 minutes.
 **Decision.**
-- **An outside clock.** cron-job.org (free, no card) starts the workflow every 30 minutes through the API (`workflow_dispatch`). It uses a fine-grained token that can only start and read this repository's workflows. GitHub's schedule stays as a fallback.
+- **An outside clock.** cron-job.org (free, no card) starts the workflow every 30 minutes through the API (`workflow_dispatch`). It uses a fine-grained token that can only start and read this repository's workflows. GitHub's schedule stays as a fallback; a scheduled start does nothing when a run that did not fail started within 20 minutes (`--skip-if-recent`), so the two clocks never mean two runs.
 - **No standing jobs.** A job that loops for hours, or a run that dispatches the next one, would hold a runner around the clock. That would turn a CI service into a server, against the spirit of GitHub's terms.
 - **The backup and the keep-alive no longer wait for their own schedule.** They run with any run once due: when the newest backup artifact is 7 days old, and on every run for the keep-alive, which costs one API call.
 - **Fewer round trips per article:**

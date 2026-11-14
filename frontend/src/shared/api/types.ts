@@ -252,8 +252,9 @@ export interface StorySummary {
   topic_slug: string | null;
   topic_name: string | null;
   topic_name_sq: string | null;
-  first_source_slug: string;
-  first_source_name: string;
+  /** Null when the outlets' times cannot tell who was first. */
+  first_source_slug: string | null;
+  first_source_name: string | null;
   coverage: Coverage;
   tone: { negative: number; neutral: number; positive: number };
   sources: { slug: string; name: string; bias: BiasRating; country: string }[];

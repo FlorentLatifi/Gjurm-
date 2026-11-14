@@ -449,11 +449,38 @@ def scheduler(
             "failed.",
         ),
     ] = False,
+    skip_if_recent: Annotated[
+        int,
+        typer.Option(
+            "--skip-if-recent",
+            min=0,
+            help="With --once: do nothing when a run started within this many minutes and did "
+            "not fail. For a second, fallback timer: two clocks must not mean two runs.",
+        ),
+    ] = 0,
 ) -> None:
     """Run forever: pipeline every SCHEDULER_INTERVAL_MINUTES, retention daily."""
     settings = _settings()
     from gjurme.pipeline.scheduler import Scheduler
 
+    if once and skip_if_recent:
+        from sqlalchemy import text
+
+        from gjurme.db.session import session_scope
+
+        with session_scope() as s:
+            recent = s.execute(
+                text("""
+                SELECT round(extract(epoch FROM now() - max(started_at)) / 60)
+                FROM ops.pipeline_runs
+                WHERE status IN ('running', 'succeeded', 'partial')
+                  AND started_at >= now() - make_interval(mins => :minutes)
+            """),
+                {"minutes": skip_if_recent},
+            ).scalar()
+        if recent is not None:
+            typer.echo(f"pipeline run: skipped (a run started {int(recent)} min ago)")
+            return
     sched = Scheduler(settings, _session_factory())
     if once:
         sched.tick()

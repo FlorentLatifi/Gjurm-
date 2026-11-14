@@ -5785,12 +5785,26 @@
             "title": "Topic Name"
           },
           "first_source_slug": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "First Source Slug",
-            "description": "Outlet that published first"
+            "description": "Outlet that published first; null when the times cannot tell (another outlet's report within 30 minutes has only the time it was first seen)"
           },
           "first_source_name": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "First Source Name"
           },
           "coverage": {
@@ -6026,12 +6040,26 @@
             "title": "Topic Name"
           },
           "first_source_slug": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "First Source Slug",
-            "description": "Outlet that published first"
+            "description": "Outlet that published first; null when the times cannot tell (another outlet's report within 30 minutes has only the time it was first seen)"
           },
           "first_source_name": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "First Source Name"
           },
           "coverage": {

@@ -142,6 +142,7 @@ jobs:
       - name: Migrate, then one scheduler tick
         env:
           TASK: ${{ inputs.task }}
+          EVENT: ${{ github.event_name }}
         run: |
           # Values pasted from a web page can carry a tab or spaces around them.
           for name in LLM_BASE_URL LLM_MODEL LLM_FALLBACK_BASE_URL LLM_FALLBACK_MODEL; do
@@ -162,7 +163,14 @@ jobs:
             # within LLM_DAILY_BUDGET_USD: what one day's budget does not cover, later runs do
             uv run gjurme enrich-requeue --provider fake
           fi
-          uv run gjurme scheduler --once
+          # GitHub's own schedule is the fallback clock (ADR-029): when the outside clock has
+          # just started a run, a second one would fetch every feed again and keep the database
+          # awake for nothing. Runs asked for by hand, and the outside clock's, always run.
+          if [ "$EVENT" = schedule ]; then
+            uv run gjurme scheduler --once --skip-if-recent 20
+          else
+            uv run gjurme scheduler --once
+          fi
 
   # A backup a week, whatever starts the workflow: it runs when asked for, or when the newest
   # backup artifact is older than 7 days.

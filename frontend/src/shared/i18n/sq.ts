@@ -235,6 +235,7 @@ export const sq: Record<string, string> = {
   "First: {outlet}": "I pari: {outlet}",
   "{reports} from {outlets} over {span}, first by {first} at {time}.":
     "{reports} nga {outlets} në {span}; i pari ishte {first}, më {time}.",
+  "{reports} from {outlets} over {span}.": "{reports} nga {outlets} në {span}.",
   "(opens {host} in a new tab)": "(hap {host} në një skedë të re)",
   "first report": "raportimi i parë",
   "Story not found": "Lajmi nuk u gjet",
@@ -244,6 +245,8 @@ export const sq: Record<string, string> = {
   "{n} outlet covered this story.": "{n} medium e raportoi këtë lajm.",
   "{n} outlets covered this story.": "{n} media e raportuan këtë lajm.",
   "First reported by": "Raportuar së pari nga",
+  "First reported {when} (which outlet was first is not known)":
+    "Raportuar së pari {when} (nuk dihet cila media ishte e para)",
   "(AI summary)": "(përmbledhje nga AI)",
   "(AI summary, in English)": "(përmbledhje nga AI, në anglisht)",
   Timeline: "Kronologjia",

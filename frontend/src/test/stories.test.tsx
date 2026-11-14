@@ -119,6 +119,11 @@ describe("StoryCard", () => {
     expect(screen.getByText("Parliament passed the 2027 budget.")).toBeInTheDocument();
   });
 
+  it("names no first reporter when the times cannot tell", () => {
+    wrap(<StoryCard story={{ ...story, first_source_slug: null, first_source_name: null }} lens="perspective" />);
+    expect(screen.queryByText(/First:/)).toBeNull();
+  });
+
   it("hides the placeholder summary of keyword-rule analysis", () => {
     wrap(<StoryCard story={{ ...story, summary_en: "[headline, no AI summary] x", summary_sq: "[headline, no AI summary] x" }} lens="region" />);
     expect(screen.queryByText(/no AI summary/)).not.toBeInTheDocument();

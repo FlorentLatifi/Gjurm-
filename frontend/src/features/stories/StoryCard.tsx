@@ -117,7 +117,7 @@ export function StoryCard({
           <strong>{tn(story.source_count, "{n} outlet", "{n} outlets")}</strong>
           {story.article_count > story.source_count && <> · {tn(story.article_count, "{n} article", "{n} articles")}</>}
         </span>
-        {story.source_count > 1 && <span>{t("First: {outlet}", { outlet: story.first_source_name })}</span>}
+        {story.source_count > 1 && story.first_source_name && <span>{t("First: {outlet}", { outlet: story.first_source_name })}</span>}
       </div>
     </article>
   );

@@ -1595,11 +1595,11 @@ export interface components {
             topic_name: string | null;
             /**
              * First Source Slug
-             * @description Outlet that published first
+             * @description Outlet that published first; null when the times cannot tell (another outlet's report within 30 minutes has only the time it was first seen)
              */
-            first_source_slug: string;
+            first_source_slug: string | null;
             /** First Source Name */
-            first_source_name: string;
+            first_source_name: string | null;
             coverage: components["schemas"]["Coverage"];
             tone: components["schemas"]["ToneMix"];
             /** Sources */
@@ -1686,11 +1686,11 @@ export interface components {
             topic_name: string | null;
             /**
              * First Source Slug
-             * @description Outlet that published first
+             * @description Outlet that published first; null when the times cannot tell (another outlet's report within 30 minutes has only the time it was first seen)
              */
-            first_source_slug: string;
+            first_source_slug: string | null;
             /** First Source Name */
-            first_source_name: string;
+            first_source_name: string | null;
             coverage: components["schemas"]["Coverage"];
             tone: components["schemas"]["ToneMix"];
             /** Sources */

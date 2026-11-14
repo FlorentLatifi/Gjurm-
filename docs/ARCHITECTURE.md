@@ -166,7 +166,7 @@ Every public answer carries a weak `ETag` (a hash of its body). A browser that s
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/stories` | Stories that started in the range, with coverage by perspective, factuality, ownership and region, tone, first reporter, outlets and blindspots. `topic`, `country` (an outlet from there covered it), `q`, `min_sources`, `sort=top\|latest` (`top`: outlets, halved for every third of the range since the story's latest report), `page`, `page_size` (≤ 50) |
+| GET | `/stories` | Stories that started in the range, with coverage by perspective, factuality, ownership and region, tone, first reporter (null when an estimated time within 30 minutes of the earliest report leaves it open), outlets and blindspots. `topic`, `country` (an outlet from there covered it), `q`, `min_sources`, `sort=top\|latest` (`top`: outlets, halved for every third of the range since the story's latest report), `page`, `page_size` (≤ 50) |
 | GET | `/stories/blindspots` | Stories one side (`kind=perspective`) or one country's outlets (`kind=region`) barely covered; the rule is in `method` |
 | GET | `/stories/{id}` | One story: every outlet's headline (linked to the original) with the outlet's ratings, first report, entities, topics, related stories |
 | GET | `/sources/{slug}` | One outlet: ratings and their basis, ownership, stories covered, first reports, exclusives, overlapping outlets, topic and name focus, recent stories |
