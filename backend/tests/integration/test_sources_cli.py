@@ -349,3 +349,45 @@ def test_db_upgrade_on_a_newer_database_lets_a_rollback_run(cli_env: CliRunner) 
     finally:
         with get_engine().begin() as conn:
             conn.execute(text("UPDATE ops.alembic_version SET version_num = :v"), {"v": head})
+
+
+def test_cli_scheduler_skips_a_run_right_after_another(
+    cli_env: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two clocks start the free pipeline (an outside one, and GitHub's schedule as a fallback):
+    the fallback must not fetch every feed again minutes after a run."""
+    from datetime import UTC, datetime, timedelta
+    from types import SimpleNamespace
+
+    from gjurme.db.models import PipelineRun
+
+    calls: list[str] = []
+
+    def fake_run(_settings: object, _factory: object, trigger: str) -> SimpleNamespace:
+        calls.append(trigger)
+        return SimpleNamespace(status="succeeded", stats={})
+
+    monkeypatch.setattr("gjurme.pipeline.scheduler.run_pipeline", fake_run)
+
+    def add_run(status: str, minutes_ago: int) -> None:
+        with get_sessionmaker()() as s, s.begin():
+            s.add(
+                PipelineRun(
+                    trigger="schedule",
+                    stages=["ingest"],
+                    status=status,
+                    started_at=datetime.now(UTC) - timedelta(minutes=minutes_ago),
+                )
+            )
+
+    add_run("succeeded", 45)  # long enough ago
+    add_run("failed", 5)  # a failed run is no reason to wait
+    ran = cli_env.invoke(app, ["scheduler", "--once", "--skip-if-recent", "20"])
+    assert ran.exit_code == 0 and "pipeline run: succeeded" in ran.output and len(calls) == 1
+
+    add_run("partial", 7)
+    skipped = cli_env.invoke(app, ["scheduler", "--once", "--skip-if-recent", "20"])
+    assert skipped.exit_code == 0 and "skipped (a run started 7 min ago)" in skipped.output
+    assert len(calls) == 1
+    forced = cli_env.invoke(app, ["scheduler", "--once"])  # asked for by hand: always runs
+    assert forced.exit_code == 0 and len(calls) == 2

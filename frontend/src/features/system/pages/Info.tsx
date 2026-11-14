@@ -97,7 +97,9 @@ function AboutEn({ topics, status }: AboutProps) {
           from one side and at most 15% from the other — or the story is about a country (named in
           at least half of its analysed articles) whose own outlets did not report it.</li>
         <li><strong>Reported first</strong> is the outlet with the earliest publication time among a
-          story’s articles, as stated by the feeds.</li>
+          story’s articles, as stated by the feeds. A feed without usable times gives only when an
+          article was first seen: when another outlet’s report has such a time within 30 minutes
+          of the earliest one, no outlet is named first.</li>
         <li>The <strong>trace</strong> on a story page draws every report as one mark on a single time
           line, coloured by the chosen split; the first report is the taller mark.</li>
       </ul>

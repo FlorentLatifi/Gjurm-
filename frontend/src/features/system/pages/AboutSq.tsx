@@ -91,7 +91,9 @@ export function AboutSq({ topics, status }: AboutProps) {
           me një shtet (të përmendur në të paktën gjysmën e artikujve të analizuar) mediat e të cilit
           nuk e raportuan.</li>
         <li><strong>Raportuar së pari</strong> është media me kohën më të hershme të publikimit ndër
-          artikujt e lajmit, sipas burimeve RSS.</li>
+          artikujt e lajmit, sipas burimeve RSS. Një burim pa kohë të përdorshme jep vetëm çastin kur
+          artikulli u pa për herë të parë: kur raportimi i një medie tjetër ka kohë të tillë brenda
+          30 minutash nga më i hershmi, asnjë media nuk shënohet si e para.</li>
         <li><strong>Gjurma</strong> në faqen e lajmit e vizaton çdo raportim si një shenjë në një vijë
           të vetme kohore, me ngjyrën e ndarjes së zgjedhur; raportimi i parë është shenja më e
           lartë.</li>

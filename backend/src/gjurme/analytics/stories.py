@@ -18,12 +18,20 @@ Blindspots (method strings below are shown on the site):
 from __future__ import annotations
 
 from collections import Counter
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from gjurme.analytics.queries import Range, _f, _rows
+from gjurme.analytics.queries import (
+    FIRST_REPORT_MARGIN_MINUTES,
+    FIRST_SOURCE_SQL,
+    STORY_MEMBERS_SQL,
+    Range,
+    _f,
+    _rows,
+)
 from gjurme.ingestion.normalize import normalize_key
 from gjurme.sources.ratings import bias_group
 
@@ -124,7 +132,8 @@ _HEADS_SQL = """
 """
 
 _MEMBERS_SQL = """
-    SELECT a.story_id, a.id, a.title, a.url, a.published_at, a.language, a.summary_en,
+    SELECT a.story_id, a.id, a.title, a.url, a.published_at, a.published_at_estimated,
+           a.language, a.summary_en,
            a.summary_sq, CASE WHEN s.show_images THEN a.image_url END AS image_url,
            a.sentiment_label, a.countries, a.enrichment_status,
            s.slug AS source_slug, s.name AS source_name, s.country AS source_country,
@@ -179,6 +188,19 @@ def blindspots_of(
     return out
 
 
+def first_report(members: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The story's first report (``members`` are in publication order), or None when the times
+    cannot tell (see ``FIRST_REPORT_MARGIN_MINUTES``)."""
+    first = members[0]
+    margin = timedelta(minutes=FIRST_REPORT_MARGIN_MINUTES)
+    for m in members[1:]:
+        if m["published_at"] - first["published_at"] > margin:
+            break
+        if m["published_at_estimated"] and m["source_slug"] != first["source_slug"]:
+            return None
+    return first
+
+
 def _summary(
     head: dict[str, Any],
     agg: dict[str, Any],
@@ -188,7 +210,7 @@ def _summary(
     """One story card: representative headline, coverage split, tone, first reporter."""
     rep = next((m for m in members if m["id"] == head["representative_article_id"]), None)
     rep = rep or members[0]
-    first = members[0]
+    first = first_report(members)
     outlets: dict[str, dict[str, Any]] = {}
     for m in members:
         outlets.setdefault(m["source_slug"], m)
@@ -220,8 +242,8 @@ def _summary(
         "source_count": agg["source_count"],
         "topic_slug": head["topic_slug"],
         "topic_name": head["topic_name"],
-        "first_source_slug": first["source_slug"],
-        "first_source_name": first["source_name"],
+        "first_source_slug": first["source_slug"] if first else None,
+        "first_source_name": first["source_name"] if first else None,
         "coverage": {
             "bias": dict(bias),
             "factuality": dict(factuality),
@@ -377,7 +399,8 @@ def story_detail(session: Session, story_id: int) -> dict[str, Any] | None:
         return None
     story = _summaries(session, agg_rows)[0]
     members = _rows(session, _MEMBERS_SQL, {"ids": [story_id]})
-    first_id = members[0]["id"]
+    first = first_report(members)
+    first_id = first["id"] if first else None
     story["articles"] = [
         {
             "id": m["id"],
@@ -479,14 +502,12 @@ def source_profile(session: Session, slug: str, rng: Range) -> dict[str, Any] | 
     p = {"start": rng.start, "end": rng.end, "sid": sid}
     head = _rows(
         session,
-        """
+        f"""
         WITH st AS (
           SELECT a.story_id, count(DISTINCT a.source_id) AS outlets,
                  bool_or(a.source_id = :sid) AS covered,
-                 (array_agg(a.source_id ORDER BY a.published_at, a.id))[1] AS first_source
-          FROM core.articles a JOIN core.stories s ON s.id = a.story_id
-          WHERE s.published_date BETWEEN :start AND :end AND NOT a.is_hidden
-            AND a.published_date BETWEEN :start AND CAST(:end AS date) + 3
+                 {FIRST_SOURCE_SQL} AS first_source
+          FROM {STORY_MEMBERS_SQL}
           GROUP BY 1)
         SELECT
           (SELECT count(*) FROM core.articles a WHERE a.source_id = :sid AND NOT a.is_hidden
@@ -499,7 +520,7 @@ def source_profile(session: Session, slug: str, rng: Range) -> dict[str, Any] | 
           count(*) FILTER (WHERE outlets >= 2 AND first_source = :sid) AS first_reports,
           count(*) FILTER (WHERE covered AND outlets = 1) AS exclusives
         FROM st
-        """,
+        """,  # noqa: S608 - module constants only, no request input
         p,
     )[0]
     multi = head.pop("multi_source_stories")

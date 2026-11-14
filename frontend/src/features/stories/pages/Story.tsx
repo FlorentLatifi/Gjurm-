@@ -232,7 +232,8 @@ export function StoryPage() {
   if (query.isError || !s) return <ErrorState error={query.error} />;
   // A story merged into another one answers with that story: show it under its own URL.
   if (s.id !== id) return <Navigate to={`/stories/${s.id}`} replace />;
-  const first = s.articles.find((a) => a.is_first) ?? s.articles[0]!;
+  // none when the outlets' times cannot tell who was first (an estimated time close to the earliest)
+  const first = s.articles.find((a) => a.is_first);
   const summary = summaryFor(s);
   const sides = sidesOf(s, lens);
   const here = `${s.id}:${lens}`;
@@ -254,7 +255,11 @@ export function StoryPage() {
           </div>
           <h1 lang={s.language}>{s.title}</h1>
           <p className="story-head__meta">
-            <span>{t("First reported by")} <Link to={`/sources/${first.source_slug}`}>{first.source_name}</Link>, {formatDateTime(first.published_at)}</span>
+            {first ? (
+              <span>{t("First reported by")} <Link to={`/sources/${first.source_slug}`}>{first.source_name}</Link>, {formatDateTime(first.published_at)}</span>
+            ) : (
+              <span>{t("First reported {when} (which outlet was first is not known)", { when: formatDateTime(s.first_published_at) })}</span>
+            )}
             <span><strong>{tn(s.source_count, "{n} outlet", "{n} outlets")}</strong> · {tn(s.article_count, "{n} article", "{n} articles")}</span>
             <BlindspotBadges story={s} />
           </p>

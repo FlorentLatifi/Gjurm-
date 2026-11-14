@@ -700,6 +700,30 @@ def sentiment_shift(
     }
 
 
+# "First report" needs the outlets' own publication times. An article whose feed gave no usable
+# time carries the time it was first *seen*, up to one fetch interval after it was published:
+# when another outlet's article has such a time within this margin of the earliest one, either
+# may have been first, and the story names no first reporter.
+FIRST_REPORT_MARGIN_MINUTES = 30
+# The same rule in SQL, over articles aliased ``a`` that carry the two window columns: the
+# source of a story's earliest article, or NULL when another outlet's article with an estimated
+# time lies within the margin of it.
+STORY_MEMBERS_SQL = """
+    (SELECT a.story_id, a.source_id, a.published_at, a.published_at_estimated,
+            first_value(a.source_id) OVER story_order AS w_first_source,
+            first_value(a.published_at) OVER story_order AS w_first_at
+     FROM core.articles a JOIN core.stories st ON st.id = a.story_id
+     WHERE st.published_date BETWEEN :start AND :end AND NOT a.is_hidden
+       -- members of those stories (stories span <= 48 h; see analytics/stories.py)
+       AND a.published_date BETWEEN :start AND CAST(:end AS date) + 3
+     WINDOW story_order AS (PARTITION BY a.story_id ORDER BY a.published_at, a.id)) a"""
+FIRST_SOURCE_SQL = f"""
+    CASE WHEN bool_or(a.published_at_estimated AND a.source_id <> a.w_first_source
+                      AND a.published_at <= a.w_first_at
+                          + interval '{FIRST_REPORT_MARGIN_MINUTES} minutes')
+         THEN NULL ELSE min(a.w_first_source) END"""
+
+
 # =============================================================================================
 # Sources
 # =============================================================================================
@@ -726,11 +750,8 @@ def sources_compare(session: Session, rng: Range) -> list[dict[str, Any]]:
         -- Stories that started in the range: who covered them, and who was first.
         story AS (
           SELECT a.story_id, count(DISTINCT a.source_id) AS outlets,
-                 (array_agg(a.source_id ORDER BY a.published_at, a.id))[1] AS first_source
-          FROM core.articles a JOIN core.stories st ON st.id = a.story_id
-          WHERE st.published_date BETWEEN :start AND :end AND NOT a.is_hidden
-            -- members of those stories (stories span <= 48 h; see analytics/stories.py)
-            AND a.published_date BETWEEN :start AND CAST(:end AS date) + 3
+                 {FIRST_SOURCE_SQL} AS first_source
+          FROM {STORY_MEMBERS_SQL}
           GROUP BY 1),
         story_cov AS (
           SELECT a.source_id, count(DISTINCT a.story_id) AS stories

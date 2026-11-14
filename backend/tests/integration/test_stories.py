@@ -58,6 +58,7 @@ def article(
     topic: str = "politics",
     sentiment: str = "neutral",
     duplicate_of: int | None = None,
+    estimated: bool = False,
 ) -> int:
     art = Article(
         source_id=source.id,
@@ -70,6 +71,7 @@ def article(
         excerpt=excerpt,
         language="sq",
         published_at=at,
+        published_at_estimated=estimated,
         published_date=at.astimezone(TZ).date(),
         content_hash=sha256_hex(title),
         duplicate_of_id=duplicate_of,
@@ -920,3 +922,44 @@ def test_top_stories_weigh_coverage_against_age(
     # a month: a half-life of 10 days, and the count of outlets decides again
     month = client.get("/api/v1/stories", params={"days": 30, "min_sources": 2}).json()["items"]
     assert [i["source_count"] for i in month] == [3, 2]
+
+
+def test_no_first_reporter_when_the_times_cannot_tell(
+    db: sessionmaker[Session], settings: Settings, client: TestClient
+) -> None:
+    """A feed without usable dates gives the time an article was first *seen*, up to a fetch
+    interval after it was published: within 30 minutes of the earliest report, either outlet
+    may have been first."""
+    t0 = NOW - timedelta(hours=5)
+    with db() as s, s.begin():
+        src = {slug: rated_source(s, slug) for slug in OUTLETS}
+        # the real time is first, but another outlet's report was only *seen* 20 minutes later
+        article(s, src["majtas"], "Kuvendi miraton buxhetin e shtetit", t0)
+        article(
+            s,
+            src["qendra"],
+            "Kuvendi miraton buxhetin e shtetit",
+            t0 + timedelta(minutes=20),
+            estimated=True,
+        )
+        # here the seen-time is the earliest: published even earlier, so it was first
+        fire = "Zjarr i madh në qendër të Prizrenit"
+        article(s, src["tirana"], fire, t0, estimated=True)
+        article(s, src["djathtas"], fire, t0 + timedelta(minutes=20))
+        # and an estimate well after the first report changes nothing
+        article(s, src["pavleresuar"], fire, t0 + timedelta(minutes=50), estimated=True)
+    with db() as s:
+        cluster_pending(s, settings)
+    items = client.get("/api/v1/stories", params={"days": 3, "min_sources": 2}).json()["items"]
+    firsts = {i["title"][:5]: i["first_source_slug"] for i in items}
+    assert firsts == {"Kuven": None, "Zjarr": "tirana"}
+    unknown = next(i for i in items if i["first_source_slug"] is None)
+    detail = client.get(f"/api/v1/stories/{unknown['id']}").json()
+    assert detail["first_source_name"] is None
+    assert not any(a["is_first"] for a in detail["articles"])
+    # the outlets' counts follow the same rule
+    listed = {x["slug"]: x for x in client.get("/api/v1/sources", params={"days": 3}).json()}
+    assert {k: v["first_reports"] for k, v in listed.items() if v["first_reports"]} == {"tirana": 1}
+    for slug, expected in (("majtas", 0), ("qendra", 0), ("tirana", 1)):
+        profile = client.get(f"/api/v1/sources/{slug}", params={"days": 3}).json()
+        assert profile["first_reports"] == expected, slug

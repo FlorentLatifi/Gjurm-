@@ -415,8 +415,11 @@ class StorySummary(Model):
     source_count: int
     topic_slug: str | None
     topic_name: str | None
-    first_source_slug: str = Field(description="Outlet that published first")
-    first_source_name: str
+    first_source_slug: str | None = Field(
+        description="Outlet that published first; null when the times cannot tell (another "
+        "outlet's report within 30 minutes has only the time it was first seen)"
+    )
+    first_source_name: str | None
     coverage: Coverage
     tone: ToneMix
     sources: list[StorySource]

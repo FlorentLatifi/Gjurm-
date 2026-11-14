@@ -24,17 +24,20 @@ export function StoryTrace({ story, lens }: { story: StoryDetail; lens: Lens }) 
   const end = Math.max(...times);
   const width = end - start;
   const segs = segmentsByKey(story.coverage, lens);
-  const first = story.articles.find((a) => a.is_first) ?? story.articles[0]!;
+  const first = story.articles.find((a) => a.is_first);
   const present = [...new Set(story.articles.map((a) => groupOf(a, lens)))]
     .map((k) => segs.get(k))
     .filter((s) => s !== undefined);
-  const label = t("{reports} from {outlets} over {span}, first by {first} at {time}.", {
+  const counts = {
     reports: tn(story.articles.length, "{n} report", "{n} reports"),
     outlets: tn(story.source_count, "{n} outlet", "{n} outlets"),
     span: span(width),
-    first: first.source_name,
-    time: formatDateTime(first.published_at),
-  });
+  };
+  const label = first
+    ? t("{reports} from {outlets} over {span}, first by {first} at {time}.", {
+        ...counts, first: first.source_name, time: formatDateTime(first.published_at),
+      })
+    : t("{reports} from {outlets} over {span}.", counts);
 
   return (
     <div className="trace">
@@ -45,7 +48,7 @@ export function StoryTrace({ story, lens }: { story: StoryDetail; lens: Lens }) 
           return (
             <span
               key={a.id}
-              className={`trace__tick ${a.id === first.id ? "trace__tick--first" : ""}`}
+              className={`trace__tick ${a.id === first?.id ? "trace__tick--first" : ""}`}
               style={{ left: `${x}%`, ["--tick" as string]: markColor(seg) }}
               title={`${a.source_name} · ${formatDateTime(a.published_at)}${seg ? ` · ${seg.label}` : ""}`}
             />
