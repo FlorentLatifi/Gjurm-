@@ -4,6 +4,10 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Added
+- **Several articles in one request** (`LLM_BATCH_SIZE`, `LLM_FALLBACK_BATCH_SIZE`; 5 for the first model on the free path, 1 elsewhere). Free tiers count requests a day and the instructions are about thirty times the size of one article, so Gemini's 250–300 requests now cover close to five times the articles. Every article's analysis is still validated and grounded against its own text and stored on its own; an article missing from a batch answer, or a whole answer that cannot be used, is asked for again article by article (`batches`, `batch_fallbacks` in the run's stats). *Free model quality* has a `batch_size` input to measure it.
+- **The keyword rules' analysis is provisional** (`ENRICH_RULES_UPGRADE_HOURS`, 48 on the free path). The rules now step in at the end of the run in which no model analysed an article instead of 60 minutes later, so the newest reports reach their stories in the run that fetched them rather than 1.5–2 hours after publication. For 48 hours the article stays queued for a model, after the articles without any analysis, and a model replaces the rule-based analysis when its quota allows; before, a rule-based analysis stayed until a manual `reanalyse`.
+
 ### Changed
 - **The front page ranks coverage against age.** "Most covered" counted outlets alone, so the biggest story of the last three days led the page until it left the range, up to two days after its last report. The count is now halved for every third of the range since the story's latest report (24 h for the feed's three days, at least 12 h): yesterday's ten-outlet story ranks with today's five-outlet one, and a month still ranks by coverage. Blindspots use the same order.
 

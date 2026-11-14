@@ -67,7 +67,17 @@ class LLMProvider(Protocol):
     name: str
     model: str
 
-    def complete(self, system: str, user: str, schema: dict[str, Any]) -> LLMResult: ...
+    def complete(
+        self,
+        system: str,
+        user: str,
+        schema: dict[str, Any],
+        *,
+        max_output_tokens: int | None = None,
+    ) -> LLMResult:
+        """``max_output_tokens`` overrides the provider's limit for this call: a request for
+        several articles needs room for several answers."""
+        ...
 
 
 # =============================================================================================
@@ -108,14 +118,21 @@ class AnthropicProvider:
         self.model = model
         self._max_tokens = max_output_tokens
 
-    def complete(self, system: str, user: str, schema: dict[str, Any]) -> LLMResult:
+    def complete(
+        self,
+        system: str,
+        user: str,
+        schema: dict[str, Any],
+        *,
+        max_output_tokens: int | None = None,
+    ) -> LLMResult:
         output_config: dict[str, Any] = {"format": {"type": "json_schema", "schema": schema}}
         extra = _thinking_kwargs(self.model)
         if "effort" in extra:
             output_config["effort"] = extra.pop("effort")
         request: dict[str, Any] = {
             "model": self.model,
-            "max_tokens": self._max_tokens,
+            "max_tokens": max_output_tokens or self._max_tokens,
             "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             "messages": [{"role": "user", "content": user}],
             "output_config": output_config,
@@ -261,10 +278,12 @@ class OpenAICompatibleProvider:
         if slot > now:
             self._sleep(slot - now)
 
-    def _request_body(self, system: str, user: str, schema: dict[str, Any]) -> dict[str, Any]:
+    def _request_body(
+        self, system: str, user: str, schema: dict[str, Any], max_output_tokens: int | None = None
+    ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "model": self.model,
-            "max_tokens": self._max_tokens,
+            "max_tokens": max_output_tokens or self._max_tokens,
             "temperature": 0,
         }
         if self._reasoning_effort:
@@ -308,9 +327,16 @@ class OpenAICompatibleProvider:
             attempt += 1
             self._sleep(retry_after if retry_after is not None else min(2.0**attempt, 30.0))
 
-    def complete(self, system: str, user: str, schema: dict[str, Any]) -> LLMResult:
+    def complete(
+        self,
+        system: str,
+        user: str,
+        schema: dict[str, Any],
+        *,
+        max_output_tokens: int | None = None,
+    ) -> LLMResult:
         started = time.monotonic()
-        response = self._post(self._request_body(system, user, schema))
+        response = self._post(self._request_body(system, user, schema, max_output_tokens))
         latency_ms = int((time.monotonic() - started) * 1000)
         request_id = response.headers.get("x-request-id")
         try:
@@ -871,7 +897,14 @@ class FakeProvider:
     fail_every: int = 0  # testing aid: make every Nth call fail
     _calls: int = field(default=0, init=False)
 
-    def complete(self, system: str, user: str, schema: dict[str, Any]) -> LLMResult:
+    def complete(
+        self,
+        system: str,
+        user: str,
+        schema: dict[str, Any],
+        *,
+        max_output_tokens: int | None = None,
+    ) -> LLMResult:
         self._calls += 1
         if self.fail_every and self._calls % self.fail_every == 0:
             raise LLMError("server_error", "injected failure", retryable=True)

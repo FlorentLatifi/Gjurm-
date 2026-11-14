@@ -305,3 +305,22 @@ def test_known_model_prices_cannot_be_overridden() -> None:
     before = PRICES_PER_MTOK["claude-sonnet-5"]
     register_price("claude-sonnet-5", 0, 0)
     assert PRICES_PER_MTOK["claude-sonnet-5"] == before
+
+
+def test_a_batch_request_asks_for_more_room_and_the_batch_schema() -> None:
+    from gjurme.enrichment.prompt import BATCH_INSTRUCTION
+    from gjurme.enrichment.schema import BATCH_JSON_SCHEMA, split_batch
+
+    answer = {"results": [{"id": 2, "analysis": OUTPUT}, {"id": 1, "analysis": OUTPUT}]}
+    endpoint = Recorder(ok(json.dumps(answer)))
+    result = make(endpoint).complete(
+        SYSTEM_PROMPT + BATCH_INSTRUCTION,
+        '<article id="1">x</article>\n<article id="2">y</article>',
+        BATCH_JSON_SCHEMA,
+        max_output_tokens=3000,
+    )
+    sent = endpoint.body()
+    assert sent["max_tokens"] == 3000
+    assert sent["response_format"]["json_schema"]["schema"] == BATCH_JSON_SCHEMA
+    parts = split_batch(result.text, 2)
+    assert sorted(parts) == [1, 2] and parse_output(parts[1])[0].primary_topic == "politics"

@@ -29,6 +29,10 @@ on:
         description: "With hosted: use the LLM_FALLBACK_API_KEY secret (the second model, e.g. Groq)"
         type: boolean
         default: false
+      batch_size:
+        description: "Articles per request (LLM_BATCH_SIZE; the live site sends 5 to the first model)"
+        type: string
+        default: "1"
       response_format:
         description: "With hosted: json_schema, json_object or prompt. Empty: the variable"
         type: string
@@ -143,6 +147,7 @@ jobs:
             || 'json_schema' }}
           LLM_REQUESTS_PER_MINUTE: ${{ inputs.hosted && (vars.LLM_REQUESTS_PER_MINUTE || '10') || '0' }}
           LLM_REASONING_EFFORT: ${{ inputs.reasoning_effort }}
+          LLM_BATCH_SIZE: ${{ inputs.batch_size || '1' }}
           LLM_TIMEOUT_SECONDS: "600"
           ENRICH_CONCURRENCY: "1"
           ENRICH_CIRCUIT_BREAKER_THRESHOLD: "10"
