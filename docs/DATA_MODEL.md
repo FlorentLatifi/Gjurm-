@@ -148,7 +148,7 @@ erDiagram
     }
 ```
 
-`ops.alert_events` (alert log incl. suppressed duplicates) and `ops.settings` (key → JSON value) have no foreign keys.
+`ops.alert_events` (alert log incl. suppressed duplicates), `ops.settings` (key → JSON value) and `ops.llm_quota` (per model: requests answered since the provider's daily reset, an uncleared 429 for the day, the daily limit learned from 429s; one row per model, rolled over in place; [AI_ENRICHMENT.md](AI_ENRICHMENT.md#spreading-a-daily-quota)) have no foreign keys.
 
 ## Grain and keys
 

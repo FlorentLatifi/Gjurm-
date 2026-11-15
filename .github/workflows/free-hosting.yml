@@ -96,6 +96,18 @@ jobs:
       # gpt-oss and other reasoning models: keep the thinking short (low), so the JSON fits.
       LLM_REASONING_EFFORT: ${{ vars.LLM_REASONING_EFFORT }}
       LLM_FALLBACK_REASONING_EFFORT: ${{ vars.LLM_FALLBACK_REASONING_EFFORT }}
+      # Each model's daily quota, spread over the day (docs/AI_ENRICHMENT.md, "Spreading a daily
+      # quota"): a run sends what is left of the day's requests divided by the runs left until
+      # the reset (midnight in the QUOTA_TIMEZONE; Gemini's is California's), newest articles
+      # first; the fallback model and then the rules take the rest. The figure is a start: a
+      # 429 for the day teaches the real limit (0 = learn it from the first one).
+      # *_MAX_REQUESTS_PER_RUN caps every run besides (0 = no cap).
+      LLM_REQUESTS_PER_DAY: ${{ vars.LLM_REQUESTS_PER_DAY || '0' }}
+      LLM_MAX_REQUESTS_PER_RUN: ${{ vars.LLM_MAX_REQUESTS_PER_RUN || '0' }}
+      LLM_QUOTA_TIMEZONE: ${{ vars.LLM_QUOTA_TIMEZONE || 'America/Los_Angeles' }}
+      LLM_FALLBACK_REQUESTS_PER_DAY: ${{ vars.LLM_FALLBACK_REQUESTS_PER_DAY || '0' }}
+      LLM_FALLBACK_MAX_REQUESTS_PER_RUN: ${{ vars.LLM_FALLBACK_MAX_REQUESTS_PER_RUN || '0' }}
+      LLM_FALLBACK_QUOTA_TIMEZONE: ${{ vars.LLM_FALLBACK_QUOTA_TIMEZONE || 'UTC' }}
       ENRICH_RULES_AFTER_MINUTES: ${{ vars.ENRICH_RULES_AFTER_MINUTES || '60' }}
       # The rules' analysis is provisional: a model replaces it within this many hours when its
       # quota allows (0 = the rules wait ENRICH_RULES_AFTER_MINUTES and their analysis is final).
@@ -138,6 +150,7 @@ jobs:
             exit 1
           fi
           echo "analysis: $LLM_PROVIDER${LLM_MODEL:+ ($LLM_MODEL)}${LLM_FALLBACK_MODEL:+, then $LLM_FALLBACK_MODEL}"
+          echo "requests a day: ${LLM_REQUESTS_PER_DAY:-0}, reset at midnight $LLM_QUOTA_TIMEZONE${LLM_FALLBACK_MODEL:+; fallback ${LLM_FALLBACK_REQUESTS_PER_DAY:-0}, $LLM_FALLBACK_QUOTA_TIMEZONE} (0 = learned from the 429s)"
       - run: uv sync --frozen --no-dev
       - name: Migrate, then one scheduler tick
         env:
@@ -145,7 +158,10 @@ jobs:
           EVENT: ${{ github.event_name }}
         run: |
           # Values pasted from a web page can carry a tab or spaces around them.
-          for name in LLM_BASE_URL LLM_MODEL LLM_FALLBACK_BASE_URL LLM_FALLBACK_MODEL; do
+          for name in LLM_BASE_URL LLM_MODEL LLM_FALLBACK_BASE_URL LLM_FALLBACK_MODEL \
+            LLM_REQUESTS_PER_DAY LLM_MAX_REQUESTS_PER_RUN LLM_QUOTA_TIMEZONE \
+            LLM_FALLBACK_REQUESTS_PER_DAY LLM_FALLBACK_MAX_REQUESTS_PER_RUN \
+            LLM_FALLBACK_QUOTA_TIMEZONE; do
             export "$name=$(echo "${!name}" | xargs)"
           done
           # Unset the optional secrets that are empty: an empty value is not "not configured".

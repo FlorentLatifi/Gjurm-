@@ -12,10 +12,18 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from gjurme.config import Settings
-from gjurme.db.models import Article, ArticleEntity, ArticleTopic, Enrichment, Entity
+from gjurme.db.models import (
+    Article,
+    ArticleEntity,
+    ArticleTopic,
+    Enrichment,
+    Entity,
+    LLMQuota,
+)
 from gjurme.enrichment.pricing import Usage
 from gjurme.enrichment.prompt import PROMPT_VERSION
 from gjurme.enrichment.providers import FakeProvider, LLMError, LLMResult
+from gjurme.enrichment.quota import QuotaConfig, begin_run, note
 from gjurme.enrichment.service import enrich_stage, load_queue, requeue, run_enrichment
 from gjurme.ingestion.normalize import normalize_key, sha256_hex
 from gjurme.runtime_settings import ENRICHMENT_PAUSE, put_setting
@@ -762,3 +770,191 @@ def test_a_failed_upgrade_keeps_the_rules_analysis(db, settings, monkeypatch) ->
         from gjurme.quality.checks import check_enrichment_consistency
 
         assert check_enrichment_consistency(s).status == "pass"
+
+
+# --- a free tier's daily quota, spread over the day (enrichment/quota.py) ---------------------
+QUOTA_DAY = LLMError("rate_limited", "HTTP 429: quota", retryable=True, limit_scope="day")
+QUOTA_MINUTE = LLMError("rate_limited", "HTTP 429: TPM", retryable=True, limit_scope="minute")
+
+
+def _gemini(*outcomes: Any) -> ScriptedProvider:
+    return ScriptedProvider(list(outcomes), model="gemini-test", name="openai_compatible")
+
+
+def _paced(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch, *, runs_left: int, **update: Any
+) -> Settings:
+    """``runs_left`` runs until the reset, whatever the time of day the tests run at."""
+    monkeypatch.setattr("gjurme.enrichment.quota.runs_left", lambda *_a: runs_left)
+    return settings.model_copy(update={"enrich_concurrency": 1, **update})
+
+
+def _quota(db: sessionmaker[Session], model: str = "gemini-test") -> LLMQuota:
+    with db() as s:
+        row = s.get(LLMQuota, model)
+        assert row is not None
+        return row
+
+
+def _models(db: sessionmaker[Session]) -> dict[int, str]:
+    with db() as s:
+        rows = s.execute(
+            select(Enrichment.article_id, Enrichment.model).where(Enrichment.is_current)
+        ).all()
+    return {r.article_id: r.model for r in rows}
+
+
+def test_each_run_sends_its_share_of_the_daily_quota_newest_first(
+    db, settings, monkeypatch
+) -> None:
+    ids = _articles(db, 12)  # the higher the id, the newer
+    cfg = _paced(settings, monkeypatch, runs_left=4, llm_requests_per_day=20)
+    first = run_enrichment(db, cfg, _gemini(GOOD))
+    assert (first.request_cap, first.requests, first.succeeded) == (5, 5, 5)  # ⌈20 / 4⌉
+    assert first.quota_capped and not first.rate_limited
+    assert first.as_dict()["quota"]["limit_source"] == "configured"
+    assert set(_models(db)) == set(ids[-5:])
+    with db() as s:  # the rest waits, without losing an attempt
+        rest = s.scalars(select(Article.enrichment_attempts).where(Article.id.in_(ids[:-5])))
+        assert set(rest) == {0}
+    second = run_enrichment(db, cfg, _gemini(GOOD))
+    assert second.quota is not None and second.quota.used == 5
+    assert (second.request_cap, second.succeeded) == (4, 4)  # ⌈15 / 4⌉
+    assert _quota(db).requests == 9
+
+
+def test_the_fallback_model_and_the_rules_take_what_the_share_leaves(
+    db, settings, monkeypatch
+) -> None:
+    ids = _articles(db, 10)
+    backup = ScriptedProvider([GOOD], model="groq-test", name="openai_compatible")
+    cfg = _paced(
+        _with_fallback(settings, monkeypatch, backup),
+        monkeypatch,
+        runs_left=4,
+        llm_requests_per_day=12,
+        llm_fallback_requests_per_day=8,
+        enrich_rules_after_minutes=60,
+        enrich_rules_upgrade_hours=48,
+    )
+    result = enrich_stage(db, cfg, _gemini(GOOD))
+    assert result["quota_capped"] and result["succeeded"] == 3
+    assert result["fallback"]["request_cap"] == 2 and result["fallback"]["succeeded"] == 2
+    assert result["rules"]["succeeded"] == 5
+    models = _models(db)
+    assert [models[i] for i in reversed(ids)] == ["gemini-test"] * 3 + ["groq-test"] * 2 + [
+        "fake"
+    ] * 5
+    assert (_quota(db).requests, _quota(db, "groq-test").requests) == (3, 2)
+
+
+def test_a_429_for_the_day_makes_the_next_runs_ask_once_first(db, settings) -> None:
+    _articles(db, 6)
+    cfg = settings.model_copy(update={"enrich_concurrency": 4})
+    first = run_enrichment(db, cfg, _gemini(QUOTA_DAY))
+    assert first.rate_limited and first.rate_limit_scope == "day" and first.requests == 0
+    assert _quota(db).limited_at is not None
+
+    still_out = _gemini(QUOTA_DAY)
+    second = run_enrichment(db, cfg, still_out)
+    assert second.quota is not None and second.quota.limited
+    assert still_out.calls == 1 and second.rate_limited  # one request, not four
+    with db() as s:  # a 429 costs no article an attempt
+        assert set(s.scalars(select(Article.enrichment_attempts))) == {0}
+
+    back = _gemini(GOOD)
+    third = run_enrichment(db, cfg, back)
+    assert (third.succeeded, third.requests) == (6, 6)  # answered: the rest follows at once
+    row = _quota(db)
+    assert (row.limited_at, row.limited_requests, row.requests) == (None, None, 6)
+
+
+def test_a_429_per_minute_is_pacing_not_the_days_quota(db, settings) -> None:
+    _articles(db, 3)
+    first = run_enrichment(db, settings, _gemini(QUOTA_MINUTE))
+    assert first.rate_limited and first.rate_limit_scope == "minute"
+    assert _quota(db).limited_at is None
+    second = run_enrichment(db, settings, _gemini(GOOD))
+    assert second.quota is not None and not second.quota.limited and second.succeeded == 3
+
+
+def test_requests_are_counted_as_the_provider_answered_them(db, settings) -> None:
+    """A request for several articles is one; an article asked for again alone is one more."""
+    _articles(db, 3)
+    provider = BatchProvider(["{not json", GOOD])
+    stats = run_enrichment(db, _batched(settings, 3), provider, batch_size=3)
+    assert (stats.succeeded, stats.batch_fallbacks, stats.requests) == (3, 3, 4)
+    assert len(provider.requests) == _quota(db).requests == 4
+
+
+def test_articles_asked_for_by_id_are_counted_but_not_held_back(db, settings, monkeypatch) -> None:
+    ids = _articles(db, 3)
+    cfg = _paced(settings, monkeypatch, runs_left=4, llm_requests_per_day=4)  # a share of 1
+    stats = run_enrichment(db, cfg, _gemini(GOOD), article_ids=ids)
+    assert stats.request_cap is None and stats.succeeded == 3 and _quota(db).requests == 3
+
+
+def test_identical_articles_reuse_a_result_after_the_share_is_used(
+    db, settings, monkeypatch
+) -> None:
+    ids = _articles(db, 3)
+    with db() as s, s.begin():  # the oldest is a copy of the newest (syndicated)
+        newest = s.get(Article, ids[2])
+        assert newest is not None
+        s.execute(update(Article).where(Article.id == ids[0]).values(title=newest.title))
+    cfg = _paced(settings, monkeypatch, runs_left=4, llm_requests_per_day=4)
+    stats = run_enrichment(db, cfg, _gemini(GOOD))
+    assert (stats.requests, stats.succeeded, stats.cached) == (1, 1, 1)
+    assert stats.quota_capped and set(_models(db)) == {ids[0], ids[2]}
+
+
+def test_the_daily_limit_is_learned_from_the_providers_answers(db) -> None:
+    model, cfg = "gemini-test", QuotaConfig(requests_per_day=250, timezone="UTC")
+    day1 = datetime(2026, 11, 14, 12, 0, tzinfo=UTC)
+    with db() as s, s.begin():
+        plan = begin_run(s, model, cfg, day1)
+        assert (plan.daily_limit, plan.limit_source, plan.runs_left, plan.cap) == (
+            250,
+            "configured",
+            24,
+            11,  # ⌈250 / 24⌉
+        )
+        note(s, model, day1, requests=180)
+        note(s, model, day1, limited=True)  # the quota ran out after 180 requests
+        note(s, model, day1, requests=2)  # answers still in flight: counted, the mark stays
+        later = begin_run(s, model, cfg, day1 + timedelta(hours=1))
+        assert later.limited and later.used == 182
+
+    day2 = datetime(2026, 11, 15, 0, 30, tzinfo=UTC)
+    with db() as s, s.begin():
+        plan = begin_run(s, model, cfg, day2)
+        assert (plan.used, plan.limited) == (0, False)
+        assert (plan.daily_limit, plan.limit_source, plan.cap) == (180, "learned", 4)  # ⌈180/47⌉
+        note(s, model, day2, requests=200)  # more than that, and no 429
+
+    day3 = day2 + timedelta(days=1)
+    with db() as s, s.begin():
+        assert begin_run(s, model, cfg, day3).daily_limit == 200
+        # a 429 that an answer cleared later the same day teaches nothing
+        note(s, model, day3, requests=50)
+        note(s, model, day3, limited=True)
+        note(s, model, day3, requests=1, cleared=True)
+
+    day4 = day3 + timedelta(days=1)
+    with db() as s, s.begin():
+        assert begin_run(s, model, cfg, day4).daily_limit == 200
+        # a new LLM_REQUESTS_PER_DAY replaces what was learned
+        plan = begin_run(s, model, QuotaConfig(requests_per_day=300, timezone="UTC"), day4)
+        assert (plan.daily_limit, plan.limit_source) == (300, "configured")
+
+
+def test_without_a_known_limit_nothing_is_held_back_until_a_429_teaches_one(db) -> None:
+    model, cfg = "gemini-test", QuotaConfig(timezone="UTC")
+    day1 = datetime(2026, 11, 14, 12, 0, tzinfo=UTC)
+    with db() as s, s.begin():
+        assert begin_run(s, model, cfg, day1).cap is None
+        note(s, model, day1, requests=270)
+        note(s, model, day1, limited=True)
+    with db() as s, s.begin():
+        plan = begin_run(s, model, cfg, day1 + timedelta(days=1))
+        assert (plan.daily_limit, plan.limit_source, plan.cap) == (270, "learned", 12)

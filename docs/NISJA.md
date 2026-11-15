@@ -463,11 +463,32 @@ Te log-u i hapit *Check the configuration* të çdo run-i shkruhet `analysis: op
 
 **Kur mbaron kuota ditore.** Oferta falas e Gemini mjafton për rreth 250–300 kërkesa në ditë (5 nëntor 2026), ndërsa faqja merr disa qindra lajme në ditë. Prandaj ka dy rezerva:
 
-1. **Një model i dytë falas (Groq), opsional.** Kur Gemini kthen 429 ("quota"), Groq merr pjesën tjetër të run-it.
+1. **Një model i dytë falas (Groq), opsional.** Kur Gemini kthen 429 ("quota"), ose kur mbaron pjesa e tij e kuotës për atë run (shih më poshtë), Groq merr pjesën tjetër të run-it.
    - **console.groq.com** → *API Keys* → *Create API Key*. Te GitHub, secret-i `LLM_FALLBACK_API_KEY`.
    - Provoje: **Actions → Free model quality → Run workflow**, ✅ `hosted`, ✅ `fallback_key`, `base_url` = `https://api.groq.com/openai/v1`, `model` = `openai/gpt-oss-120b`, `response_format` = `json_schema`, `reasoning_effort` = `low`. Modelet Llama te Groq janë vetëm për *Enterprise* (nëntor 2026); lista: *console.groq.com/docs/models*.
    - Nëse të pëlqen, te **Variables**: `LLM_FALLBACK_BASE_URL` = `https://api.groq.com/openai/v1`, `LLM_FALLBACK_MODEL` = `openai/gpt-oss-120b`, `LLM_FALLBACK_RESPONSE_FORMAT` = `json_schema`, `LLM_FALLBACK_REASONING_EFFORT` = `low`. (Pa këtë të fundit, gpt-oss e harxhon hapësirën e përgjigjes duke "menduar".)
 2. **Rregullat me fjalë kyçe, gjithmonë.** Një lajm që asnjë model nuk e analizoi në run-in që e solli merr menjëherë analizën me rregulla, që të ketë temë, ton dhe emra dhe të hyjë te historia e vet pa pritur. Faqja e tregon këtë. Analiza me rregulla është e përkohshme: për 48 orë (variabla `ENRICH_RULES_UPGRADE_HOURS`) lajmi mbetet në radhë për modelin, pas lajmeve të reja, dhe kur kuota lejon modeli ia zëvendëson analizën. Lajmet më të vjetra kalojnë te AI me **Free hosting → task: `reanalyse`**. Me `ENRICH_RULES_UPGRADE_HOURS` = `0` kthehet sjellja e vjetër: rregullat presin 60 minuta (`ENRICH_RULES_AFTER_MINUTES`) dhe analiza e tyre mbetet.
+
+**Kuota e shpërndarë gjatë gjithë ditës.** Kuota e Gemini-t rinovohet në mesnatë sipas orës së Kalifornisë (08:00 UTC në dimër, 07:00 UTC në verë). Më parë run-et e para pas rinovimit i dërgonin kërkesat sa më shpejt, kuota mbaronte rreth orës 19:00 UTC, dhe lajmet e mbrëmjes e të natës merrnin vetëm rregullat. Tani çdo run merr vetëm pjesën e vet: kërkesat që kanë mbetur deri në rinovim, pjesëtuar me run-et që kanë mbetur (një çdo 30 minuta). Për shembull, me 250 kërkesa në ditë dhe 5 lajme në kërkesë, çdo run i dërgon Gemini-t rreth 5–6 kërkesa, pra rreth 25 lajme çdo gjysmë ore, gjatë gjithë 24 orëve. Brenda run-it modeli merr lajmet më të reja; kur mbaron pjesa e run-it, Groq merr lajmet e tjera brenda pjesës së vet, dhe ato që mbeten i marrin rregullat, si më parë. Run-i i fundit para rinovimit përdor gjithçka që ka mbetur, sepse kuota e papërdorur humbet në mesnatë.
+
+Te GitHub, **Settings → Secrets and variables → Actions → Variables → New repository variable**:
+
+| Variabla | Vlera | Çfarë bën |
+|---|---|---|
+| `LLM_REQUESTS_PER_DAY` | `250` | Sa kërkesa në ditë lejon Gemini. Është vetëm pika e nisjes: kodi e korrigjon vetë nga përgjigjet 429 (shih më poshtë). |
+| `LLM_FALLBACK_REQUESTS_PER_DAY` | `60` | Sa kërkesa në ditë lejon Groq. Për `openai/gpt-oss-120b` kufiri ditor është në tokenë: nëse te *console.groq.com/settings/limits* shkruan 200,000 tokenë në ditë, kjo bën rreth 60 lajme me nga 3,100 tokenë. |
+| `LLM_FALLBACK_REQUESTS_PER_MINUTE` | `2` | Groq lejon 8,000 tokenë në minutë: dy lajme në minutë mbeten poshtë kufirit. |
+| `LLM_QUOTA_TIMEZONE` | mos e vendos | Ora kur rinovohet kuota e Gemini-t: `America/Los_Angeles`. |
+| `LLM_FALLBACK_QUOTA_TIMEZONE` | mos e vendos | Ora kur rinovohet kuota e Groq-ut: `UTC`. |
+| `LLM_MAX_REQUESTS_PER_RUN`, `LLM_FALLBACK_MAX_REQUESTS_PER_RUN` | mos i vendos | Një kufi fiks kërkesash për çdo run, përveç llogarisë (`0` = pa kufi fiks). |
+
+**Kur Google ose Groq e ndryshojnë kufirin pa njoftim**, nuk ke nevojë të bësh asgjë:
+- Nëse modeli kthen 429 për kuotën ditore para se të arrihet numri yt, run-i ndalet dhe asnjë lajm nuk humbet përpjekje. Run-et pasuese i dërgojnë modelit fillimisht vetëm një kërkesë, dhe vazhdojnë vetëm kur ajo merr përgjigje. Nëse dita mbaron pa u kthyer kuota, numri i kërkesave deri te 429-a bëhet kufiri ditor nga e nesërmja.
+- Nëse në një ditë pa asnjë 429 modeli u përgjigjet më shumë kërkesave se kufiri, kufiri rritet aq. (Çdo run dërgon të paktën një kërkesë, dhe run-i i fundit para rinovimit dërgon gjithçka që ka mbetur, prandaj një kufi i rritur vihet re.)
+- Një 429 "për minutë" (shumë kërkesa ose tokenë brenda një minute) nuk e ndryshon kufirin ditor; ai model thjesht ndalet në atë run.
+- Nëse e ndryshon vetë `LLM_REQUESTS_PER_DAY`, numri i ri zëvendëson atë që ishte mësuar. Pa variablën (ose me `0`), kufiri mësohet nga 429-a e parë ditore: dita e parë sillet si më parë, nga e nesërmja kuota shpërndahet.
+
+Te log-u i hapit *Check the configuration* shkruhet p.sh. `requests a day: 250, reset at midnight America/Los_Angeles; fallback 60, UTC`. Te log-u i hapit *Migrate, then one scheduler tick*, rreshti `enrichment done` tregon për çdo model: `requests` (kërkesat e këtij run-i), `request_cap` (pjesa e këtij run-i), `quota_capped=True` (pjesa u mbarua dhe lajmet e tjera i mori modeli tjetër ose rregullat), dhe `quota` me `daily_limit`, `limit_source` (`configured` = numri yt, `learned` = i mësuar nga 429-at), `limited` dhe `runs_left`.
 
 **Disa lajme në një kërkesë.** Kuota falas numëron kërkesat, jo lajmet, dhe udhëzimet janë rreth tridhjetë herë më të gjata se një lajm. Prandaj modelit të parë i dërgohen 5 lajme në një kërkesë (variabla `LLM_BATCH_SIZE`): me të njëjtën kuotë analizohen rreth pesë herë më shumë lajme. Kur përgjigjja për një grup nuk përdoret dot, ato lajme kërkohen një nga një. Modeli i dytë (Groq) mbetet te 1 lajm për kërkesë (`LLM_FALLBACK_BATCH_SIZE`), sepse oferta e tij falas numëron tokenët në minutë. Për ta matur cilësinë: **Free model quality** me `batch_size` = `5`. Për ta fikur: `LLM_BATCH_SIZE` = `1`. Te log-u i run-it, `batch_fallbacks` afër `succeeded` do të thotë që modeli nuk e ndjek formatin.
 

@@ -101,6 +101,18 @@ class Settings(BaseSettings):
     # whose answer cannot be used is repeated article by article.
     llm_batch_size: int = Field(default=1, ge=1, le=20)
     llm_fallback_batch_size: int = Field(default=1, ge=1, le=20)
+    # A free tier's daily quota, spread over the day (enrichment/quota.py): each run may send
+    # what is left of it divided by the runs left until the quota resets (midnight in
+    # LLM_QUOTA_TIMEZONE; SCHEDULER_INTERVAL_MINUTES apart), so the evening's and the night's
+    # news get a model too. The figure is only a starting point: a 429 for the day teaches the
+    # real one, and a day that used more without a 429 raises it. 0 = unknown: no pacing until
+    # the first such 429. LLM_MAX_REQUESTS_PER_RUN caps every run besides (0 = no cap).
+    llm_requests_per_day: int = Field(default=0, ge=0)
+    llm_max_requests_per_run: int = Field(default=0, ge=0)
+    llm_quota_timezone: str = "America/Los_Angeles"  # Gemini's free tier resets at midnight PT
+    llm_fallback_requests_per_day: int = Field(default=0, ge=0)
+    llm_fallback_max_requests_per_run: int = Field(default=0, ge=0)
+    llm_fallback_quota_timezone: str = "UTC"
     # USD per million tokens for models not in enrichment/pricing.py. 0 for local/free models,
     # which means the daily budget never stops them; ENRICH_MAX_PER_RUN still bounds each run.
     llm_price_input_per_mtok: float = Field(default=0.0, ge=0)
@@ -191,6 +203,18 @@ class Settings(BaseSettings):
     def _split_origins(cls, value: object) -> object:
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
+
+    @field_validator("llm_quota_timezone", "llm_fallback_quota_timezone")
+    @classmethod
+    def _known_timezone(cls, value: str) -> str:
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        value = value.strip() or "UTC"
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(f"unknown time zone {value!r} (e.g. America/Los_Angeles)") from exc
         return value
 
     @property

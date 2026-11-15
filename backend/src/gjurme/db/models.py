@@ -4,7 +4,7 @@ Layering (Postgres schemas):
 
 * ``raw``  — what we received, as received. Append-only, replayable.
 * ``core`` — curated analytical model (facts, dimensions, bridges).
-* ``ops``  — pipeline runs, data quality, alerts, runtime settings.
+* ``ops``  — pipeline runs, data quality, alerts, runtime settings, LLM quota use.
 
 Enumerations are ``text`` + ``CHECK`` constraints rather than PostgreSQL ENUM types: adding a
 value is a one-line migration and never requires ``ALTER TYPE`` inside a transaction.
@@ -528,6 +528,31 @@ class AlertEvent(Base):
     suppressed: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     delivery_error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
+
+
+class LLMQuota(Base):
+    """How much of a model's daily request quota is used (enrichment/quota.py).
+
+    One row per model, rolled over in place when its quota day (in the time zone where the
+    provider resets it) changes: the day that ended teaches ``learned_limit``.
+    """
+
+    __tablename__ = "llm_quota"
+    __table_args__ = ({"schema": "ops"},)
+
+    model: Mapped[str] = mapped_column(Text, primary_key=True)
+    quota_day: Mapped[date] = mapped_column(Date)
+    # Requests the provider answered since the reset (a 429 or a failed connection is not one).
+    requests: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    # A 429 for the day (or of unknown scope) that no answered request has cleared since, and
+    # ``requests`` at that moment.
+    limited_at: Mapped[datetime | None] = mapped_column(TZ)
+    limited_requests: Mapped[int | None] = mapped_column(Integer)
+    # The daily limit observed: requests at a day's 429, or more requests on a day without one.
+    learned_limit: Mapped[int | None] = mapped_column(Integer)
+    # LLM_(FALLBACK_)REQUESTS_PER_DAY as last seen: a new figure replaces what was learned.
+    configured_limit: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    updated_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
 
 
 class Setting(Base):
