@@ -6,7 +6,6 @@
   color: var(--ink-2);
   text-decoration: none;
   border: 1px solid var(--rule-strong);
-  border-radius: var(--radius-sm);
   padding: 2px var(--space-2);
   white-space: nowrap;
 }
@@ -25,7 +24,9 @@
   overflow: hidden;
   height: calc(var(--notice-lines) * var(--text-sm) * 1.5 + 2 * var(--space-2));
   margin: 0 0 var(--space-4);
-  padding: var(--space-2) var(--space-4);
+  /* the breathing room is border, not padding: clipped lines cannot show through a border */
+  padding: 0 var(--space-4);
+  border-block: var(--space-2) solid var(--paper-2);
   border-left: 3px solid var(--ink);
   background: var(--paper-2);
   font-size: var(--text-sm);
@@ -37,7 +38,7 @@
 }
 .notice--reserved {
   background: transparent;
-  border-left-color: transparent;
+  border-color: transparent;
 }
 @media (max-width: 720px) {
   /* phones: the coloured dot says it; the words stay for screen readers and the tooltip */

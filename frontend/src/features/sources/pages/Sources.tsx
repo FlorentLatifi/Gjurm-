@@ -87,7 +87,7 @@ export default function SourcesPage() {
                       </td>
                       <td>
                         <span className="rating">
-                          <span className="dot" style={{ background: BIAS_GROUP_COLOR[biasGroup(s.bias)] }} aria-hidden="true" />
+                          <span className="swatch" style={{ background: BIAS_GROUP_COLOR[biasGroup(s.bias)] }} aria-hidden="true" />
                           {BIAS_LABEL[s.bias]}
                         </span>
                       </td>

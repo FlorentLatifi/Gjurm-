@@ -1,34 +1,74 @@
 /*
- * Type. One voice, as on Ground News: the reader's own system sans for everything (zero bytes;
- * every platform's UI face has tabular figures and the Albanian letters), headlines set heavy and
- * tight. The masthead word is the same face, condensed where the platform has a condensed cut.
- * Code uses the system monospace.
+ * Type. Two voices (ADR-032). Headlines, the nameplate and the lead summary are set in a news
+ * serif, "Gjurme Serif": Source Serif 4 (OFL, fonts/OFL.md) cut down to what the site sets —
+ * weights 400–700, Latin-1 and the regional letters — 30 KB, one file (scripts/build-font.py).
+ * Everything else is the reader's own system sans: zero bytes, tabular figures, every letter.
+ *
+ * The serif swaps in when it arrives. Until then the same words are set in the platform's serif,
+ * scaled to the same width (size-adjust, measured on Albanian headlines at each weight), so the
+ * lines break where they will break and nothing moves.
  */
+@font-face {
+  font-family: "Gjurme Serif";
+  src: url("../fonts/gjurme-serif.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+/* Georgia: Windows, macOS, iOS */
+@font-face {
+  font-family: "Gjurme Fallback G";
+  src: local("Georgia Bold"), local("Georgia-Bold");
+  font-weight: 600 700;
+  size-adjust: 89.3%;
+}
+@font-face {
+  font-family: "Gjurme Fallback G";
+  src: local("Georgia");
+  font-weight: 400;
+  size-adjust: 100.8%;
+}
+/* Noto Serif: Android */
+@font-face {
+  font-family: "Gjurme Fallback N";
+  src: local("Noto Serif Bold"), local("NotoSerif-Bold");
+  font-weight: 600 700;
+  size-adjust: 90.3%;
+}
+@font-face {
+  font-family: "Gjurme Fallback N";
+  src: local("Noto Serif"), local("NotoSerif");
+  font-weight: 400;
+  size-adjust: 93%;
+}
+
 :root {
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  /* headlines */
-  --font-head: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  /* the masthead word */
-  --font-mast: "Arial Narrow", "Roboto Condensed", "Helvetica Neue Condensed Bold", "Helvetica Neue", Arial, sans-serif;
+  /* headlines, section titles, the nameplate */
+  --font-head: "Gjurme Serif", "Gjurme Fallback G", "Gjurme Fallback N", Georgia, "Times New Roman", serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 
-  --text-micro: 0.625rem; /* initials inside 22px source dots only */
+  --text-micro: 0.6875rem; /* 11: small caps labels, set with tracking */
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
   --text-base: 0.9375rem;
   --text-md: 1.0625rem;
   --text-lg: 1.25rem;
   --text-xl: clamp(1.375rem, 1.1rem + 1vw, 1.75rem);
-  --text-display: clamp(1.875rem, 1.2rem + 2.4vw, 3rem);
-  --text-hero: clamp(1.625rem, 1rem + 2.2vw, 2.75rem);
+  /* the lead story and a story page's own headline */
+  --text-display: clamp(1.8125rem, 1rem + 3.2vw, 3.125rem);
+  /* the nameplate */
+  --text-plate: clamp(2.75rem, 2rem + 3vw, 4rem);
 
-  --leading-tight: 1.15;
-  --leading-snug: 1.3;
-  --leading-body: 1.55;
+  --leading-tight: 1.08;
+  --leading-snug: 1.2;
+  --leading-body: 1.5;
 
   --weight-regular: 400;
   --weight-strong: 600;
   --weight-heavy: 700;
+
+  --tracking-caps: 0.09em;
 
   --measure: 70ch;
   --measure-headline: 34ch;

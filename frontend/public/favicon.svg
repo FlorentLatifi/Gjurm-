@@ -1,8 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="GJURMË">
-  <!-- the trace: one line, a mark for each outlet's report (left, center, right), the first taller -->
-  <rect width="64" height="64" rx="12" fill="#0b0b0b"/>
-  <path d="M10 34 H54" stroke="#f4f2ec" stroke-width="3" stroke-linecap="round"/>
-  <rect x="14" y="18" width="6" height="32" rx="1.5" fill="#3987e5"/>
-  <rect x="29" y="25" width="6" height="18" rx="1.5" fill="#a8a79f"/>
-  <rect x="44" y="25" width="6" height="18" rx="1.5" fill="#e66767"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Gjurmë">
+  <!-- the nameplate's G under the two square dots of its ë: a mark pressed twice, a gjurmë -->
+  <rect width="64" height="64" fill="#1b1815"/>
+  <path fill="#f5f0e6" d="M22.75 8h6.5v6.5h-6.5zM34.75 8h6.5v6.5h-6.5z"/>
+  <path fill="#f5f0e6" d="M33.66 55Q29.78 55 26.56 53.87Q23.35 52.74 21.03 50.53Q18.7 48.32 17.46 45.11Q16.21 41.9 16.21 37.75Q16.21 33.65 17.43 30.37Q18.65 27.09 20.95 24.77Q23.26 22.44 26.63 21.22Q30 20 34.26 20Q35.93 20 37.63 20.25Q39.32 20.5 40.95 21.02Q42.59 21.53 44.03 22.3L44.24 30.16H40.32L38.55 22.15L42.05 22.87V25.53Q40.21 24.04 38.56 23.44Q36.9 22.84 35.25 22.84Q32.52 22.84 30.22 24.39Q27.92 25.94 26.52 29.18Q25.13 32.41 25.13 37.43Q25.13 42.45 26.48 45.71Q27.84 48.97 30.12 50.56Q32.4 52.14 35.16 52.14Q36.75 52.14 38.01 51.69Q39.27 51.24 40.89 50.36L37.05 53.6V49.77Q37.05 46.72 37.03 43.78Q37 40.84 36.9 37.75H45.23Q45.18 40.75 45.13 43.77Q45.08 46.8 45.08 49.95V52.06Q42.45 53.57 39.73 54.28Q37 55 33.66 55ZM32.42 40.44V37.75H47.79V40.44L41.87 41.25H38.58Z"/>
 </svg>

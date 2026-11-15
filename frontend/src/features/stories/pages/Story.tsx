@@ -5,25 +5,23 @@ import { isNotFound } from "@/shared/api/client";
 import type { StoryArticle, StoryDetail } from "@/shared/api/types";
 import { useTitle } from "@/shared/hooks/useTitle";
 import { useApiQuery } from "@/shared/query/apiQuery";
-import { ENTITY_TYPE_LABEL, formatDateTime, formatPercent, formatRelative, hostOf, safeHref, summaryFor } from "@/shared/lib/format";
+import { ENTITY_TYPE_LABEL, formatDateTime, formatRelative, hostOf, safeHref, summaryFor } from "@/shared/lib/format";
 import {
+  availableLenses,
   BIAS_GROUP_COLOR,
   BIAS_LABEL,
   biasGroup,
   countryLabel,
   FACTUALITY_LABEL,
   type Lens,
-  availableLenses,
-  leadingSegment,
+  LENS_LABEL,
   OWNERSHIP_LABEL,
   type Segment,
   segments,
 } from "@/shared/model/ratings";
 import { recordRead } from "@/stores/reading";
-import { Card } from "@/ui/Card";
-import { SentimentChip } from "@/ui/SentimentChip";
 import { ErrorState, LoadingBlock, NotFoundState } from "@/ui/States";
-import { BlindspotBadges, initials, StoryCard } from "../StoryCard";
+import { BlindspotBadges, StoryCard } from "../StoryCard";
 import { LensPicker, StoryCoverage } from "../StoryCoverage";
 import { ShareStory } from "../ShareStory";
 import { useLens } from "../useLens";
@@ -31,7 +29,7 @@ import { groupOf, markColor, segmentsByKey } from "../lensGroup";
 import { storyQueries } from "../queries";
 import { StoryTrace } from "../StoryTrace";
 import { isPositiveId } from "@/shared/lib/ids";
-import { getLang, labels, localName, t, tn } from "@/shared/i18n";
+import { getLang, localName, t, tn } from "@/shared/i18n";
 
 function OutletLink({ story, a }: { story: StoryDetail; a: StoryArticle }) {
   const href = safeHref(a.url);
@@ -45,100 +43,45 @@ function OutletLink({ story, a }: { story: StoryDetail; a: StoryArticle }) {
   );
 }
 
-/** Every outlet's headline side by side, grouped by the chosen lens (Ground News' "compare"). */
+/** The columns of the comparison: perspective always shows its three sides, so a side nobody covered is seen empty. */
+function sidesOf(story: StoryDetail, lens: Lens): Segment[] {
+  const all = segments(story.coverage, lens);
+  return lens === "perspective" ? all.filter((seg) => !seg.hatched || seg.value > 0) : all.filter((seg) => seg.value > 0);
+}
+
+/**
+ * Every outlet's own headline for the same story, side by side in one column per group of the
+ * chosen lens, each linked to the original. A wide column sets its headlines in two.
+ */
 function HeadlineColumns({ story, lens }: { story: StoryDetail; lens: Lens }) {
-  const columns = segments(story.coverage, lens)
-    .map((seg) => ({ seg, articles: story.articles.filter((a) => groupOf(a, lens) === seg.key) }))
-    .filter((c) => c.articles.length);
+  const columns = sidesOf(story, lens).map((seg) => ({ seg, articles: story.articles.filter((a) => groupOf(a, lens) === seg.key) }));
   return (
     <div className="headline-columns">
       {columns.map(({ seg, articles }) => (
         <section key={seg.key} className="headline-column" aria-label={`${seg.label}: ${tn(articles.length, "{n} article", "{n} articles")}`}
-          style={{ ["--col-color" as string]: seg.color }}>
-          <h3>{seg.label} · {articles.length}</h3>
-          {articles.map((a) => (
-            <div key={a.id} className="headline">
-              <OutletLink story={story} a={a} />
-              <span className="headline__meta">
-                <Link to={`/sources/${a.source_slug}`}>{a.source_name}</Link> · {formatDateTime(a.published_at)}
-                {a.is_first && <> · <strong>{t("first report")}</strong></>}
-              </span>
-            </div>
-          ))}
+          style={{ ["--col-color" as string]: markColor(seg), ["--col-grow" as string]: Math.min(Math.max(articles.length, 1), 3) }}>
+          <h3 className="caps"><span>{seg.label}</span><span>{articles.length}</span></h3>
+          {articles.length ? (
+            <ul className="headline-column__list">
+              {articles.map((a) => (
+                <li key={a.id} className="headline">
+                  <OutletLink story={story} a={a} />
+                  <span className="headline__meta">
+                    <Link to={`/sources/${a.source_slug}`}>{a.source_name}</Link> · {formatDateTime(a.published_at)}
+                    {a.is_first && <> · <strong>{t("first report")}</strong></>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="side-empty">{t("No outlet in this group covered the story — a blindspot for its readers.")}</p>
+          )}
         </section>
       ))}
     </div>
   );
 }
 
-const DISTRIBUTION_TITLE = labels({
-  perspective: "Bias distribution",
-  region: "Region distribution",
-  ownership: "Ownership distribution",
-  factuality: "Factuality distribution",
-});
-const UNTRACKED = labels({
-  perspective: "Untracked bias",
-  region: "Other countries",
-  ownership: "Unknown ownership",
-  factuality: "Untracked factuality",
-});
-
-/** The tabs of the story's sides: Left, Center, Right on Ground News; here, the lens's groups. */
-function sidesOf(story: StoryDetail, lens: Lens): Segment[] {
-  const all = segments(story.coverage, lens).filter((seg) => !seg.hatched);
-  // perspective always shows its three sides, so a side nobody covered is visible as empty
-  return lens === "perspective" ? all : all.filter((seg) => seg.value > 0);
-}
-
-/** One side's coverage: its outlets' own headlines, linked to the originals. */
-function SideHeadlines({ story, lens, side }: { story: StoryDetail; lens: Lens; side: Segment }) {
-  const articles = story.articles.filter((a) => groupOf(a, lens) === side.key);
-  if (!articles.length) {
-    return (
-      <p className="side-empty">
-        {t("No outlet in this group covered the story — a blindspot for its readers.")}
-      </p>
-    );
-  }
-  return (
-    <ul className="side-headlines">
-      {articles.map((a) => (
-        <li key={a.id} className="headline">
-          <OutletLink story={story} a={a} />
-          <span className="headline__meta">
-            <Link to={`/sources/${a.source_slug}`}>{a.source_name}</Link> · {formatDateTime(a.published_at)}
-            {a.is_first && <> · <strong>{t("first report")}</strong></>}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** Ground News' coverage details: totals per side, last update and the leading side. */
-function CoverageDetails({ story, lens }: { story: StoryDetail; lens: Lens }) {
-  const parts = segments(story.coverage, lens);
-  const lead = leadingSegment(parts);
-  return (
-    <section className="details-panel" aria-labelledby="details-heading">
-      <h2 id="details-heading">{t("Coverage details")}</h2>
-      <dl>
-        <div><dt>{t("Total news sources")}</dt><dd>{story.source_count}</dd></div>
-        {parts.filter((p) => p.value > 0 || (lens === "perspective" && !p.hatched)).map((p) => (
-          <div key={p.key}><dt>{p.label}</dt><dd>{p.value}</dd></div>
-        ))}
-        <div><dt>{t("Articles")}</dt><dd>{story.article_count}</dd></div>
-        <div><dt>{t("Last updated")}</dt><dd>{formatRelative(story.last_published_at)}</dd></div>
-        {lead && (
-          <div><dt>{t("Distribution")}</dt><dd>{formatPercent(lead.share)} {lead.segment.label}</dd></div>
-        )}
-      </dl>
-    </section>
-  );
-}
-
-/** An outlet as Ground News shows it, a round logo; here its initials, linked to its profile. */
 /** The photo an outlet gave this story in its own feed, credited and linked to its article. */
 function StoryPhoto({ story }: { story: StoryDetail }) {
   const [broken, setBroken] = useState(false);
@@ -151,57 +94,6 @@ function StoryPhoto({ story }: { story: StoryDetail }) {
         {t("Photo:")} <a href={from.url} target="_blank" rel="noopener noreferrer">{from.source_name}</a>
       </figcaption>
     </figure>
-  );
-}
-
-function Monogram({ src }: { src: StoryDetail["sources"][number] }) {
-  return (
-    <li><Link className="monogram" to={`/sources/${src.slug}`} title={src.name} aria-label={src.name}>{initials(src.name)}</Link></li>
-  );
-}
-
-/** Ground News' bias distribution: the bar, then the outlets in one column per side. */
-function Distribution({ story, lens }: { story: StoryDetail; lens: Lens }) {
-  const parts = segments(story.coverage, lens);
-  const lead = leadingSegment(parts);
-  const groupOfSource = new Map(story.sources.map((src) => {
-    const a = story.articles.find((x) => x.source_slug === src.slug)!;
-    return [src.slug, groupOf(a, lens)];
-  }));
-  const outletsOf = (key: string) => story.sources.filter((src) => groupOfSource.get(src.slug) === key);
-  const columns = parts.filter((p) => !p.hatched && (p.value > 0 || lens === "perspective"));
-  const untracked = story.sources.filter((src) => parts.find((p) => p.key === groupOfSource.get(src.slug))?.hatched ?? true);
-  return (
-    <section className="distribution" aria-labelledby="distribution-heading">
-      <h2 id="distribution-heading">{DISTRIBUTION_TITLE[lens]}</h2>
-      {lead && (
-        <p className="distribution__lead">
-          {t("{share} of the sources are {side}", { share: formatPercent(lead.share), side: lead.segment.label })}
-        </p>
-      )}
-      <StoryCoverage coverage={story.coverage} lens={lens} size="lg" labels="inside" />
-      <div className="distribution__columns">
-        {columns.map((col) => {
-          const outlets = outletsOf(col.key);
-          return (
-            <div key={col.key} className="distribution__column" style={{ ["--col-color" as string]: col.color }}>
-              <h3 className="visually-hidden">{col.label}: {tn(outlets.length, "{n} outlet", "{n} outlets")}</h3>
-              <ul>
-                {outlets.slice(0, 5).map((src) => <Monogram key={src.slug} src={src} />)}
-                {outlets.length > 5 && <li><span className="monogram monogram--more">+{outlets.length - 5}</span></li>}
-              </ul>
-              <span className="distribution__label" aria-hidden="true">{col.label}</span>
-            </div>
-          );
-        })}
-      </div>
-      {untracked.length > 0 && (
-        <div className="distribution__untracked">
-          <h3>{UNTRACKED[lens]}</h3>
-          <ul>{untracked.map((src) => <Monogram key={src.slug} src={src} />)}</ul>
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -218,9 +110,6 @@ export function StoryPage() {
   );
   const available = s ? availableLenses([s.coverage]) : null;
   const [lens, setLens] = useLens(available);
-  // the chosen side, per story and lens; by default the side that covered it most
-  const [chosen, setChosen] = useState<{ key: string; at: string } | null>(null);
-  const [compare, setCompare] = useState(false);
   if (missing) {
     return (
       <NotFoundState title={t("Story not found")}>
@@ -235,152 +124,153 @@ export function StoryPage() {
   // none when the outlets' times cannot tell who was first (an estimated time close to the earliest)
   const first = s.articles.find((a) => a.is_first);
   const summary = summaryFor(s);
-  const sides = sidesOf(s, lens);
-  const here = `${s.id}:${lens}`;
-  const lead = leadingSegment(segments(s.coverage, lens));
-  const sideKey = chosen?.at === here ? chosen.key : (lead?.segment.key ?? sides[0]?.key);
-  const side = sides.find((x) => x.key === sideKey) ?? sides[0];
+  const segs = segmentsByKey(s.coverage, lens);
+  const others = (available ?? []).filter((l) => l !== lens);
 
   return (
     <article className="story-page">
-      <div className="story-page__main">
-        <header className="story-head">
-          <div className="story-head__top">
-            <p className="story-head__meta">
-              <span>{t("Published {when}", { when: formatRelative(s.first_published_at) })}</span>
-              {s.topic_slug && <Link to={`/topics/${s.topic_slug}`}>{localName(s.topic_name, s.topic_name_sq)}</Link>}
-              <span>{t("Updated {when}", { when: formatRelative(s.last_published_at) })}</span>
-            </p>
-            <ShareStory id={s.id} title={s.title} />
-          </div>
-          <h1 lang={s.language}>{s.title}</h1>
-          <p className="story-head__meta">
-            {first ? (
-              <span>{t("First reported by")} <Link to={`/sources/${first.source_slug}`}>{first.source_name}</Link>, {formatDateTime(first.published_at)}</span>
-            ) : (
-              <span>{t("First reported {when} (which outlet was first is not known)", { when: formatDateTime(s.first_published_at) })}</span>
-            )}
-            <span><strong>{tn(s.source_count, "{n} outlet", "{n} outlets")}</strong> · {tn(s.article_count, "{n} article", "{n} articles")}</span>
-            <BlindspotBadges story={s} />
-          </p>
-        </header>
-
-        <StoryPhoto story={s} />
-
-        <div className="side-bar">
-          {side && (
-            <div className="side-tabs" role="group" aria-label={t("Coverage from")}>
-              {sides.map((x) => (
-                <button key={x.key} type="button" aria-pressed={!compare && x.key === side.key}
-                  style={{ ["--side-color" as string]: x.color }}
-                  onClick={() => { setChosen({ key: x.key, at: here }); setCompare(false); }}>
-                  {x.label}
-                </button>
-              ))}
-            </div>
-          )}
-          <button type="button" className="btn side-compare" aria-pressed={compare} onClick={() => setCompare((c) => !c)}>
-            <span aria-hidden="true" className="side-compare__icon">⇆</span> {t("Compare headlines")}
-          </button>
-        </div>
-
+      <header className="story-head">
+        <p className="story-head__crumb">
+          <Link to="/">← {t("Top stories")}</Link>
+          {s.topic_slug && <Link className="kicker" to={`/topics/${s.topic_slug}`}>{localName(s.topic_name, s.topic_name_sq)}</Link>}
+        </p>
+        <h1 lang={s.language}>{s.title}</h1>
         {summary && (
-          <div className="story-summary">
-            <p>
-              <span lang={summary.lang}>{summary.text}</span>{" "}
-              <span className="meta">{summary.lang === getLang() ? t("(AI summary)") : t("(AI summary, in English)")}</span>
-            </p>
-          </div>
+          <p className="story-summary">
+            <span lang={summary.lang}>{summary.text}</span>{" "}
+            <span className="meta">{summary.lang === getLang() ? t("(AI summary)") : t("(AI summary, in English)")}</span>
+          </p>
         )}
+        <p className="story-head__meta">
+          {first ? (
+            <span>{t("First reported by")} <Link to={`/sources/${first.source_slug}`}>{first.source_name}</Link>, {formatDateTime(first.published_at)}</span>
+          ) : (
+            <span>{t("First reported {when} (which outlet was first is not known)", { when: formatDateTime(s.first_published_at) })}</span>
+          )}
+          <span><strong>{tn(s.source_count, "{n} outlet", "{n} outlets")}</strong> · {tn(s.article_count, "{n} article", "{n} articles")}</span>
+          <span>{t("Updated {when}", { when: formatRelative(s.last_published_at) })}</span>
+        </p>
+        {s.blindspots.length > 0 && <p className="story-card__badges"><BlindspotBadges story={s} /></p>}
+        <ShareStory id={s.id} title={s.title} />
+      </header>
 
-        {compare || !side ? (
-          <HeadlineColumns story={s} lens={lens} />
-        ) : (
-          <SideHeadlines story={s} lens={lens} side={side} />
-        )}
+      <StoryPhoto story={s} />
 
-        <Card title={t("Timeline")} question={t("Who reported it, and when — each mark is one report.")}>
-          {() => {
-            const segs = segmentsByKey(s.coverage, lens);
-            return (
-              <>
-                <StoryTrace story={s} lens={lens} />
-                <ol className="timeline">
-                  {s.articles.map((a) => (
-                    <li key={a.id} style={{ ["--tick" as string]: markColor(segs.get(groupOf(a, lens))) }}>
-                      <span>
-                        <time dateTime={a.published_at}>{formatDateTime(a.published_at)}</time>{" "}
-                        <strong>{a.source_name}</strong>
-                        {a.is_first && <span className="meta"> · {t("first report")}</span>}
-                      </span>
-                      <span><OutletLink story={s} a={a} /> <SentimentChip label={a.sentiment_label} /></span>
-                    </li>
-                  ))}
-                </ol>
-              </>
-            );
-          }}
-        </Card>
-        {s.related.length > 0 && (
-          <Card title={t("Related stories")} question={t("Stories within three days that name the same people, organisations or places.")}>
-            {() => <div>{s.related.map((r) => <StoryCard key={r.id} story={r} lens={lens} compact />)}</div>}
-          </Card>
-        )}
-      </div>
-
-      <aside className="story-page__aside" aria-label={t("Coverage details")}>
-        <div className="lens-row">
-          <span className="rank-meta">{t("Split coverage by")}</span>
+      <section className="story-cov" aria-labelledby="coverage-heading">
+        <div className="sec-head">
+          <h2 id="coverage-heading">{t("Who covered it")}</h2>
           <LensPicker lens={lens} onChange={setLens} available={available ?? undefined} />
         </div>
-        <CoverageDetails story={s} lens={lens} />
-        <Distribution story={s} lens={lens} />
-        <p className="card__foot">
+        <StoryCoverage coverage={s.coverage} lens={lens} size="lg" labels="shares" missing={s.blindspots} />
+        <p className="story-cov__note">
           {available?.includes("perspective")
             ? t("Ratings are editorial and belong to the outlet, not to the article.")
             : t("None of these outlets has a perspective or factuality rating yet.")}{" "}
           <Link to="/about#ratings">{t("How outlets are rated")}</Link>
         </p>
-        <Card title={t("Outlets")} question={t("Their ratings, and where they are based.")}>
-          {() => (
-            <ul className="plain-list">
+      </section>
+
+      <section className="story-compare" aria-labelledby="compare-heading">
+        <div className="sec-head">
+          <h2 id="compare-heading">{t("Compare headlines")}</h2>
+          <p>{tn(s.article_count, "{n} article", "{n} articles")}</p>
+        </div>
+        <HeadlineColumns story={s} lens={lens} />
+      </section>
+
+      {others.length > 0 && (
+        <section className="story-splits" aria-labelledby="splits-heading">
+          <div className="sec-head"><h2 id="splits-heading">{t("Other splits")}</h2></div>
+          {others.map((l) => (
+            <div key={l} className="story-splits__one">
+              <h3 className="caps">{LENS_LABEL[l]}</h3>
+              <StoryCoverage coverage={s.coverage} lens={l} size="sm" labels="nonzero" />
+            </div>
+          ))}
+        </section>
+      )}
+
+      <section className="story-trail" aria-labelledby="timeline-heading">
+        <div className="sec-head">
+          <h2 id="timeline-heading">{t("Timeline")}</h2>
+          <p>{t("Who reported it, and when — each mark is one report.")}</p>
+        </div>
+        <StoryTrace story={s} lens={lens} />
+        <ol className="timeline">
+          {s.articles.map((a) => (
+            <li key={a.id} style={{ ["--tick" as string]: markColor(segs.get(groupOf(a, lens))) }}>
+              <time dateTime={a.published_at}>{formatDateTime(a.published_at)}</time>
+              <span>
+                <strong>{a.source_name}</strong>
+                {a.is_first && <span className="meta"> · {t("first report")}</span>}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="story-outlets" aria-labelledby="outlets-heading">
+        <div className="sec-head">
+          <h2 id="outlets-heading">{t("Outlets")}</h2>
+          <p>{t("Their ratings, and where they are based.")}</p>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">{t("Outlet")}</th>
+                <th scope="col">{LENS_LABEL.perspective}</th>
+                <th scope="col" className="wide-only">{LENS_LABEL.factuality}</th>
+                <th scope="col" className="wide-only">{LENS_LABEL.ownership}</th>
+                <th scope="col">{LENS_LABEL.region}</th>
+              </tr>
+            </thead>
+            <tbody>
               {s.sources.map((src) => {
                 const a = s.articles.find((x) => x.source_slug === src.slug)!;
                 return (
-                  <li key={src.slug} className="rating">
-                    <span className="dot" style={{ background: BIAS_GROUP_COLOR[biasGroup(src.bias)] }} aria-hidden="true" />
-                    <span>
-                      <Link to={`/sources/${src.slug}`}>{src.name}</Link>
-                      <span className="meta">
-                        {" · "}
-                        {[
-                          src.bias !== "unrated" && BIAS_LABEL[src.bias],
-                          a.source_factuality !== "unrated" && t("{level} factuality", { level: FACTUALITY_LABEL[a.source_factuality].toLowerCase() }),
-                          src.bias === "unrated" && a.source_factuality === "unrated" && t("not rated yet"),
-                          OWNERSHIP_LABEL[a.source_ownership],
-                          countryLabel(src.country),
-                        ].filter(Boolean).join(" · ")}
-                      </span>
-                    </span>
-                  </li>
+                  <tr key={src.slug}>
+                    <th scope="row"><Link to={`/sources/${src.slug}`}>{src.name}</Link></th>
+                    <td>
+                      <span className={`swatch ${src.bias === "unrated" ? "seg--hatched" : ""}`}
+                        style={{ background: BIAS_GROUP_COLOR[biasGroup(src.bias)] }} aria-hidden="true" />
+                      {src.bias === "unrated" ? t("not rated yet") : BIAS_LABEL[src.bias]}
+                    </td>
+                    <td className="wide-only">{FACTUALITY_LABEL[a.source_factuality]}</td>
+                    <td className="wide-only">{OWNERSHIP_LABEL[a.source_ownership]}</td>
+                    <td>{countryLabel(src.country)}</td>
+                  </tr>
                 );
               })}
-            </ul>
-          )}
-        </Card>
-        {(s.entities.length > 0 || s.topics.length > 0) && (
-          <Card title={t("Tags")} question={t("Topics and names in this story.")}>
-            {() => (
-              <div className="chips">
-                {s.topics.map((tp) => <Link key={tp.slug} className="chip" to={`/topics/${tp.slug}`}>{localName(tp.name_en, tp.name_sq)}</Link>)}
-                {s.entities.map((e) => (
-                  <Link key={e.id} className="chip" to={`/entities/${e.id}`}>{e.name} · {ENTITY_TYPE_LABEL[e.type]}</Link>
-                ))}
-              </div>
-            )}
-          </Card>
-        )}
-      </aside>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {(s.entities.length > 0 || s.topics.length > 0) && (
+        <section className="story-tags" aria-labelledby="tags-heading">
+          <div className="sec-head">
+            <h2 id="tags-heading">{t("Tags")}</h2>
+            <p>{t("Topics and names in this story.")}</p>
+          </div>
+          <div className="chips">
+            {s.topics.map((tp) => <Link key={tp.slug} className="chip" to={`/topics/${tp.slug}`}>{localName(tp.name_en, tp.name_sq)}</Link>)}
+            {s.entities.map((e) => (
+              <Link key={e.id} className="chip" to={`/entities/${e.id}`}>{e.name} · {ENTITY_TYPE_LABEL[e.type]}</Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {s.related.length > 0 && (
+        <section className="story-related" aria-labelledby="related-heading">
+          <div className="sec-head">
+            <h2 id="related-heading">{t("Related stories")}</h2>
+            <p>{t("Stories within three days that name the same people, organisations or places.")}</p>
+          </div>
+          <div className="story-related__list">{s.related.map((r) => <StoryCard key={r.id} story={r} lens={lens} compact />)}</div>
+        </section>
+      )}
     </article>
   );
 }

@@ -1,4 +1,6 @@
-/* Coverage bars: 2px surface gaps between segments, hatched unrated, numbers always printed. */
+/* Coverage bars: a ruled band. The frame is the --control ink (>= 3:1), so the band reads as a
+   shape even where its fill is the light centre; 2px gaps between segments; hatched unrated;
+   numbers always printed. The fills sit on --surface, the background they were validated on. */
 .coverage {
   display: grid;
   gap: 6px;
@@ -9,46 +11,20 @@
   gap: 2px;
   height: 10px;
   width: 100%;
+  padding: 1px;
+  border: 1px solid var(--control);
+  background: var(--surface);
 }
 .coverage--sm .coverage__bar {
-  height: 6px;
-}
-/* Ground News' row bar: short and thin, next to its one-line summary */
-.coverage--xs {
-  width: 100px;
-  flex: none;
-}
-.coverage--xs .coverage__bar {
   height: 8px;
-  gap: 0;
 }
-.coverage--xs .coverage__seg {
-  min-width: 2px;
-  border-radius: 0;
-}
-/* the lead story's bar: tall, its labels on the segments */
+/* a story's own bar, on its page and on the lead of the front page */
 .coverage--lg .coverage__bar {
-  height: 30px;
-  gap: 0;
-}
-.coverage--lg .coverage__seg {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 4px;
-  border-radius: 0;
-  overflow: hidden;
-}
-.coverage__inside {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-heavy);
-  white-space: nowrap;
-  padding: 0 var(--space-2);
+  height: 20px;
 }
 .coverage__seg {
   flex-basis: 0;
   min-width: 3px;
-  border-radius: var(--radius-sm);
   /* within one lens, a refreshed story re-proportions instead of jumping */
   transition: flex-grow var(--dur-base) var(--ease-out);
 }
@@ -56,24 +32,42 @@
   background-image: repeating-linear-gradient(45deg, var(--unrated-ink) 0 1.5px, transparent 1.5px 5px) !important;
   background-color: var(--unrated) !important;
 }
+/* a side nobody covered: an empty slot of fixed width where its segment would be */
+.coverage__seg--missing {
+  flex: 0 0 16%;
+  background: repeating-linear-gradient(90deg, var(--control) 0 3px, transparent 3px 6px) top / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, var(--control) 0 3px, transparent 3px 6px) bottom / 100% 1px no-repeat;
+}
 .coverage__labels {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px var(--space-3);
-  font-size: var(--text-xs);
+  gap: 2px var(--space-4);
+  font-size: var(--text-sm);
   color: var(--ink-2);
 }
 .coverage__label {
   display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
+  align-items: baseline;
+  white-space: nowrap;
 }
 .coverage__label strong {
   font-weight: var(--weight-strong);
   color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
-.coverage__label .dot {
-  border-radius: 1px;
+/* each share large, its name and count under it */
+.coverage__labels--shares {
+  gap: var(--space-2) var(--space-6);
+  font-size: var(--text-xs);
+}
+.coverage__labels--shares .coverage__label {
+  display: grid;
+}
+.coverage__labels--shares .coverage__share {
+  font-family: var(--font-head);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-heavy);
+  line-height: 1.1;
 }
 @media (forced-colors: active) {
   .coverage__seg {

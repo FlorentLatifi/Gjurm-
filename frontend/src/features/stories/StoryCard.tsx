@@ -1,44 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { StorySummary } from "@/shared/api/types";
 import { formatRelative, summaryFor } from "@/shared/lib/format";
-import {
-  BIAS_GROUP_COLOR,
-  BIAS_LABEL,
-  biasGroup,
-  blindspotLabel,
-  countryLabel,
-  leadingSegment,
-  type Lens,
-  segments,
-} from "@/shared/model/ratings";
+import { blindspotLabel, type Lens } from "@/shared/model/ratings";
 import { storyQuery } from "./api";
-import { CoverageLine, StoryCoverage } from "./StoryCoverage";
+import { coverageCounts, StoryCoverage } from "./StoryCoverage";
 import "./stories.css";
 import { localName, t, tn } from "@/shared/i18n";
-
-export function initials(name: string): string {
-  const words = name.replace(/[^\p{L}\p{N} ]/gu, "").split(/\s+/).filter(Boolean);
-  return ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? "")).toUpperCase() || "?";
-}
-
-/** Small round badges for the outlets that covered a story; the underline is the outlet's perspective. */
-export function SourceDots({ sources, max = 6 }: { sources: StorySummary["sources"]; max?: number }) {
-  const shown = sources.slice(0, max);
-  return (
-    <span className="source-dots" aria-hidden="true">
-      {shown.map((s) => (
-        <span key={s.slug} className="source-dot" title={`${s.name} · ${BIAS_LABEL[s.bias]} · ${countryLabel(s.country)}`}
-          style={{ ["--dot-bias" as string]: BIAS_GROUP_COLOR[biasGroup(s.bias)] }}>
-          {initials(s.name)}
-        </span>
-      ))}
-      {sources.length > max && <span className="source-dot">+{sources.length - max}</span>}
-    </span>
-  );
-}
 
 export function BlindspotBadges({ story }: { story: StorySummary }) {
   return (
@@ -76,9 +46,21 @@ function usePrefetchStory(id: number) {
   };
 }
 
+/** "8 outlets  ·  2 Left · 5 Center · 1 Right  ·  2 hours ago": a story's coverage in one line. */
+function CoverageLine({ story, lens }: { story: StorySummary; lens: Lens }) {
+  return (
+    <p className="story-line">
+      <strong>{tn(story.source_count, "{n} outlet", "{n} outlets")}</strong>
+      <span>{coverageCounts(story.coverage, lens)}</span>
+      <time dateTime={story.last_published_at}>{formatRelative(story.last_published_at)}</time>
+    </p>
+  );
+}
+
 /**
- * One story in a feed: topic and time, the representative headline (links to the story page,
- * which links every outlet's original), the coverage bar, and who covered it first.
+ * One story in a list: topic and time, the representative headline (links to the story page,
+ * which links every outlet's original), the coverage bar, and who covered it first. `compact`
+ * is the short form for related stories and side columns: the bar and one line under it.
  */
 export function StoryCard({
   story,
@@ -103,149 +85,136 @@ export function StoryCard({
     >
       <div className="story-card__top">
         {story.topic_name && <span className="kicker">{localName(story.topic_name, story.topic_name_sq)}</span>}
-        <span>· <time dateTime={story.last_published_at}>{t("Updated {when}", { when: formatRelative(story.last_published_at) })}</time></span>
-        <BlindspotBadges story={story} />
+        {!compact && <time dateTime={story.last_published_at}>{t("Updated {when}", { when: formatRelative(story.last_published_at) })}</time>}
       </div>
       <h3 className="story-card__title" id={titleId} lang={story.language}>
         <Link to={`/stories/${story.id}`} {...prefetch}>{story.title}</Link>
       </h3>
       {!compact && summary && <p className="story-card__summary" lang={summary.lang}>{summary.text}</p>}
-      <StoryCoverage coverage={story.coverage} lens={lens} size={compact ? "sm" : "md"} />
-      <div className="story-card__foot">
-        <SourceDots sources={story.sources} />
-        <span>
-          <strong>{tn(story.source_count, "{n} outlet", "{n} outlets")}</strong>
-          {story.article_count > story.source_count && <> · {tn(story.article_count, "{n} article", "{n} articles")}</>}
-        </span>
-        {story.source_count > 1 && story.first_source_name && <span>{t("First: {outlet}", { outlet: story.first_source_name })}</span>}
-      </div>
+      <StoryCoverage coverage={story.coverage} lens={lens} size={compact ? "sm" : "md"}
+        labels={compact ? "none" : undefined} missing={story.blindspots} />
+      {compact ? (
+        <CoverageLine story={story} lens={lens} />
+      ) : (
+        <div className="story-card__foot">
+          <span>
+            <strong>{tn(story.source_count, "{n} outlet", "{n} outlets")}</strong>
+            {story.article_count > story.source_count && <> · {tn(story.article_count, "{n} article", "{n} articles")}</>}
+          </span>
+          {story.source_count > 1 && story.first_source_name && <span>{t("First: {outlet}", { outlet: story.first_source_name })}</span>}
+        </div>
+      )}
+      {story.blindspots.length > 0 && <p className="story-card__badges"><BlindspotBadges story={story} /></p>}
     </article>
   );
 }
 
 // ------------------------------------------------------------------------------------------
-// The Ground News front page (ADR-028)
+// The front page (ADR-032)
 // ------------------------------------------------------------------------------------------
-
-/** One of four dark cover tones, fixed per topic, so a topic always looks the same. */
-function coverTone(slug: string | null): number {
-  let h = 0;
-  for (const ch of slug ?? "") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return (h % 4) + 1;
-}
 
 /**
  * A story's picture: the photo an outlet put in its own feed entry, loaded from the outlet's
- * site and never copied (ADR-030). Without one — or when it fails to load — a dark panel
- * lettered with the story's topic and the outlets that covered it.
+ * site and never copied (ADR-030). A story without one — or whose photo fails to load — is set
+ * in type alone, as a paper sets most of its stories.
  */
-export function Cover({ story, children, className = "" }: { story: StorySummary; children?: ReactNode; className?: string }) {
-  const topic = story.topic_name ? localName(story.topic_name, story.topic_name_sq) : t("News");
+export function Cover({ story, className = "" }: { story: StorySummary; className?: string }) {
   const [broken, setBroken] = useState<string | null>(null);
   const photo = story.image_url && story.image_url !== broken ? story.image_url : null;
+  if (!photo) return null;
   return (
-    <div className={`cover cover--${coverTone(story.topic_slug)} ${photo ? "cover--photo" : ""} ${className}`}>
-      {photo ? (
-        // decorative: the headline beside it says what the story is
-        <img className="cover__photo" src={photo} alt="" loading="lazy" decoding="async"
-          referrerPolicy="no-referrer" onError={() => setBroken(photo)} />
-      ) : (
-        /* drawn by CSS from the attribute: a texture, not text to read (its name is in the kicker) */
-        <span className="cover__word" data-word={topic} aria-hidden="true" />
-      )}
-      <span className="cover__outlets" aria-hidden="true">
-        {story.sources.slice(0, 4).map((src) => <span key={src.slug}>{initials(src.name)}</span>)}
-        {story.source_count > 4 && <span>+{story.source_count - 4}</span>}
-      </span>
-      {children}
+    <div className={`cover ${className}`}>
+      {/* decorative: the headline beside it says what the story is */}
+      <img className="cover__photo" src={photo} alt="" loading="lazy" decoding="async"
+        referrerPolicy="no-referrer" onError={() => setBroken(photo)} />
     </div>
   );
 }
 
-function kicker(story: StorySummary): string {
-  return [story.topic_name && localName(story.topic_name, story.topic_name_sq), story.first_source_name]
-    .filter(Boolean)
-    .join(" · ");
+function topicOf(story: StorySummary): string | null {
+  return story.topic_name ? localName(story.topic_name, story.topic_name_sq) : null;
 }
 
-/** The lead story: its cover full width, the headline on it, and the bar with its labels on it. */
+/** The lead story: the headline across the column, its summary and coverage beside its photo. */
 export function HeroStory({ story, lens }: { story: StorySummary; lens: Lens }) {
   const prefetch = usePrefetchStory(story.id);
   const titleId = useId();
+  const summary = summaryFor(story);
+  const topic = topicOf(story);
   return (
     <article className="story-card story-hero" aria-labelledby={titleId}>
-      <Cover story={story} className="story-hero__cover">
-        <div className="story-hero__body">
-          <p className="story-hero__kicker">
-            {kicker(story)} · <time dateTime={story.last_published_at}>{t("Updated {when}", { when: formatRelative(story.last_published_at) })}</time>
-          </p>
-          <p className="story-hero__count">
+      <p className="story-hero__kicker">
+        {topic && <span className="kicker">{topic}</span>}
+        <time dateTime={story.last_published_at}>{t("Updated {when}", { when: formatRelative(story.last_published_at) })}</time>
+      </p>
+      <h3 className="story-card__title" id={titleId} lang={story.language}>
+        <Link to={`/stories/${story.id}`} {...prefetch}>{story.title}</Link>
+      </h3>
+      <div className="story-hero__text">
+        {summary && <p className="story-hero__summary" lang={summary.lang}>{summary.text}</p>}
+        <StoryCoverage coverage={story.coverage} lens={lens} size="lg" missing={story.blindspots} />
+        <p className="story-hero__meta">
+          <strong className="story-hero__count">
             {tn(story.source_count, "{n} outlet", "{n} outlets")} · {tn(story.article_count, "{n} article", "{n} articles")}
-          </p>
-          <h3 className="story-card__title" id={titleId} lang={story.language}>
-            <Link to={`/stories/${story.id}`} {...prefetch}>{story.title}</Link>
-          </h3>
-          <StoryCoverage coverage={story.coverage} lens={lens} size="lg" labels={lens === "perspective" ? "inside" : "nonzero"} />
-        </div>
-      </Cover>
-      <BlindspotBadges story={story} />
+          </strong>
+          {story.source_count > 1 && story.first_source_name && <span>{t("First: {outlet}", { outlet: story.first_source_name })}</span>}
+        </p>
+        {story.blindspots.length > 0 && <p className="story-card__badges"><BlindspotBadges story={story} /></p>}
+      </div>
+      <Cover story={story} className="story-hero__cover" />
     </article>
   );
 }
 
-/** A row of the feed: kicker, headline and the one-line coverage, the cover on the right. */
+/** A story of the feed: kicker, headline, its photo when it has one, the bar and one line. */
 export function StoryRow({ story, lens }: { story: StorySummary; lens: Lens }) {
   const prefetch = usePrefetchStory(story.id);
   const titleId = useId();
+  const topic = topicOf(story);
   return (
     <article className="story-card story-row" aria-labelledby={titleId}>
-      <div className="story-row__text">
-        <p className="story-row__kicker">{kicker(story)}</p>
+      <div className="story-row__head">
+        {topic && <p className="kicker">{topic}</p>}
         <h3 className="story-card__title" id={titleId} lang={story.language}>
           <Link to={`/stories/${story.id}`} {...prefetch}>{story.title}</Link>
         </h3>
-        <CoverageLine coverage={story.coverage} lens={lens} sources={story.source_count} />
-        {story.blindspots.length > 0 && <p className="story-row__badges"><BlindspotBadges story={story} /></p>}
       </div>
       <Cover story={story} className="story-row__cover" />
+      <div className="story-row__cov">
+        <StoryCoverage coverage={story.coverage} lens={lens} size="sm" labels="none" missing={story.blindspots} />
+        <CoverageLine story={story} lens={lens} />
+      </div>
+      {story.blindspots.length > 0 && <p className="story-card__badges"><BlindspotBadges story={story} /></p>}
     </article>
   );
 }
 
-/** A headline and its one-line coverage, for the side columns ("Top news stories"). */
+/** A headline and its one line of coverage, for the side column. */
 export function StoryLine({ story, lens }: { story: StorySummary; lens: Lens }) {
   const prefetch = usePrefetchStory(story.id);
   const titleId = useId();
   return (
-    <article className="story-card story-line" aria-labelledby={titleId}>
+    <article className="story-card story-brief" aria-labelledby={titleId}>
       <h3 className="story-card__title" id={titleId} lang={story.language}>
         <Link to={`/stories/${story.id}`} {...prefetch}>{story.title}</Link>
       </h3>
-      <CoverageLine coverage={story.coverage} lens={lens} sources={story.source_count} />
+      <CoverageLine story={story} lens={lens} />
     </article>
   );
 }
 
-/** A blindspot, framed in the colour of the side that did cover it, as on Ground News. */
+/** A blindspot: what is missing first, then the headline and a bar with the missing side left empty. */
 export function BlindspotCard({ story, lens }: { story: StorySummary; lens: Lens }) {
   const prefetch = usePrefetchStory(story.id);
   const titleId = useId();
-  const lead = leadingSegment(segments(story.coverage, lens));
   return (
-    <article className="story-card blindspot-card" aria-labelledby={titleId}
-      style={{ ["--frame" as string]: lead && lens === "perspective" ? lead.segment.color : "var(--ink)" }}>
-      <Cover story={story} className="blindspot-card__cover" />
-      <div className="blindspot-card__body">
-        <p className="blindspot-card__tags">
-          <span className="tag tag--blindspot">{t("Blindspot")}</span>
-          <span className="tag">{tn(story.source_count, "{n} outlet", "{n} outlets")}</span>
-        </p>
-        <h3 className="story-card__title" id={titleId} lang={story.language}>
-          <Link to={`/stories/${story.id}`} {...prefetch}>{story.title}</Link>
-        </h3>
-        <p className="blindspot-card__why"><BlindspotBadges story={story} /></p>
-        <StoryCoverage coverage={story.coverage} lens={lens} size="lg" labels={lens === "perspective" ? "inside" : "nonzero"} />
-      </div>
+    <article className="story-card blindspot-card" aria-labelledby={titleId}>
+      <p className="story-card__badges"><BlindspotBadges story={story} /></p>
+      <h3 className="story-card__title" id={titleId} lang={story.language}>
+        <Link to={`/stories/${story.id}`} {...prefetch}>{story.title}</Link>
+      </h3>
+      <StoryCoverage coverage={story.coverage} lens={lens} size="sm" labels="none" missing={story.blindspots} />
+      <CoverageLine story={story} lens={lens} />
     </article>
   );
 }

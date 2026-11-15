@@ -8,8 +8,9 @@
   font-size: var(--text-sm);
 }
 .stat__value {
+  font-family: var(--font-head);
   font-size: var(--text-xl);
-  font-weight: var(--weight-strong);
+  font-weight: var(--weight-heavy);
   letter-spacing: -0.02em;
   line-height: var(--leading-tight);
   overflow-wrap: anywhere;

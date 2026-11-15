@@ -13,6 +13,7 @@ export const sq: Record<string, string> = {
   "Albanian-language news grouped into stories: which outlets covered each one, by perspective, region and ownership, who reported first, and what one side missed — always linking to the original articles.":
     "Lajmet në shqip të grupuara sipas ngjarjeve: cilat media e raportuan secilën, sipas këndvështrimit, rajonit dhe pronësisë, kush e raportoi i pari dhe çfarë humbi njëra anë — gjithmonë me lidhje te artikujt origjinalë.",
   "GJURMË home": "GJURMË, faqja kryesore",
+  "One story, every side": "Një lajm, të gjitha anët",
   "Skip to content": "Kalo te përmbajtja",
   Main: "Kryesore",
   "Loading page": "Po ngarkohet faqja",
@@ -30,6 +31,10 @@ export const sq: Record<string, string> = {
   "Corrections & removal": "Korrigjime dhe heqje",
 
   // --- navigation ------------------------------------------------------------------------
+  "More stories": "Më shumë lajme",
+  "Suddenly in the news": "Papritur në lajme",
+  "Who covered it": "Kush e raportoi",
+  "Other splits": "Ndarjet e tjera",
   Stories: "Lajmet",
   Blindspot: "Pikat e verbra",
   Dashboard: "Paneli",
@@ -87,7 +92,6 @@ export const sq: Record<string, string> = {
   "Mixed factuality": "Faktualitet i përzier",
   "Low factuality": "Faktualitet i ulët",
   "Unrated factuality": "Faktualitet pa vlerësim",
-  "{level} factuality": "faktualitet {level}",
   "Private company": "Kompani private",
   "Media group": "Grup mediatik",
   "Public broadcaster": "Transmetues publik",
@@ -254,7 +258,6 @@ export const sq: Record<string, string> = {
   "Related stories": "Lajme të ngjashme",
   "Stories within three days that name the same people, organisations or places.":
     "Lajme brenda tri ditëve që përmendin të njëjtët persona, organizata ose vende.",
-  "Coverage details": "Hollësi të mbulimit",
   Outlets: "Mediat",
   Tone: "Toni",
   "Ratings are editorial and belong to the outlet, not to the article.":
@@ -594,38 +597,15 @@ export const sq: Record<string, string> = {
   "Search articles": "Kërko artikuj",
 
   // --- the Ground News chrome and front page (ADR-028) ---------------------------------
-  "See every side of every story": "Shiko çdo anë të çdo lajmi",
   "Colour theme": "Ngjyrat",
-  "Theme:": "Pamja:",
-  Edition: "Edicioni",
   "All sections": "Të gjitha faqet",
-  Trending: "Në trend",
-  News: "Lajme",
   Home: "Kryefaqja",
   "For you": "Për ty",
-  "Coverage: {outlets}": "Mbulimi: {outlets}",
-  "{share} {side} coverage: {outlets}": "{share} {side} · mbulim nga {outlets}",
-  "Daily briefing and latest stories": "Përmbledhja e ditës dhe lajmet më të reja",
-  "Daily briefing": "Përmbledhja e ditës",
   "Latest stories": "Më të rejat",
   "How blindspots work": "Si funksionojnë pikat e verbra",
   "View the blindspot feed": "Shiko të gjitha pikat e verbra",
   "No outlet in this group covered the story — a blindspot for its readers.":
     "Asnjë media e këtij grupi nuk e raportoi këtë lajm — një pikë e verbër për lexuesit e tyre.",
-  "Total news sources": "Gjithsej media",
-  "Last updated": "Përditësuar",
-  Distribution: "Shpërndarja",
-  "{share} of the sources are {side}": "{share} e mediave: {side}",
-  "Published {when}": "Publikuar {when}",
   "Photo:": "Foto:",
-  "Coverage from": "Mbulimi nga",
   "Compare headlines": "Krahaso titujt",
-  "Bias distribution": "Shpërndarja sipas këndvështrimit",
-  "Region distribution": "Shpërndarja sipas rajonit",
-  "Ownership distribution": "Shpërndarja sipas pronësisë",
-  "Factuality distribution": "Shpërndarja sipas faktualitetit",
-  "Untracked bias": "Pa vlerësim këndvështrimi",
-  "Other countries": "Shtete të tjera",
-  "Unknown ownership": "Pronësi e panjohur",
-  "Untracked factuality": "Pa vlerësim faktualiteti",
 };

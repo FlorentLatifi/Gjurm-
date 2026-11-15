@@ -3,9 +3,10 @@ import { labels, t } from "@/shared/i18n";
 
 /**
  * Labels and colours for the coverage dimensions (mirrors backend gjurme/sources/ratings.py).
- * Perspective is a diverging scale (maroon ← light neutral → navy, as on Ground News; ADR-028); region and ownership are
- * categorical slots assigned to a fixed entity, never by rank; "unrated"/"unknown" is a hatched
- * neutral so it can never be mistaken for the center.
+ * Perspective is the one split drawn in hue: a diverging scale, warm for the left and cool for
+ * the right around a light neutral (ADR-032). Region and ownership are named groups in a fixed
+ * order, all in one ink and told apart by their labels; factuality is an ordinal ramp of that
+ * ink; "unrated"/"unknown" is a hatched neutral so it can never be mistaken for the center.
  */
 export const BIAS_LABEL: Readonly<Record<BiasRating, string>> = labels({
   left: "Left",
@@ -70,7 +71,7 @@ export const OWNERSHIP_LABEL: Readonly<Record<OwnershipType, string>> = labels({
   unknown: "Unknown",
 });
 
-/** Fixed slot per ownership type (categorical slots 1–6 in order; unknown is hatched). */
+/** Fixed order of the ownership types (unknown is hatched). */
 export const OWNERSHIP_ORDER: OwnershipType[] = [
   "private",
   "media_group",
@@ -80,15 +81,8 @@ export const OWNERSHIP_ORDER: OwnershipType[] = [
   "state",
   "unknown",
 ];
-const OWNERSHIP_COLOR: Record<OwnershipType, string> = {
-  private: "var(--cat-1)",
-  media_group: "var(--cat-2)",
-  public: "var(--cat-3)",
-  public_international: "var(--cat-4)",
-  nonprofit: "var(--cat-5)",
-  state: "var(--cat-6)",
-  unknown: "var(--unrated)",
-};
+/** Named groups that are not a scale: one ink, so no hue can be read as a perspective. */
+const GROUP_INK = "var(--seg)";
 
 export const COUNTRY_LABEL: Readonly<Record<string, string>> = labels({
   XK: "Kosovo",
@@ -98,14 +92,8 @@ export const COUNTRY_LABEL: Readonly<Record<string, string>> = labels({
   RS: "Serbia",
   REG: "Regional / international",
 });
-/** The countries GJURMË follows outlets in, each with its own fixed slot; others fold together. */
+/** The countries GJURMË follows outlets in, in a fixed order; others fold together. */
 export const REGION_ORDER = ["XK", "AL", "MK", "REG"];
-const REGION_COLOR: Record<string, string> = {
-  XK: "var(--cat-1)",
-  AL: "var(--cat-2)",
-  MK: "var(--cat-3)",
-  REG: "var(--cat-4)",
-};
 
 export function countryLabel(code: string): string {
   return COUNTRY_LABEL[code] ?? code;
@@ -118,16 +106,9 @@ export interface Segment {
   color: string;
   /** Hatched fill: "unrated" / "unknown" / "other", never confused with a real category. */
   hatched?: boolean;
-  /** Text printed on the segment itself (perspective only: the pole and centre colours). */
-  ink?: string;
+  /** The colour says which group this is (perspective, factuality), so a legend shows a swatch. */
+  keyed?: boolean;
 }
-
-const BIAS_GROUP_INK: Record<BiasGroup, string> = {
-  left: "var(--on-bias-pole)",
-  center: "var(--on-bias-center)",
-  right: "var(--on-bias-pole)",
-  unrated: "var(--ink)",
-};
 
 export type Lens = "perspective" | "region" | "ownership" | "factuality";
 export const LENS_LABEL: Readonly<Record<Lens, string>> = labels({
@@ -146,7 +127,7 @@ export function segments(coverage: Coverage, lens: Lens): Segment[] {
       value: coverage.bias[g] ?? 0,
       color: BIAS_GROUP_COLOR[g],
       hatched: g === "unrated",
-      ink: BIAS_GROUP_INK[g],
+      keyed: true,
     }));
   }
   if (lens === "factuality") {
@@ -156,6 +137,7 @@ export function segments(coverage: Coverage, lens: Lens): Segment[] {
       value: coverage.factuality[g] ?? 0,
       color: FACTUALITY_GROUP_COLOR[g],
       hatched: g === "unrated",
+      keyed: true,
     }));
   }
   if (lens === "ownership") {
@@ -163,7 +145,7 @@ export function segments(coverage: Coverage, lens: Lens): Segment[] {
       key: o,
       label: OWNERSHIP_LABEL[o],
       value: coverage.ownership[o] ?? 0,
-      color: OWNERSHIP_COLOR[o],
+      color: o === "unknown" ? "var(--unrated)" : GROUP_INK,
       hatched: o === "unknown",
     }));
   }
@@ -175,14 +157,14 @@ export function segments(coverage: Coverage, lens: Lens): Segment[] {
       key: code,
       label: countryLabel(code),
       value: coverage.region[code] ?? 0,
-      color: REGION_COLOR[code]!,
+      color: GROUP_INK,
     })),
     { key: "other", label: t("Other"), value: other, color: "var(--unrated)", hatched: true },
   ];
 }
 
 /**
- * The side that covered a story most, Ground News' "45% Center": the largest rated segment, or
+ * The side that covered a story most: the largest rated segment, or
  * null when every outlet in view is unrated (a hatched segment never leads).
  */
 export function leadingSegment(parts: Segment[]): { segment: Segment; share: number } | null {
