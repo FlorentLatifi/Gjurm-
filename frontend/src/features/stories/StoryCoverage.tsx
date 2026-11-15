@@ -1,8 +1,7 @@
-import type { Coverage } from "@/shared/api/types";
-import { formatPercent } from "@/shared/lib/format";
-import { leadingSegment, type Lens, LENS_LABEL, LENSES, segments } from "@/shared/model/ratings";
+import type { Coverage, StorySummary } from "@/shared/api/types";
+import { type Lens, LENS_LABEL, LENSES, segments } from "@/shared/model/ratings";
 import { CoverageBar } from "@/ui/CoverageBar";
-import { labels, t, tn } from "@/shared/i18n";
+import { labels, t } from "@/shared/i18n";
 
 // Whole phrases per lens: in Albanian the lens noun changes its ending after "by" (sipas).
 const COVERAGE_BY = labels({
@@ -19,12 +18,15 @@ export function StoryCoverage({
   size = "md",
   unit,
   labels: shown,
+  missing,
 }: {
   coverage: Coverage;
   lens: Lens;
-  size?: "xs" | "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg";
   unit?: (n: number) => string;
-  labels?: "nonzero" | "all" | "none" | "inside";
+  labels?: "nonzero" | "all" | "none" | "shares";
+  /** The story's blindspots: the sides to draw as an empty slot. */
+  missing?: StorySummary["blindspots"];
 }) {
   return (
     <CoverageBar
@@ -32,33 +34,27 @@ export function StoryCoverage({
       size={size}
       caption={COVERAGE_BY[lens]}
       labels={shown ?? (lens === "perspective" ? "all" : "nonzero")}
+      missing={missingKeys(missing, lens)}
       unit={unit}
     />
   );
 }
 
-/** Ground News' one-line coverage: "45% Center coverage: 188 sources". */
-export function coverageSentence(coverage: Coverage, lens: Lens, sources: number): string {
-  const outlets = tn(sources, "{n} outlet", "{n} outlets");
-  const lead = leadingSegment(segments(coverage, lens));
-  if (!lead) return t("Coverage: {outlets}", { outlets });
-  return t("{share} {side} coverage: {outlets}", {
-    share: formatPercent(lead.share),
-    side: lead.segment.label,
-    outlets,
-  });
+/** The segments a story's blindspots leave empty in this lens. */
+function missingKeys(blindspots: StorySummary["blindspots"] | undefined, lens: Lens): string[] {
+  const kind = lens === "perspective" ? "perspective" : lens === "region" ? "region" : null;
+  return (blindspots ?? []).filter((b) => b.kind === kind).map((b) => b.missing);
 }
 
-/** A story row's coverage: the short bar and its sentence. */
-export function CoverageLine({ coverage, lens, sources }: { coverage: Coverage; lens: Lens; sources: number }) {
-  return (
-    <div className="coverage-line">
-      <StoryCoverage coverage={coverage} lens={lens} size="xs" labels="none" />
-      <span>{coverageSentence(coverage, lens, sources)}</span>
-    </div>
-  );
+/** A story's split in words, counts first: "2 Left · 5 Center · 1 Right". */
+export function coverageCounts(coverage: Coverage, lens: Lens): string {
+  return segments(coverage, lens)
+    .filter((p) => p.value > 0)
+    .map((p) => `${p.value} ${p.label}`)
+    .join(" · ");
 }
 
+/** The lens as a line of words: the chosen one is inked and underlined. */
 export function LensPicker({
   lens,
   onChange,

@@ -44,16 +44,19 @@ h3 {
   margin: 0;
   line-height: var(--leading-tight);
 }
-/* page titles and story headlines: heavy and tight, as on Ground News */
+/* page titles, section titles and story headlines: the serif, bold and close-set */
 h1 {
   font-family: var(--font-head);
   font-size: var(--text-xl);
   font-weight: var(--weight-heavy);
   letter-spacing: -0.015em;
+  text-wrap: balance;
 }
 h2 {
-  font-size: var(--text-base);
-  font-weight: var(--weight-strong);
+  font-family: var(--font-head);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-heavy);
+  line-height: var(--leading-snug);
 }
 h3 {
   font-size: var(--text-base);
@@ -113,10 +116,12 @@ td {
   vertical-align: top;
 }
 th {
-  color: var(--ink-2);
-  font-weight: var(--weight-strong);
+  color: var(--ink-muted);
+  font-weight: var(--weight-regular);
   font-size: var(--text-xs);
-  letter-spacing: 0.02em;
+}
+thead th {
+  border-bottom: var(--rule-fine);
 }
 /* tabular figures only where numbers stack in a column: this face also sets the comma and the
    decimal point to figure width, which reads as a gap in running text */

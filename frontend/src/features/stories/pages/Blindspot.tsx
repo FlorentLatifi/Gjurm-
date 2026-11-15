@@ -20,7 +20,7 @@ const KINDS: { kind: Blindspot["kind"] | ""; label: keyof typeof KIND_LABEL }[] 
   { kind: "region", label: "region" },
 ];
 
-/** Ground News' Blindspot feed: stories that one side of the spectrum, or one country, missed. */
+/** The blindspot feed: stories that one side of the spectrum, or one country's outlets, missed. */
 export default function BlindspotPage() {
   useTitle(t("Blindspot"), t("Stories one side of the spectrum, or one country's media, barely covered."));
   const [params, setParams] = useSearchParams();
@@ -45,7 +45,7 @@ export default function BlindspotPage() {
   const column = (title: string, question: string, list: typeof items, lens: "perspective" | "region") => (
     <Card className="card--bare" title={`${title} · ${formatInt(list.length)}`} question={question} query={query}
       empty={!list.length} emptyText={t("None in this period.")}>
-      {() => <div className="stack">{list.map((s) => <BlindspotCard key={s.id} story={s} lens={lens} />)}</div>}
+      {() => <div className="blindspot-list">{list.map((s) => <BlindspotCard key={s.id} story={s} lens={lens} />)}</div>}
     </Card>
   );
 
@@ -53,14 +53,7 @@ export default function BlindspotPage() {
     <>
       <div className="page-head">
         <div>
-          <h1 className="blindspot-mark blindspot-mark--page">
-            <svg viewBox="0 0 48 28" aria-hidden="true">
-              <circle cx="14" cy="14" r="11" fill="none" stroke="currentColor" strokeWidth="4" />
-              <circle cx="34" cy="14" r="11" fill="none" stroke="currentColor" strokeWidth="4" />
-              <path d="M14 9h20M14 19h20" stroke="currentColor" strokeWidth="4" />
-            </svg>
-            {t("Blindspot")}
-          </h1>
+          <h1>{t("Blindspot")}</h1>
           <p>
             {t("Stories that outlets on one side barely covered — or that are about a country whose own outlets did not report them. Reading them is the quickest way out of a news bubble.")}
           </p>

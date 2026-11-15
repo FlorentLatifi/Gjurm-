@@ -1,84 +1,66 @@
 /*
  * Colour. Two families with one rule: colour belongs to data (docs/architecture/frontend_system.md §4).
  *
- * Chrome (text, links, rules, focus, controls) is ink on paper — no brand hue, so nothing in the
- * interface can be read as a perspective. Text tokens are checked for WCAG contrast on --paper and
- * --surface; --control (input and button borders) is ≥ 3:1 on both (WCAG 1.4.11).
+ * Chrome (text, links, rules, focus, controls) is ink on paper — warm newsprint and a brown-black
+ * ink, no brand hue, so nothing in the interface can be read as a perspective. Text tokens are
+ * checked for WCAG contrast on --paper, --paper-2, --surface and --surface-2; --control (input,
+ * button and coverage-bar borders) is >= 3:1 on all four (WCAG 1.4.11).
  *
- * Data (charts, coverage bars) uses the validated palettes of ADR-011 and is drawn only on
- * --surface, the background the palette validator checked them against. The page itself is a
- * warmer --paper, which the categorical slots were NOT validated for — so data never sits on it.
- * Dark mode is its own set of steps, not an inversion.
+ * Data (charts, coverage bars) is drawn only on --surface, the background the palettes were
+ * validated against (ADR-032). Dark mode is its own set of steps, not an inversion.
  */
 :root {
   color-scheme: light;
-  --paper: #f4f2ec;
-  --paper-2: #ebe8df;
-  --surface: #fcfcfb;
-  --surface-2: #f3f2ee;
-  --ink: #0b0b0b;
-  --ink-2: #52514e;
-  --ink-muted: #686660;
-  --rule: rgba(11, 11, 11, 0.12);
-  --rule-strong: #c3c2b7;
-  --control: #85827a;
-  --hover-wash: rgba(11, 11, 11, 0.05);
-  --focus: #0b0b0b;
+  --paper: #f5f0e6;
+  --paper-2: #ece5d6;
+  --surface: #fbf8f1;
+  --surface-2: #f3eee3;
+  --ink: #1b1815;
+  --ink-2: #4a443c;
+  --ink-muted: #6b6359;
+  --rule: rgba(27, 24, 21, 0.14);
+  --rule-strong: #d8cfbf;
+  --control: #8a8172;
+  --hover-wash: rgba(27, 24, 21, 0.05);
+  --focus: #1b1815;
 
   /* chart scaffolding */
-  --grid: #e1e0d9;
-  --axis: #c3c2b7;
+  --grid: #e6dfd0;
+  --axis: #cfc5b3;
 
-  /* data: series and magnitude */
+  /* data: series and magnitude (charts) */
   --series-1: #2a78d6;
   --series-context: #b7d3f6;
-  --series-muted: #b5b3ab;
-  --bar-muted: #d9d7cf;
-  --magnitude: #52514e;
+  --series-muted: #b3a995;
+  --bar-muted: #ddd5c4;
+  --magnitude: #4a443c;
   --sent-negative: #e34948;
   --sent-neutral: #a8a79f;
   --sent-positive: #2a78d6;
   --div-neg: #e34948;
   --div-pos: #2a78d6;
 
-  /* coverage bars: perspective = diverging (maroon ← light neutral → navy, as on Ground News);
-     region/ownership = categorical slots in fixed order; factuality = ordinal one-hue ramp;
-     unrated = hatched neutral */
-  --bias-left: #9b2f2f;
-  --bias-center: #cfcbc1;
-  --bias-right: #21508f;
-  /* text printed on a bias segment (the hero bar) */
-  --on-bias-pole: #ffffff;
-  --on-bias-center: #0b0b0b;
+  /* coverage bars. Perspective is the one split drawn in hue: a diverging pair, warm for the
+     left and cool for the right, around a light neutral. Region and ownership are named groups
+     in one ink (--seg), told apart by their gaps and printed labels; factuality is an ordinal
+     ramp of the same ink; unrated is hatched. So a blue segment can only ever mean "right". */
+  --bias-left: #b24a26;
+  --bias-center: #c9bfab;
+  --bias-right: #235fa6;
+  --seg: #4a443c;
+  --fact-high: #3d372f;
+  --fact-mixed: #857c6d;
+  --fact-low: #b0a692;
+  --unrated: #e7e0d2;
+  --unrated-ink: #b3a995;
+
+  /* categorical slots, fixed order: chart series only */
   --cat-1: #2a78d6;
   --cat-2: #eb6834;
   --cat-3: #1baf7a;
   --cat-4: #eda100;
   --cat-5: #e87ba4;
   --cat-6: #008300;
-  --fact-high: #1c5cab;
-  --fact-mixed: #3987e5;
-  --fact-low: #86b6ef;
-  --unrated: #e6e4dd;
-  --unrated-ink: #b5b3ab;
-
-  /* chrome, as on Ground News: the tan promo strip, the dark top strip, story covers (no
-     publisher images, ADR-003: a cover is a dark panel lettered with the story's topic) */
-  --promo: #d8c8a4;
-  --promo-ink: #0b0b0b;
-  --strip: #262624;
-  --strip-ink: #e9e7e1;
-  --strip-ink-2: #b4b2ab;
-  --cover-1: #2b2f36;
-  --cover-2: #33302b;
-  --cover-3: #2a3330;
-  --cover-4: #352d33;
-  --cover-ink: #ffffff;
-  --cover-chip-ink: #0b0b0b;
-  --cover-ink-2: rgba(255, 255, 255, 0.1);
-  --cover-veil: linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.55) 100%);
-  --cover-photo-veil: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.45) 40%, rgba(0, 0, 0, 0.88) 100%);
-  --cover-photo-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 
   /* status: reserved, always with a label */
   --good: #006300;
@@ -91,55 +73,45 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --paper: #121211;
-    --paper-2: #1f1f1d;
-    --surface: #1a1a19;
-    --surface-2: #232321;
-    --ink: #f2f0ea;
-    --ink-2: #c3c2b7;
-    --ink-muted: #9a9890;
-    --rule: rgba(255, 255, 255, 0.12);
-    --rule-strong: #383835;
-    --control: #77756f;
-    --hover-wash: rgba(255, 255, 255, 0.06);
-    --focus: #f2f0ea;
-    --grid: #2c2c2a;
-    --axis: #383835;
+    --paper: #171512;
+    --paper-2: #221f1a;
+    --surface: #1f1c18;
+    --surface-2: #292520;
+    --ink: #f1ebdf;
+    --ink-2: #c9c0b0;
+    --ink-muted: #a0978a;
+    --rule: rgba(241, 235, 223, 0.14);
+    --rule-strong: #3a352e;
+    --control: #7d7567;
+    --hover-wash: rgba(241, 235, 223, 0.06);
+    --focus: #f1ebdf;
+    --grid: #2f2a24;
+    --axis: #3a352e;
     --series-1: #3987e5;
     --series-context: #184f95;
-    --series-muted: #6b6a66;
-    --bar-muted: #3d3d3a;
-    --magnitude: #c3c2b7;
+    --series-muted: #6b6359;
+    --bar-muted: #3f3a32;
+    --magnitude: #c9c0b0;
     --sent-negative: #e66767;
     --sent-neutral: #5f5e59;
     --sent-positive: #3987e5;
     --div-neg: #e66767;
     --div-pos: #3987e5;
-    --bias-left: #d46a6a;
-    --bias-center: #c9c6bd;
-    --bias-right: #5b8fd9;
-    --on-bias-pole: #0b0b0b;
-    --on-bias-center: #0b0b0b;
+    --bias-left: #d2754c;
+    --bias-center: #cfc6b4;
+    --bias-right: #6496d0;
+    --seg: #8a8172;
+    --fact-high: #e6dfd0;
+    --fact-mixed: #a0978a;
+    --fact-low: #6b6359;
+    --unrated: #2e2a24;
+    --unrated-ink: #4f493f;
     --cat-1: #3987e5;
     --cat-2: #d95926;
     --cat-3: #199e70;
     --cat-4: #c98500;
     --cat-5: #d55181;
     --cat-6: #008300;
-    --fact-high: #86b6ef;
-    --fact-mixed: #3987e5;
-    --fact-low: #184f95;
-    --unrated: #2c2c2a;
-    --unrated-ink: #4a4a46;
-    --promo: #4a4232;
-    --promo-ink: #f2f0ea;
-    --strip: #0b0b0a;
-    --strip-ink: #e9e7e1;
-    --strip-ink-2: #9a9890;
-    --cover-1: #22262c;
-    --cover-2: #2a2723;
-    --cover-3: #212a27;
-    --cover-4: #2b2429;
     --good: #0ca30c;
     --bad: #e66767;
   }
@@ -147,55 +119,45 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --paper: #121211;
-  --paper-2: #1f1f1d;
-  --surface: #1a1a19;
-  --surface-2: #232321;
-  --ink: #f2f0ea;
-  --ink-2: #c3c2b7;
-  --ink-muted: #9a9890;
-  --rule: rgba(255, 255, 255, 0.12);
-  --rule-strong: #383835;
-  --control: #77756f;
-  --hover-wash: rgba(255, 255, 255, 0.06);
-  --focus: #f2f0ea;
-  --grid: #2c2c2a;
-  --axis: #383835;
+  --paper: #171512;
+  --paper-2: #221f1a;
+  --surface: #1f1c18;
+  --surface-2: #292520;
+  --ink: #f1ebdf;
+  --ink-2: #c9c0b0;
+  --ink-muted: #a0978a;
+  --rule: rgba(241, 235, 223, 0.14);
+  --rule-strong: #3a352e;
+  --control: #7d7567;
+  --hover-wash: rgba(241, 235, 223, 0.06);
+  --focus: #f1ebdf;
+  --grid: #2f2a24;
+  --axis: #3a352e;
   --series-1: #3987e5;
   --series-context: #184f95;
-  --series-muted: #6b6a66;
-  --bar-muted: #3d3d3a;
-  --magnitude: #c3c2b7;
+  --series-muted: #6b6359;
+  --bar-muted: #3f3a32;
+  --magnitude: #c9c0b0;
   --sent-negative: #e66767;
   --sent-neutral: #5f5e59;
   --sent-positive: #3987e5;
   --div-neg: #e66767;
   --div-pos: #3987e5;
-  --bias-left: #d46a6a;
-  --bias-center: #c9c6bd;
-  --bias-right: #5b8fd9;
-  --on-bias-pole: #0b0b0b;
-  --on-bias-center: #0b0b0b;
+  --bias-left: #d2754c;
+  --bias-center: #cfc6b4;
+  --bias-right: #6496d0;
+  --seg: #8a8172;
+  --fact-high: #e6dfd0;
+  --fact-mixed: #a0978a;
+  --fact-low: #6b6359;
+  --unrated: #2e2a24;
+  --unrated-ink: #4f493f;
   --cat-1: #3987e5;
   --cat-2: #d95926;
   --cat-3: #199e70;
   --cat-4: #c98500;
   --cat-5: #d55181;
   --cat-6: #008300;
-  --fact-high: #86b6ef;
-  --fact-mixed: #3987e5;
-  --fact-low: #184f95;
-  --unrated: #2c2c2a;
-  --unrated-ink: #4a4a46;
-  --promo: #4a4232;
-  --promo-ink: #f2f0ea;
-  --strip: #0b0b0a;
-  --strip-ink: #e9e7e1;
-  --strip-ink-2: #9a9890;
-  --cover-1: #22262c;
-  --cover-2: #2a2723;
-  --cover-3: #212a27;
-  --cover-4: #2b2429;
   --good: #0ca30c;
   --bad: #e66767;
 }

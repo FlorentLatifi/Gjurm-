@@ -1,20 +1,18 @@
-/* Every data container. Data marks are drawn on --surface, which the palettes were validated for. */
+/* Every data container: a box that opens under a heavy rule, as a section does on a printed page.
+   Data marks are drawn on --surface, which the palettes were validated for. */
 .card {
   background: var(--surface);
   border: var(--hairline);
-  border-radius: var(--radius);
-  padding: var(--space-4);
+  border-top: var(--rule-heavy);
+  padding: var(--space-3) var(--space-4) var(--space-4);
   min-width: 0;
 }
-.card__head h2 {
-  font-size: var(--text-md);
-  font-weight: var(--weight-heavy);
-}
-/* a heading and its stories, without the card's own frame (the stories bring theirs) */
+/* a heading and its stories, without the box (the stories bring their own rules) */
 .card--bare {
   background: none;
   border: 0;
-  padding: 0;
+  border-top: var(--rule-heavy);
+  padding: var(--space-2) 0 0;
 }
 .card__head {
   display: flex;

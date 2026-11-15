@@ -39,7 +39,7 @@ A modular monolith: one Python package, one image running as `api` and `schedule
 |---|---|
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2, Alembic, psycopg 3, feedparser, httpx, Pydantic 2, Typer, Anthropic SDK |
 | Data | PostgreSQL 16 (`pg_trgm`) |
-| Frontend | React 19, TypeScript, Vite, TanStack Query, Zustand, React Router, Recharts; Newsreader headlines on the system font |
+| Frontend | React 19, TypeScript, Vite, TanStack Query, Zustand, React Router, Recharts; headlines in a subset of Source Serif 4, the interface in the system font |
 | Ops | Docker (non-root, read-only), Caddy, GitHub Actions (CI, Trivy, gitleaks, deploy), Prometheus metrics |
 
 ## Quick start (demo data, no API key)

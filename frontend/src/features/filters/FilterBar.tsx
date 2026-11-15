@@ -4,6 +4,31 @@ import { useSources } from "@/features/sources";
 import { RANGE_PRESETS, useFilters } from "@/shared/hooks/useFilters";
 import { t, tn } from "@/shared/i18n";
 
+/** The outlet filter: one outlet's coverage, or everyone's. */
+export function SourceSelect({ defaultDays = 30 }: { defaultDays?: number }) {
+  const { filters, update } = useFilters(defaultDays);
+  const { data: sources } = useSources({ days: 90 });
+  const sourceId = useId();
+  const options = (sources ?? []).filter((s) => s.articles > 0 || s.is_active);
+  return (
+    <div className="field field--inline">
+      <label htmlFor={sourceId}>{t("Outlet")}</label>
+      <select
+        id={sourceId}
+        value={filters.sources[0] ?? ""}
+        onChange={(e) => update({ sources: e.target.value ? [e.target.value] : [] })}
+      >
+        <option value="">{t("All outlets")}</option>
+        {options.map((s) => (
+          <option key={s.slug} value={s.slug}>
+            {s.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 /** One filter row above the content it scopes: date range first, then outlet. */
 export function FilterBar({
   showSources = true,
@@ -18,9 +43,6 @@ export function FilterBar({
   children?: React.ReactNode;
 }) {
   const { filters, update } = useFilters(defaultDays);
-  const { data: sources } = useSources({ days: 90 });
-  const sourceId = useId();
-  const options = (sources ?? []).filter((s) => s.articles > 0 || s.is_active);
 
   return (
     <div className="filters" role="group" aria-label={t("Filters")}>
@@ -36,23 +58,7 @@ export function FilterBar({
           </button>
         ))}
       </div>
-      {showSources && (
-        <div className="field field--inline">
-          <label htmlFor={sourceId}>{t("Outlet")}</label>
-          <select
-            id={sourceId}
-            value={filters.sources[0] ?? ""}
-            onChange={(e) => update({ sources: e.target.value ? [e.target.value] : [] })}
-          >
-            <option value="">{t("All outlets")}</option>
-            {options.map((s) => (
-              <option key={s.slug} value={s.slug}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      {showSources && <SourceSelect defaultDays={defaultDays} />}
       {children}
     </div>
   );

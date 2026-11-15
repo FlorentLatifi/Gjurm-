@@ -13,9 +13,10 @@ export function LanguageToggle() {
   const setLang = usePreferences((s) => s.setLang);
   const other: Lang = lang === "sq" ? "en" : "sq";
   return (
-    <button type="button" className="strip-link" lang={other} onClick={() => setLang(other)}>
-      <span className="strip__wide">{NAME[other].full}</span>
-      <span className="strip__narrow" aria-hidden="true">{NAME[other].short}</span>
+    <button type="button" className="lang-toggle" lang={other} onClick={() => setLang(other)}>
+      {/* the language's own name, read by screen readers; its code on screen */}
+      <span className="visually-hidden">{NAME[other].full}</span>
+      <span aria-hidden="true">{NAME[other].short}</span>
     </button>
   );
 }

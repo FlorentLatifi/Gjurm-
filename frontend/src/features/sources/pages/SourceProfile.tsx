@@ -69,7 +69,7 @@ export function SourceProfilePage() {
         <div className="card stat">
           <span className="stat__label">{t("Perspective")}</span>
           <span className="stat__value stat__value--text rating">
-            <span className="dot" style={{ background: BIAS_GROUP_COLOR[biasGroup(p.bias)] }} aria-hidden="true" />
+            <span className="swatch" style={{ background: BIAS_GROUP_COLOR[biasGroup(p.bias)] }} aria-hidden="true" />
             {BIAS_LABEL[p.bias]}
           </span>
         </div>

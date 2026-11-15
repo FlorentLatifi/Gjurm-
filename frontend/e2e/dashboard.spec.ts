@@ -31,7 +31,8 @@ test.describe("GJURMË stories", () => {
       }, { capture: true, passive: true });
     `);
     await page.goto("/");
-    const card = page.locator(".story-card").nth(6);
+    // a story far down the feed (the side column holds story cards too)
+    const card = page.locator(".story-list .story-card").nth(6);
     await card.scrollIntoViewIfNeeded();
     const link = card.locator(".story-card__title a");
     await link.click({ trial: true }); // any scrolling the click itself needs happens here
@@ -42,7 +43,7 @@ test.describe("GJURMË stories", () => {
     await expect(page).toHaveURL(/\/stories\/\d+$/);
     const storyLog = await page.evaluate("JSON.stringify([window.scrollLog, window.scrollLog.path, document.documentElement.scrollHeight])");
     await page.goBack();
-    await expect(page.locator(".story-card").nth(6)).toBeVisible();
+    await expect(page.locator(".story-list .story-card").nth(6)).toBeVisible();
     try {
       await expect.poll(() => page.evaluate<number>("window.scrollY")).toBeGreaterThan(before - 120);
     } catch (error) {
@@ -64,17 +65,16 @@ test.describe("GJURMË stories", () => {
 
   test("story feed filters are reflected in the URL", async ({ page }) => {
     await page.goto("/");
+    // the topic, region and keyword filters are folded away; on a phone the period and the order too
+    const more = page.getByRole("button", { name: /^Filter stories/ });
+    await more.click();
+    await expect(more).toHaveAttribute("aria-expanded", "true");
     await page.getByRole("button", { name: "7 days" }).click();
     await expect(page).toHaveURL(/days=7/);
     await page.getByRole("button", { name: "Latest" }).click();
     await expect(page).toHaveURL(/sort=latest/);
-    const more = page.getByRole("button", { name: /^Filter stories/ });
-    if (await more.isVisible()) {
-      await more.click(); // phones: the secondary filters are folded away
-      await expect(more).toHaveAttribute("aria-expanded", "true");
-    }
     await page.getByLabel("Covered by outlets from").selectOption("AL");
-    if (await more.isVisible()) await expect(more).toHaveText("Filter stories (1)");
+    await expect(more).toHaveText("Filter stories (1)");
     await expect(page).toHaveURL(/country=AL/);
     await expect(page.locator(".story-card").first()).toBeVisible();
   });
@@ -396,6 +396,19 @@ test.describe("GJURMË dashboard", () => {
       expect(serious.map((v) => `${v.id}: ${v.nodes.length} nodes — ${v.help}`)).toEqual([]);
     });
   }
+
+  // A long label that cannot wrap widens the whole page on a phone (it did: a blindspot's sentence).
+  for (const path of ["/", "/blindspot", "/sources/demo-kronika", "/my-news", "/sources"]) {
+    test(`${path} never scrolls sideways`, async ({ page }) => {
+      await page.goto(path);
+      await page.waitForLoadState("networkidle");
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      const [scroll, client] = await page.evaluate<[number, number]>(
+        "[document.documentElement.scrollWidth, document.documentElement.clientWidth]",
+      );
+      expect(scroll).toBeLessThanOrEqual(client);
+    });
+  }
 });
 
 test.describe("GJURMË in Albanian", () => {
@@ -427,12 +440,12 @@ test.describe("GJURMË in Albanian", () => {
       await route.fulfill({ response, json: body });
     });
     await page.goto("/");
-    // the daily briefing is the lead story, with its summary
-    const summary = page.locator(".briefing__summary").first();
+    // the lead story is set with its summary
+    const summary = page.locator(".story-hero__summary").first();
     await expect(summary).toHaveText("Kuvendi miratoi buxhetin.");
     await expect(summary).toHaveAttribute("lang", "sq");
     await page.getByRole("button", { name: "English" }).click();
-    await expect(page.locator(".briefing__summary").first()).toHaveText("Parliament passed the budget.");
+    await expect(page.locator(".story-hero__summary").first()).toHaveText("Parliament passed the budget.");
     await page.unrouteAll({ behavior: "ignoreErrors" });
   });
 

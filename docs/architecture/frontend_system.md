@@ -14,8 +14,8 @@ Every phase was measured before it was kept: unit and end-to-end tests, screensh
 | D1 layers | adopt | adopted, ESLint-enforced (every rule checked against a deliberate violation) | — |
 | D2 global state | Zustand | Zustand: `stores/preferences` (theme, lens), `stores/reading` | — |
 | D3 lens in the URL | adopt | `?lens=` wins over the remembered lens | — |
-| D4 fonts | Newsreader + Atkinson Hyperlegible Next/Mono | **the system sans for everything, headlines heavy** (ADR-028; Newsreader until then) | Ground News' look is one heavy sans; Atkinson has no plain zero ("1Ø Oct" in every date); Schibsted Grotesk cost ~370 ms to first content as a preloaded 47 KB face |
-| D5 perspective colours | a non-partisan pair | **Ground News' maroon / light neutral / navy** (ADR-028) | The product follows Ground News, and its screenshots show the left in maroon and the right in navy (the blue-left reading kept until ADR-028 was a mistake). Links in a data colour are solved by D6 |
+| D4 fonts | Newsreader + Atkinson Hyperlegible Next/Mono | **Gjurme Serif (Source Serif 4, 30 KB) for headlines, the system sans for the interface** (ADR-032; one heavy system sans under ADR-028, Newsreader before) | A newspaper's voice for the news, a native face for everything else; Atkinson has no plain zero ("1Ø Oct" in every date); Schibsted Grotesk cost ~370 ms to first content as a preloaded 47 KB face |
+| D5 perspective colours | a non-partisan pair | **brick / light neutral / blue, warm left and cool right** (ADR-032; Ground News' maroon / navy under ADR-028) | GJURMË's own palette, validated for colour-blind readers in both themes; region and ownership no longer use hue, so no other bar can be read as a side. Links in a data colour are solved by D6 |
 | D6 ink-on-paper chrome | adopt | adopted; control borders now ≥ 3:1 (were 1.75:1) | — |
 | D7 link previews | defer | **built**: crawler-only, ADR-025 | Sharing is how news travels here |
 | Router | data router with loaders | **`BrowserRouter` + prefetch on route entry** | The data router added 13 KB to every page and measured slower; the same per-page query builders now run when a route is entered |
@@ -335,7 +335,7 @@ Verified against Caddy 2.11.4 (and in the end-to-end suite). `try_files` must si
 
 ### Fonts (see §4)
 
-None since ADR-028: headlines and interface use the reader's system sans (zero bytes; every platform's face has the Albanian and regional letters). Until then Newsreader 600 was self-hosted (38 KB); a preloaded interface face had delayed first content by ~370 ms on a slow connection. The fonts budget is 0, so a new face has to argue for itself in `budgets.json`.
+One since ADR-032: **Gjurme Serif**, Source Serif 4 (OFL) cut by `scripts/build-font.py` to weights 400–700 at the text optical size, Latin-1 and the regional letters (285 glyphs, 30 KB). It is not preloaded: `font-display: swap` over Georgia or Noto Serif scaled with `size-adjust` to the same widths (measured on Albanian headlines at 400 and 700), so the first paint is not delayed and lines do not reflow when it arrives. The interface stays the reader's system sans. The fonts budget is 31 KB (ADR-028 had none; Newsreader was 38 KB).
 
 ### Link previews (F11)
 
@@ -385,18 +385,18 @@ The data marks keep their **validated surface**. Only the page background warms 
 - Light categorical: all checks pass. Contrast warns for 3 slots, and the coverage bars already carry the required relief (printed percentages, 2px gaps).
 - Dark categorical: all checks pass, including contrast.
 
-**Decision D5: perspective colours are Ground News' maroon / light neutral / navy** (ADR-028; until then blue / gray / red, wrongly taken for Ground News'). The methodology page states that the colours carry no party meaning. A non-partisan pair was considered and rejected: the product follows Ground News, whose readers already read its bars, and the actual confusion — links drawn in a data colour — is gone with the ink chrome.
+**Decision D5: perspective is brick / light neutral / blue** (ADR-032): warm for the left, cool for the right, a light neutral between, in both themes passing the validator's lightness, chroma, CVD and normal-vision checks (worst left↔right ΔE 19.8 light, 18.8 dark). It is the only coverage split drawn in hue: region and ownership are named groups in one ink (`--seg`), told apart by gaps and labels, and factuality is an ordinal ramp of that ink (`--fact-*`). The methodology page states that the colours carry no party meaning. The categorical slots `--cat-1…6` remain for chart series.
 
 ### Type
 
 | Role | Face | Why this one |
 |---|---|---|
-| **Headlines** (story titles, page titles; mostly Albanian text) | **the system sans, weight 700, tight tracking** (ADR-028) | Ground News' look. Newsreader 600, the serif used until then, is gone with its 38 KB. The masthead word uses a condensed cut where the platform has one (`--font-mast`). |
+| **Headlines, section titles, the nameplate, lead summaries** | **Gjurme Serif** (Source Serif 4), 700 for headlines, 400 for summaries (ADR-032) | A newspaper's voice; Source Serif's text cut stays open and even at phone sizes and has every Albanian letter. ADR-028 had set headlines in a heavy system sans. |
 | **Interface, body and figures** | **the system font** (`system-ui`: SF, Roboto, Segoe UI) | Zero bytes and native on every device. Tabular figures only where numbers stack (table cells, tooltips). Atkinson Hyperlegible draws a slashed zero in every date; Schibsted Grotesk cost ~370 ms of first content on slow connections. |
 
 Verified with fontTools before adoption: every glyph Albanian and the regional names need (ë ç č ć š ž đ), and the file sizes against the budget.
 
-Stacks: `system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif` (text and headlines) and `"Arial Narrow", "Roboto Condensed", … , Arial, sans-serif` (the masthead word).
+Stacks: `"Gjurme Serif", <size-adjusted Georgia>, <size-adjusted Noto Serif>, Georgia, serif` (`--font-head`) and `system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif` (`--font-sans`).
 
 **Scale.** It replaces the 22 ad-hoc sizes. Steps are spaced so neighbouring roles are clearly distinct.
 

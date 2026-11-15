@@ -115,10 +115,12 @@ export function AboutSq({ topics, status }: AboutProps) {
           <a href="https://github.com/FlorentLatifi/Gjurm-/blob/florent/gallant-franklin-2uhex2/docs/RATINGS.md">shqyrtimi i vlerësimeve</a>.</li>
         <li><strong>Pronësia</strong> (kompani private, grup mediatik, transmetues publik, media
           publike ndërkombëtare, jofitimprurëse …) merret nga informacioni publik për botuesin.</li>
-        <li>Ngjyrat ndjekin Ground News — bordo për të majtën, gri e çelët për qendrën, blu e errët për
-          të djathtën — që lexuesit e tij t’i lexojnë shiritat menjëherë. Ato janë konventë e shkallës, jo ngjyra
-          partiake. Gjetiu në faqe ngjyra del vetëm në grafikë dhe shirita; teksti dhe lidhjet janë
-          të zeza.</li>
+        <li>Ngjyrat e këndvështrimit janë tulla për të majtën, bezhë e çelët për qendrën dhe blu për
+          të djathtën: e ngrohtë dhe e ftohtë, që dallohen edhe nga lexuesit daltonikë. Ato janë konventë e
+          shkallës, jo ngjyra partiake. Rajoni dhe pronësia vizatohen me një ngjyrë të vetme dhe emrat e
+          shkruar, që asnjë shirit tjetër të mos lexohet si një anë. Një anë që nuk e raportoi lajmin
+          shfaqet si vend bosh në shirit. Gjetiu në faqe ngjyra del vetëm në grafikë dhe shirita; teksti
+          dhe lidhjet janë me bojë të zezë.</li>
         <li>Vlerësimet mund të jenë të gabuara ose të vjetruara. Mediat dhe lexuesit mund të kërkojnë
           korrigjim përmes kontaktit më poshtë.</li>
       </ul>

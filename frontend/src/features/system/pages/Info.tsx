@@ -121,9 +121,11 @@ function AboutEn({ topics, status }: AboutProps) {
         <li><strong>Ownership</strong> (private company, media group, public broadcaster,
           international public media, non-profit …) comes from public information about the
           publisher.</li>
-        <li>The colours follow Ground News — maroon for left, light gray for center, navy for right — so
-          its readers can read the bars at once. They are a convention for the scale, not party colours.
-          Elsewhere on the site, colour appears only in charts and bars; text and links are black.</li>
+        <li>Perspective is drawn in brick for left, light beige for center and blue for right: warm and
+          cool, told apart by colour-blind readers too. They are a convention for the scale, not party
+          colours. Region and ownership are drawn in one ink with their names printed, so no other bar can
+          be read as a side. A side that did not cover a story shows as an empty slot in its bar. Elsewhere
+          on the site, colour appears only in charts and bars; text and links are ink.</li>
         <li>Ratings can be wrong or out of date. Outlets and readers can ask for a correction through
           the contact below.</li>
       </ul>

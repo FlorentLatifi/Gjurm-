@@ -9,10 +9,17 @@
   gap: var(--space-3);
   margin-bottom: var(--space-4);
 }
+.page-head h1 {
+  font-size: var(--text-display);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.018em;
+}
 .page-head p {
   color: var(--ink-2);
   margin-top: var(--space-2);
   max-width: var(--measure);
+  font-family: var(--font-head);
+  font-size: var(--text-md);
 }
 .grid {
   display: grid;
@@ -71,15 +78,13 @@
   margin-bottom: var(--space-4);
 }
 
-/* A segmented control reads like a set of tabs on a printed page: the pressed one is inked. */
+/* A choice among a few is a line of words, as a paper's section line: the chosen one is inked
+   and underlined. No box, so a row of them stays one quiet line on a phone. */
 .segmented {
   display: inline-flex;
   flex-wrap: wrap;
   max-width: 100%;
-  border: 1px solid var(--control);
-  border-radius: var(--radius);
-  padding: 2px;
-  background: var(--surface);
+  gap: 0 var(--space-4);
 }
 .segmented button {
   font: inherit;
@@ -87,18 +92,20 @@
   border: 0;
   background: transparent;
   color: var(--ink-2);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-sm);
+  /* 44px tall to the finger, 2px of it the underline */
+  padding: 11px 0 9px;
+  border-bottom: 2px solid transparent;
   cursor: pointer;
+  white-space: nowrap;
 }
 .segmented button:hover {
-  background: var(--hover-wash);
   color: var(--ink);
+  border-bottom-color: var(--rule-strong);
 }
 .segmented button[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--surface);
+  color: var(--ink);
   font-weight: var(--weight-strong);
+  border-bottom-color: var(--ink);
 }
 
 .btn {
@@ -216,24 +223,40 @@ a.chip:hover {
 }
 .badge {
   display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  border-radius: var(--radius-sm);
-  padding: 0 var(--space-2);
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  padding: 1px var(--space-2);
   font-size: var(--text-xs);
   font-weight: var(--weight-strong);
   border: 1px solid var(--ink);
   color: var(--ink);
-  white-space: nowrap;
+  /* a long one (a blindspot's sentence) wraps inside its column instead of widening the page */
+  overflow-wrap: anywhere;
 }
-/* the blindspot mark: a half-inked circle — half the spectrum looking away */
+/* a blindspot is said in a sentence, so it is set as a line of text, not a boxed label */
+.badge--blindspot {
+  border: 0;
+  padding: 0;
+  color: var(--ink-2);
+}
+/* the blindspot mark: a half-inked square — half the coverage is missing */
 .badge--blindspot::before {
   content: "";
+  width: 8px;
+  height: 8px;
+  border: 1px solid currentColor;
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+  flex: none;
+}
+/* a key to a coverage colour: a small square of it, outlined so the light centre still shows */
+.swatch {
+  display: inline-block;
   width: 9px;
   height: 9px;
-  border-radius: 50%;
-  border: 1.5px solid currentColor;
-  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+  margin-right: 6px;
+  outline: 1px solid var(--control);
+  outline-offset: -1px;
   flex: none;
 }
 .dot {
@@ -243,12 +266,24 @@ a.chip:hover {
   display: inline-block;
   flex: none;
 }
-.kicker {
-  font-size: var(--text-xs);
+/* small caps: kickers, column heads, labels */
+.kicker,
+.caps {
+  font-size: var(--text-micro);
   font-weight: var(--weight-strong);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   color: var(--ink-2);
+}
+/* a kicker opens with a square of ink, the mark type leaves on paper */
+.kicker::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: var(--space-2);
+  background: var(--ink);
+  vertical-align: 1px;
 }
 .meta {
   color: var(--ink-muted);
@@ -293,6 +328,7 @@ a.chip:hover {
 .state__title {
   font-family: var(--font-head);
   font-size: var(--text-lg);
+  font-weight: var(--weight-heavy);
   color: var(--ink);
 }
 
