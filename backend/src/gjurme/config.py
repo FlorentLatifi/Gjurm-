@@ -162,7 +162,7 @@ class Settings(BaseSettings):
     # member threshold: merging two whole stories on one report needs stronger evidence.
     story_merge_similarity_threshold: float = Field(default=0.5, gt=0, lt=1)
     # IDF weights are raised to this power: below 1 narrows the gap between rare and common words.
-    story_idf_power: float = Field(default=1.0, gt=0, le=2)
+    story_idf_power: float = Field(default=0.5, gt=0, le=2)
     # How long an article waits for its analysis before it is clustered without one. The guards
     # that keep look-alike events apart read the analysis' place and person names.
     story_enrichment_wait_minutes: int = Field(default=360, ge=0)

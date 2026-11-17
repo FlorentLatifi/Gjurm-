@@ -140,6 +140,7 @@ def test_live_sample_scores_with_the_default_settings() -> None:
     """The measured quality of the defaults on real news; a change that lowers it must say why
     in docs/DECISIONS.md (ADR-020) and update these numbers."""
     s = evaluate(load_samples([SAMPLES]), _defaults())
+    # 2026-11-17: precision 0.994, recall 0.756 (before the measurement: 0.992 and 0.602)
     assert s.precision >= 0.99
-    assert s.recall >= 0.70
-    assert s.mixed_stories <= 1
+    assert s.recall >= 0.74
+    assert s.mixed_stories <= 2

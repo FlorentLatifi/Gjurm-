@@ -129,7 +129,7 @@ Bump `PROMPT_VERSION`, deploy, then `gj enrich-requeue --older-than-version <old
 | `STORY_SIMILARITY_THRESHOLD` | 0.45 | cosine of an article to a story's centroid that lets it join |
 | `STORY_MEMBER_SIMILARITY_THRESHOLD` | 0.4 | cosine to one of the story's reports that lets it join (a big story's centroid is diluted) |
 | `STORY_MERGE_SIMILARITY_THRESHOLD` | 0.5 | cosine of an article to a second story that merges the two stories |
-| `STORY_IDF_POWER` | 1.0 | IDF weights raised to this power; below 1 narrows the gap between rare and common words |
+| `STORY_IDF_POWER` | 0.5 | IDF weights raised to this power; below 1 narrows the gap between rare and common words (1 = plain TF-IDF) |
 | `STORY_ENRICHMENT_WAIT_MINUTES` | 360 | how long an article waits for its analysis before it is clustered without one |
 
 Lower thresholds merge more. New values apply to articles clustered from the next run on; to re-cluster the last days, `gj cluster --rebuild-days 3` (story ids in that period change, so shared story links break; on the free path run it from a computer with `DATABASE_URL` set to the Neon database). Merges during normal runs keep links working: a merged story's URL opens the story it joined. An article joins a story only once its analysis is done, or after `STORY_ENRICHMENT_WAIT_MINUTES` without one, so while enrichment is paused or out of budget new articles reach stories with that delay. See [ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings).
