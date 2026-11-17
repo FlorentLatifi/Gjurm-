@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from gjurme.ingestion.normalize import normalize_key
@@ -233,6 +233,19 @@ def headline_places(doc: Doc, known_places: frozenset[str]) -> Names:
     Gjakovë". Numbers come from the headline itself and need no analysis.
     """
     return Names(places=doc.headline & known_places, numbers=doc.names.numbers, words=doc.headline)
+
+
+def resolve_names(docs: Sequence[Doc], more_places: frozenset[str] = frozenset()) -> None:
+    """Set the guard names of a batch of ``docs`` in place: the batch's place lexicon applied
+    to every analysed doc; for docs without an analysis, the headline words known as places
+    (the lexicon plus ``more_places``)."""
+    lexicon = place_lexicon(docs)
+    for d in docs:
+        d.names = apply_place_lexicon(d.names, lexicon)
+    known = lexicon | more_places
+    for d in docs:
+        if not d.has_entities:
+            d.names = headline_places(d, known)
 
 
 def idf_table(docs: Iterable[Doc]) -> dict[str, float]:

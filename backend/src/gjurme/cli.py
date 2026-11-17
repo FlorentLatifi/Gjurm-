@@ -384,6 +384,36 @@ def stories_sample(
     typer.echo(f"{len(sample['articles'])} articles → {out}")
 
 
+@app.command("stories-eval")
+def stories_eval(
+    paths: Annotated[
+        list[Path] | None,
+        typer.Argument(help="Labelled samples, files or directories [tests/fixtures/stories]"),
+    ] = None,
+    threshold: Annotated[float | None, typer.Option(help="Centroid threshold to try")] = None,
+    member_threshold: Annotated[float | None, typer.Option(help="Member threshold")] = None,
+    errors: Annotated[int, typer.Option(help="Wrong and missed pairs to list")] = 20,
+) -> None:
+    """Score story clustering on hand-labelled real news: precision and recall over article
+    pairs (no database; docs/TESTING.md). Thresholds default to the current settings."""
+    settings = _settings(validate=False)
+    from dataclasses import replace
+
+    from gjurme.stories.clustering import ClusterParams
+    from gjurme.stories.evaluation import load_samples, report
+
+    params = ClusterParams.from_settings(settings)
+    if threshold is not None:
+        params = replace(params, threshold=threshold)
+    if member_threshold is not None:
+        params = replace(params, member_threshold=member_threshold)
+    samples = load_samples(paths or [Path("tests/fixtures/stories")])
+    if not samples:
+        typer.echo("no samples found", err=True)
+        raise typer.Exit(2)
+    typer.echo(report(samples, params, errors=errors)[1])
+
+
 @app.command("enrich-requeue")
 def enrich_requeue(
     older_than_version: Annotated[str | None, typer.Option(help="Prompt version cut-off")] = None,

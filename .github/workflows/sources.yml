@@ -180,10 +180,13 @@ jobs:
             echo '```'
           } > "$review"
           cat "$review" >> "$GITHUB_STEP_SUMMARY"
+      # Every article, as in production where each one is analysed sooner or later: with the
+      # default 150 per run half of a fresh database stayed unanalysed, and so unclustered.
       - name: Enrich (heuristic, no key configured)
         if: env.HAS_LLM_KEY != 'true'
         env:
           LLM_PROVIDER: fake
+          ENRICH_MAX_PER_RUN: 2000
         run: uv run gjurme run --stages enrich,cluster,quality | tee "$RUNNER_TEMP/run-enrich.json"
       # Stories on live headlines: merged stories, weakest members and near misses, so the
       # clustering thresholds (ADR-020) can be checked on real coverage. Headlines only.
