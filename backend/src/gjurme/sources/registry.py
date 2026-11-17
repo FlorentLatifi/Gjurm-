@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from gjurme.db.models import Source
+from gjurme.ingestion.ingest import AUTO_DISABLED
 from gjurme.ingestion.normalize import validate_public_http_url
 from gjurme.sources.ratings import BIAS_VALUES, FACTUALITY_VALUES, OWNERSHIP_VALUES
 
@@ -116,7 +117,9 @@ def sync_sources(session: Session, registry: Registry) -> dict[str, int]:
     The YAML owns *configuration* (name, URLs, language, country, ratings). Runtime state (failure
     counters, conditional-GET validators, verification status) is owned by the pipeline and is
     never overwritten here. A source disabled at runtime (auto-disable / admin) stays disabled
-    until an operator re-enables it; ``enabled: false`` in YAML always wins.
+    until an operator re-enables it; ``enabled: false`` in YAML always wins, over an
+    auto-disable too: the source is then no longer probed again, nor reported as lost. A new
+    ``feed_url`` for an auto-disabled source enables it again: its failures were the old URL's.
     """
     existing = {s.slug: s for s in session.scalars(select(Source))}
     created = updated = 0
@@ -146,13 +149,17 @@ def sync_sources(session: Session, registry: Registry) -> dict[str, int]:
         if row.show_images != cfg.images:
             row.show_images = cfg.images
             changed = True
+        auto_disabled = not row.is_active and (row.disabled_reason or "").startswith(AUTO_DISABLED)
         if row.feed_url != cfg.feed_url:
             row.feed_url = cfg.feed_url
             row.etag = row.last_modified = None  # validators belong to the old URL
             row.consecutive_failures = 0
             row.verification_status = "unverified"
+            if cfg.enabled and auto_disabled:  # so did the failures that disabled it
+                row.is_active = True
+                row.disabled_reason = None
             changed = True
-        if not cfg.enabled and row.is_active:
+        if not cfg.enabled and (row.is_active or auto_disabled):
             row.is_active = False
             row.disabled_reason = "disabled in sources.yaml"
             changed = True

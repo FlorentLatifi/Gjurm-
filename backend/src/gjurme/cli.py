@@ -487,16 +487,25 @@ def scheduler(
         typer.echo(f"pipeline run: {sched.last_status}")
         quality = sched.last_stats.get("quality") or {}
         in_github = os.environ.get("GITHUB_ACTIONS") == "true"
+        found = {r["name"]: r.get("summary") or "" for r in quality.get("results") or []}
         for level, key in (("warning", "warnings"), ("error", "failures")):
             for name in quality.get(key) or []:
-                typer.echo(f"data quality {level}: {name}")
-                if in_github:  # an annotation on the run's summary page
-                    typer.echo(f"::{level} title=Data quality::{name} (docs/OPERATIONS.md)")
+                line = f"{name}: {found[name]}" if found.get(name) else name
+                typer.echo(f"data quality {level}: {line}")
+                if in_github:  # an annotation on the run's summary page, saying what and where
+                    typer.echo(
+                        f"::{level} title=Data quality::{_annotation(line)} (docs/OPERATIONS.md)"
+                    )
         if sched.last_status in ("failed", "crashed"):
             raise typer.Exit(1)
         return
     sched.install_signal_handlers()
     sched.run_forever()
+
+
+def _annotation(message: str) -> str:
+    """A GitHub Actions workflow command's message: %, CR and LF are its escapes."""
+    return message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
 @app.command()

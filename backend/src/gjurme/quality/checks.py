@@ -4,6 +4,11 @@ Each check measures one property of the last 24 hours (or of the current state) 
 ``pass`` / ``warn`` / ``fail`` with the observed value and threshold. Results are stored in
 ``ops.data_quality_results`` for every pipeline run, so quality can be tracked over time and
 alerts can reference concrete numbers.
+
+A check warns only about something to act on: an expected limit (a free model's daily quota,
+an analysis queued again on purpose, a feed that is all new because nothing fetched it for
+hours) is recorded in its details, not raised. A check that warns says what and where in its
+``summary`` (the run's log and the alert carry it).
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ class CheckResult:
     observed: float | None
     threshold: float | None
     details: dict[str, Any] = field(default_factory=dict)
+    summary: str = ""  # what to look at, in one line, when the check does not pass
 
 
 def _rate(num: float, den: float) -> float:
@@ -110,50 +116,104 @@ def check_estimated_dates(s: Session) -> CheckResult:
 
 
 def check_enrichment_backlog(s: Session) -> CheckResult:
-    """Articles still due an analysis after 6 h (failures that used up their attempts are not
-    waiting for anything)."""
-    backlog = s.execute(
+    """Articles still without any analysis 6 h after arriving: pending, or failed with attempts
+    left (failures that used up their attempts are not waiting for anything).
+
+    An article that has an analysis and is queued for a better one is not backlog: the keyword
+    rules' results put back for a model on purpose (``enrich-requeue --provider fake``, the
+    workflow's *reanalyse*), or an article whose title changed. Readers see its analysis
+    meanwhile, and with a free model's daily quota thousands of them wait for days by design.
+    They are counted apart, in ``details.awaiting_better_analysis``."""
+    row = s.execute(
         text("""
-        SELECT count(*) FROM core.articles
-        WHERE (enrichment_status = 'pending'
-               OR (enrichment_status = 'failed' AND enrichment_attempts < :max_attempts))
-          AND NOT is_hidden AND ingested_at < now() - interval '6 hours'
+        SELECT count(*) FILTER (WHERE NOT analysed) AS waiting,
+               count(*) FILTER (WHERE analysed) AS requeued
+        FROM (SELECT EXISTS (SELECT 1 FROM core.enrichments e
+                             WHERE e.article_id = a.id AND e.is_current) AS analysed
+              FROM core.articles a
+              WHERE (a.enrichment_status = 'pending'
+                     OR (a.enrichment_status = 'failed'
+                         AND a.enrichment_attempts < :max_attempts))
+                AND NOT a.is_hidden AND a.ingested_at < now() - interval '6 hours') q
     """),
         {"max_attempts": get_settings().enrich_max_attempts},
-    ).scalar_one()
+    ).one()
+    waiting, requeued = int(row.waiting), int(row.requeued)
+    summary = f"{waiting} articles have no analysis 6 h after arriving"
+    if requeued:
+        summary += f" ({requeued} more keep theirs while queued for a better one: not counted)"
     return CheckResult(
         "enrichment_backlog_6h",
         "warning",
-        _grade(backlog, 200, 1000),
-        float(backlog),
+        _grade(waiting, 200, 1000),
+        float(waiting),
         200.0,
-        {"articles_waiting_over_6h": backlog},
+        {"articles_waiting_over_6h": waiting, "awaiting_better_analysis": requeued},
+        summary,
     )
 
 
+FAILURE_RATE_MIN_CALLS = 20
+
+
 def check_enrichment_failure_rate(s: Session) -> CheckResult:
-    """Calls that failed, of those a model answered. A used-up quota (429 after the retries) is
-    left out: on a free tier it happens every day, the fallback model or the rules then take
-    over, and counted here it would hide a model that really is failing."""
-    row = s.execute(
+    """Model calls that failed (an error, an unusable or a declined answer), of the calls a
+    model answered in 24 hours. Left out:
+
+    - a used-up quota (a 429 after the retries): on a free tier it happens every day and the
+      fallback model or the rules take over; it is in ``details.rate_limited``;
+    - the keyword rules (provider ``fake``): they cannot fail, and counted as successes they
+      hid a model that failed every other call.
+
+    Below FAILURE_RATE_MIN_CALLS answered calls the rate is only recorded: three calls before a
+    quota ran out make no rate."""
+    rows = s.execute(
         text("""
-        SELECT count(*) FILTER (WHERE status IN ('failed', 'invalid', 'refused')
-                                  AND NOT quota) AS failed,
-               count(*) FILTER (WHERE status <> 'cached' AND NOT quota) AS total,
-               count(*) FILTER (WHERE quota) AS rate_limited
-        FROM (SELECT status, coalesce(status = 'failed' AND error LIKE 'rate_limited:%', false)
-                         AS quota
-              FROM core.enrichments WHERE created_at >= now() - interval '24 hours') e
+        SELECT model,
+               CASE WHEN status = 'failed' THEN split_part(error, ':', 1) ELSE status END
+                   AS outcome,
+               count(*) AS n
+        FROM core.enrichments
+        WHERE created_at >= now() - interval '24 hours' AND provider <> 'fake'
+          AND status <> 'cached'
+        GROUP BY 1, 2
     """)
-    ).one()
-    rate = _rate(row.failed, row.total)
+    ).all()
+    failed_by: dict[str, int] = {}
+    calls_by: dict[str, int] = {}
+    rate_limited = 0
+    for r in rows:
+        if r.outcome == "rate_limited":
+            rate_limited += int(r.n)
+            continue
+        calls_by[r.model] = calls_by.get(r.model, 0) + int(r.n)
+        if r.outcome != "succeeded":
+            key = f"{r.model}: {r.outcome}"
+            failed_by[key] = failed_by.get(key, 0) + int(r.n)
+    failed, total = sum(failed_by.values()), sum(calls_by.values())
+    rate = _rate(failed, total)
+    by_count = sorted(failed_by.items(), key=lambda kv: -kv[1])
+    details: dict[str, Any] = {
+        "failed": failed,
+        "attempts": total,
+        "rate_limited": rate_limited,
+        "failed_by": dict(by_count),
+        "calls_by_model": calls_by,
+    }
+    if total < FAILURE_RATE_MIN_CALLS:
+        details["reason"] = f"fewer than {FAILURE_RATE_MIN_CALLS} model calls answered"
+        return CheckResult("enrichment_failure_rate_24h", "info", "pass", rate, None, details)
+    worst = ", ".join(f"{kind} ×{n}" for kind, n in by_count[:3])
     return CheckResult(
         "enrichment_failure_rate_24h",
         "critical",
         _grade(rate, 0.10, 0.30),
         rate,
         0.10,
-        {"failed": row.failed, "attempts": row.total, "rate_limited": row.rate_limited},
+        details,
+        f"{failed} of {total} model calls failed ({worst}); used-up quotas not counted"
+        if failed
+        else "",
     )
 
 
@@ -270,6 +330,11 @@ def check_ungrounded_entities(s: Session) -> CheckResult:
 
 
 def check_source_freshness(s: Session) -> CheckResult:
+    """Sources this collects nothing from: active but without a successful fetch for 6 hours,
+    or auto-disabled after failing in a row (probed again every 6 hours). Both need a decision:
+    a new ``feed_url`` in sources.yaml, or ``enabled: false`` there when the outlet blocks
+    automated access, which also ends this warning (docs/OPERATIONS.md, "A source is
+    failing")."""
     stale = [
         dict(r._mapping)
         for r in s.execute(
@@ -284,53 +349,101 @@ def check_source_freshness(s: Session) -> CheckResult:
     ]
     active = s.execute(text("SELECT count(*) FROM core.sources WHERE is_active")).scalar_one()
     # Disabled after failing in a row: no longer "stale", but no longer collected either.
-    auto_disabled = list(
-        s.scalars(
-            text("""
-            SELECT slug FROM core.sources
+    disabled = s.execute(
+        text("""
+            SELECT slug, disabled_reason,
+                   to_char(last_success_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI"Z"')
+                       AS last_success_at
+            FROM core.sources
             WHERE NOT is_active AND disabled_reason LIKE 'auto-disabled%' ORDER BY slug
         """)
-        )
-    )
+    ).all()
+    auto_disabled = [r.slug for r in disabled]
     if not active or len(stale) == active:
         status = "fail"  # nothing is being collected
     else:
         status = "warn" if stale or auto_disabled else "pass"
+    parts = [
+        f"{r.slug} auto-disabled ({_last_error(r.disabled_reason)}; last success "
+        f"{r.last_success_at or 'never'})"
+        for r in disabled
+    ] + [
+        f"{x['slug']} "
+        + (f"no success since {x['last_success_at']}" if x["last_success_at"] else "never fetched")
+        + f" ({x['consecutive_failures']} failures in a row)"
+        for x in stale
+    ]
     return CheckResult(
         "source_freshness_6h",
         "critical",
         status,
         float(len(stale)),
         0.0,
-        {"stale_sources": stale, "active_sources": active, "auto_disabled": auto_disabled},
+        {
+            "stale_sources": stale,
+            "active_sources": active,
+            "auto_disabled": auto_disabled,
+            "disabled_reasons": {r.slug: r.disabled_reason for r in disabled},
+        },
+        "not collected: " + "; ".join(parts) if parts else "",
     )
 
 
+def _last_error(disabled_reason: str | None) -> str:
+    """The last error an auto-disable recorded, short: "http_error: HTTP 403"."""
+    reason = disabled_reason or ""
+    last = reason.partition("(last: ")[2].rstrip(")") or reason
+    return last[:60]
+
+
 def check_feed_overflow(s: Session) -> CheckResult:
-    """Fetches in which every item was new: the feed published more between two polls than it
-    lists, so items were probably missed (feeds that show only their latest 10 items)."""
+    """Fetches in which every item was new although the source was fetched one run earlier:
+    the outlet published more between two runs than its feed lists (feeds that show only their
+    latest 10 items), so items were missed. A feed that is all new after a gap (the source was
+    auto-disabled or failing, runs were missed) says nothing about the feed: the gap is reported
+    elsewhere, and such fetches are only counted, in ``after_gap``.
+
+    "One run earlier" is the source's previous successful fetch (or 304) at most 1.5 scheduler
+    intervals before."""
+    normal_gap = get_settings().scheduler_interval_minutes * 90  # seconds
     rows = [
         dict(r._mapping)
         for r in s.execute(
             text("""
-            SELECT src.slug, count(*) AS fetches, max(f.items_seen) AS items_listed
-            FROM raw.feed_fetches f JOIN core.sources src ON src.id = f.source_id
+            SELECT src.slug,
+                   count(*) FILTER (WHERE prev.gap <= make_interval(secs => :normal_gap))
+                       AS fetches,
+                   count(*) FILTER (WHERE prev.gap > make_interval(secs => :normal_gap))
+                       AS after_gap,
+                   max(f.items_seen) AS items_listed
+            FROM raw.feed_fetches f
+            JOIN core.sources src ON src.id = f.source_id
+            CROSS JOIN LATERAL (
+                SELECT f.started_at - max(e.started_at) AS gap
+                FROM raw.feed_fetches e
+                WHERE e.source_id = f.source_id AND e.status IN ('ok', 'not_modified')
+                  AND e.started_at < f.started_at
+            ) prev
             WHERE f.started_at >= now() - interval '24 hours' AND f.status = 'ok'
               AND f.items_seen >= 5 AND f.items_new = f.items_seen
-              AND EXISTS (SELECT 1 FROM raw.feed_fetches e  -- not the source's first fetch
-                          WHERE e.source_id = f.source_id AND e.status = 'ok'
-                            AND e.started_at < f.started_at)
+              AND prev.gap IS NOT NULL  -- not the source's first fetch
             GROUP BY src.slug ORDER BY src.slug
-        """)
+        """),
+            {"normal_gap": normal_gap},
         )
     ]
+    overflowing = [r for r in rows if r["fetches"]]
     return CheckResult(
         "feed_overflow_24h",
         "warning",
-        "warn" if rows else "pass",
-        float(len(rows)),
+        "warn" if overflowing else "pass",
+        float(len(overflowing)),
         0.0,
-        {"sources": rows},
+        {"sources": overflowing, "after_gap": [r for r in rows if not r["fetches"]]},
+        "published more between two runs than the feed lists: "
+        + ", ".join(f"{r['slug']} {r['fetches']}× (lists {r['items_listed']})" for r in overflowing)
+        if overflowing
+        else "",
     )
 
 
@@ -510,6 +623,11 @@ def _jsonable(details: dict[str, Any]) -> dict[str, Any]:
     from SQL) becomes its text instead of failing the whole quality stage."""
     out: dict[str, Any] = json.loads(json.dumps(details, default=str))
     return out
+
+
+def describe(result: CheckResult) -> str:
+    """One line on what a check found, for the run's log and the alert."""
+    return result.summary or f"observed {result.observed} (threshold {result.threshold})"
 
 
 def summarize(results: list[CheckResult]) -> dict[str, Any]:

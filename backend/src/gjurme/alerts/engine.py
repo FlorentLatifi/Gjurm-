@@ -134,7 +134,8 @@ def evaluate_run(run_status: str, stats: dict[str, Any]) -> list[Alert]:
                     f"dq:{check['name']}",
                     "warning",
                     f"Data quality: {check['name']} = {check['status']}",
-                    f"Observed {check['observed']} (threshold {check['threshold']}).",
+                    f"Observed {check['observed']} (threshold {check['threshold']})."
+                    + (f" {check['summary']}" if check.get("summary") else ""),
                     check.get("details") or {},
                 )
             )

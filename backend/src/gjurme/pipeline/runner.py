@@ -30,7 +30,7 @@ from gjurme.ingestion.ingest import ingest_all
 from gjurme.ingestion.processor import process_pending
 from gjurme.logging_setup import run_id_var
 from gjurme.pipeline.locking import PIPELINE_LOCK_KEY, advisory_lock
-from gjurme.quality.checks import run_checks, summarize
+from gjurme.quality.checks import describe, run_checks, summarize
 from gjurme.stories.clustering import cluster_pending
 
 log = logging.getLogger(__name__)
@@ -231,6 +231,7 @@ def _run_stage(
                     "observed": r.observed,
                     "threshold": r.threshold,
                     "details": r.details,
+                    "summary": describe(r) if r.status != "pass" else "",
                 }
                 for r in results
             ],
@@ -239,13 +240,21 @@ def _run_stage(
 
 
 def _overall_status(stats: dict[str, Any], stage_errors: dict[str, str]) -> str:
+    """``partial`` means a part of the work needs a look: a source failing again and again
+    (SOURCE_FAILURE_PARTIAL_THRESHOLD in a row, ``sources_failing``), every source down or an
+    outage on this side, or a model that stopped. A source that fails once and is back on the
+    next run, and an auto-disabled source probed again, leave the run ``succeeded``: both are
+    in the run's per-source stats, and the second was reported when it was disabled."""
     if stage_errors:
         return "failed"
     ingest = stats.get("ingest") or {}
     enrich = stats.get("enrich") or {}
     fallback = enrich.get("fallback") or {}
+    all_down = ingest.get("sources_total", 0) > 0 and ingest.get("sources_ok", 0) == 0
     if (
-        ingest.get("sources_failed")
+        all_down
+        or ingest.get("outage")
+        or ingest.get("sources_failing")
         or enrich.get("circuit_open")
         or enrich.get("fatal_error")
         or fallback.get("circuit_open")

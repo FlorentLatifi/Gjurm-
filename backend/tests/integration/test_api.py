@@ -488,6 +488,17 @@ def test_public_status_is_cached_briefly_and_reports_lost_sources(
         s.add(PipelineRun(trigger="schedule", stages=["ingest"], status="running"))
     running = TestClient(create_app(api_settings, db)).get("/api/v1/status").json()
     assert running["last_run_status"] == "running" and running["status"] == "ok"
+
+    def status_with_failures(n: int) -> str:
+        with db() as s, s.begin():
+            s.execute(update(Source).where(Source.slug == "beta").values(consecutive_failures=n))
+        body = TestClient(create_app(api_settings, db)).get("/api/v1/status").json()
+        return str(body["status"])
+
+    threshold = api_settings.source_failure_partial_threshold
+    assert status_with_failures(threshold - 1) == "ok"  # a blip: back on the next run
+    assert status_with_failures(threshold) == "degraded"  # failing again and again
+    status_with_failures(0)
     with db() as s, s.begin():  # one outlet auto-disabled after failing in a row
         s.execute(
             update(Source)

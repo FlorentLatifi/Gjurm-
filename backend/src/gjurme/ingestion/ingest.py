@@ -7,6 +7,10 @@ A source is auto-disabled after ``source_failure_disable_threshold`` failures in
 in runs where most sources fail at once: that is an outage on this side (DNS, egress), not the
 outlets'. Auto-disabled sources are fetched again every ``REPROBE_AFTER`` and re-enabled when
 the fetch succeeds.
+
+A failed fetch is reported as a source *failing* (``IngestStats.failing``, which makes the run
+``partial``) only from ``source_failure_partial_threshold`` failures in a row: an outlet that
+times out once is back on the next run, and a run that says "partial" for it says nothing.
 """
 
 from __future__ import annotations
@@ -51,12 +55,30 @@ class SourceIngestStats:
     error: str | None = None
     auto_disabled: bool = False
     re_enabled: bool = False
+    consecutive_failures: int = 0  # the source's failures in a row after this fetch
+    reprobe: bool = False  # an auto-disabled source fetched again to see if it recovered
+
+    @property
+    def failed(self) -> bool:
+        return self.status not in SUCCESS_STATUSES
 
 
 @dataclass(slots=True)
 class IngestStats:
     sources: list[SourceIngestStats] = field(default_factory=list)
     outage: bool = False  # most sources failed: failures were not counted
+    failing_after: int = 1  # failures in a row from which a source counts as failing
+
+    @property
+    def failing(self) -> list[str]:
+        """Collected sources that failed again, ``failing_after`` fetches in a row. An
+        auto-disabled source probed again is not among them: it was reported when it was
+        disabled, and it is not collected."""
+        return [
+            s.slug
+            for s in self.sources
+            if s.failed and not s.reprobe and s.consecutive_failures >= self.failing_after
+        ]
 
     @property
     def sources_ok(self) -> int:
@@ -78,6 +100,7 @@ class IngestStats:
             "items_seen": sum(s.items_seen for s in self.sources),
             "items_new": self.items_new,
             "items_changed": sum(s.items_changed for s in self.sources),
+            "sources_failing": self.failing,
             "auto_disabled": [s.slug for s in self.sources if s.auto_disabled],
             "re_enabled": [s.slug for s in self.sources if s.re_enabled],
             "outage": self.outage,
@@ -245,6 +268,7 @@ def store_fetch_result(
     fetch.items_seen = stats.items_seen
     fetch.items_new = stats.items_new
     fetch.items_changed = stats.items_changed
+    stats.consecutive_failures = source.consecutive_failures
     return stats
 
 
@@ -288,7 +312,7 @@ def ingest_all(
             for s in session.scalars(query.order_by(Source.id))
         ]
 
-    stats = IngestStats()
+    stats = IngestStats(failing_after=settings.source_failure_partial_threshold)
     if not snapshots:
         log.warning("no active sources to ingest")
         return stats
@@ -338,6 +362,7 @@ def ingest_all(
                 error=f"{type(exc).__name__}: {exc}"[:500],
             )
             _record_store_failure(session_factory, snap, started, source_stats, run_id, threshold)
+        source_stats.reprobe = not snap.is_active
         stats.sources.append(source_stats)
         log.info(
             "source ingested",
@@ -380,5 +405,6 @@ def _record_store_failure(
             )
             source.last_fetch_at = datetime.now(UTC)
             count_source_failure(source, stats, threshold)
+            stats.consecutive_failures = source.consecutive_failures
     except Exception:
         log.exception("recording the failed fetch failed", extra={"source": snap.slug})

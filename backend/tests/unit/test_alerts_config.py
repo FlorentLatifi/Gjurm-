@@ -101,6 +101,34 @@ class TestAlertRules:
         assert _keys(evaluate_run("partial", failing)) == {"llm_fallback_circuit_open"}
         assert _overall_status(failing, {}) == "partial"
 
+    def test_a_source_failing_once_is_no_partial_run(self) -> None:
+        """A run is "partial" when a part of the work needs a look, not when an outlet timed out
+        once, nor when an auto-disabled source probed again still fails (Nov 2026: one http_error
+        of Indeksonline or a probe of Ekonomia Online made the whole run "partial")."""
+        from gjurme.pipeline.runner import _overall_status
+
+        def ingest(**kw: object) -> dict[str, object]:
+            return {"ingest": {"sources_total": 17, "sources_ok": 16, **kw}}
+
+        assert _overall_status(ingest(sources_failed=1, sources_failing=[]), {}) == "succeeded"
+        assert _overall_status(ingest(sources_failing=["indeksonline"]), {}) == "partial"
+        assert _overall_status(ingest(outage=True), {}) == "partial"
+        all_down = {"ingest": {"sources_total": 2, "sources_ok": 0, "sources_failing": []}}
+        assert _overall_status(all_down, {}) == "partial"
+        assert _overall_status(ingest(), {"ingest": "boom"}) == "failed"
+
+    def test_a_quality_alert_says_what_and_where(self) -> None:
+        check = {
+            "name": "source_freshness_6h",
+            "status": "fail",
+            "observed": 17.0,
+            "threshold": 0.0,
+            "details": {},
+            "summary": "not collected: koha no success since 2026-11-17T01:00:00Z",
+        }
+        (alert,) = evaluate_run("succeeded", {"quality": {"results": [check]}})
+        assert alert.message.endswith("not collected: koha no success since 2026-11-17T01:00:00Z")
+
     @pytest.mark.parametrize("fmt", ["slack", "discord", "ntfy", "generic"])
     def test_payload_formats(self, fmt: str) -> None:
         body, headers = _format_payload(fmt, Alert("k", "critical", "T", "M"), "production")

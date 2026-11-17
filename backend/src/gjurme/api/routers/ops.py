@@ -132,7 +132,12 @@ def _public_status(db: Session, settings: Settings) -> dict[str, Any]:
         state = "stale"
     elif (
         (last_finished is not None and last_finished != "succeeded")
-        or any(s["is_active"] and s["consecutive_failures"] > 0 for s in sources)
+        # failing again and again, as the run's "partial" means; one failure is a blip
+        or any(
+            s["is_active"]
+            and s["consecutive_failures"] >= settings.source_failure_partial_threshold
+            for s in sources
+        )
         # auto-disabled after failing in a row: no longer failing, no longer collected either
         or any(not s["is_active"] and s["verification_status"] == "failing" for s in sources)
     ):
