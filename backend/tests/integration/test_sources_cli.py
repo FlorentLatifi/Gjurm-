@@ -203,6 +203,29 @@ def test_validator_ok_source(make_fetcher) -> None:  # type: ignore[no-untyped-d
     report = validate_source(fetcher, cfg)
     assert report.ok and report.declared is not None and report.declared.items == 2
     assert report.discovered == []
+    assert report.declared.next_page == "none (http_error 404)"
+
+
+def test_validator_reports_whether_the_feed_has_a_next_page(make_fetcher) -> None:  # type: ignore[no-untyped-def]
+    """What ingestion reads after an overflow: a WordPress feed's ?paged=2, or nothing."""
+    cfg = SourceConfig(
+        slug="wp",
+        name="WordPress",
+        homepage_url="https://wp.example.com/",
+        feed_url="https://wp.example.com/feed/",
+        language="sq",
+        country="XK",
+    )
+    routes = {
+        "https://wp.example.com/feed/": (200, fixture_bytes("wordpress_sq.xml"), {}),
+        "https://wp.example.com/feed/?paged=2": (200, fixture_bytes("atom.xml"), {}),
+    }
+    report = validate_source(make_fetcher(feed_server(routes)), cfg)
+    assert report.declared is not None and report.declared.next_page == "2 more items"
+    assert "| 3 | 2 more items |" in to_markdown([report])
+    routes["https://wp.example.com/feed/?paged=2"] = routes["https://wp.example.com/feed/"]
+    report = validate_source(make_fetcher(feed_server(routes)), cfg)
+    assert report.declared is not None and report.declared.next_page == "none (page 1 again)"
 
 
 # ------------------------------------------------------------------------------------------

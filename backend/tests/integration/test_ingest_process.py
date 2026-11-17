@@ -11,7 +11,7 @@ from gjurme.config import Settings
 from gjurme.db.models import Article, DataQualityResult, FeedFetch, FeedItem, Source
 from gjurme.ingestion.ingest import ingest_all
 from gjurme.ingestion.processor import process_pending
-from gjurme.quality.checks import check_source_freshness, run_checks
+from gjurme.quality.checks import check_feed_overflow, check_source_freshness, run_checks
 from tests.conftest import feed_server, fixture_bytes
 from tests.integration.helpers import add_source, pubdate, rss
 
@@ -164,6 +164,108 @@ def test_an_auto_disabled_source_is_probed_again_and_recovers(db, settings, make
         dd = s.scalar(select(Source).where(Source.slug == "dd"))
         assert dd is not None and dd.is_active and dd.disabled_reason is None
         assert check_source_freshness(s).status == "pass"
+
+
+def _busy_page(newest: int, n: int = 10) -> bytes:
+    """A feed page listing items ``newest`` down to ``newest - n + 1``, newest first."""
+    return rss(
+        [
+            {
+                "title": f"Lajmi {i} nga Prishtina për zgjedhjet",
+                "guid": f"busy-{i}",
+                "link": f"https://busy.example.com/lajm/{i}",
+                "pubDate": pubdate(0.5 + (100 - i) / 60),
+            }
+            for i in range(newest, newest - n, -1)
+        ]
+    )
+
+
+def _busy_feed(db, make_fetcher, pages: dict[str, bytes]):  # type: ignore[no-untyped-def]
+    with db() as s, s.begin():
+        add_source(s, "busy", "https://busy.example.com/feed/")
+    requested: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested.append(str(request.url))
+        body = pages.get(str(request.url))
+        return httpx.Response(200, content=body) if body else httpx.Response(404)
+
+    return make_fetcher(handler), requested
+
+
+FEED = "https://busy.example.com/feed/"
+
+
+def test_an_overflowing_feed_is_followed_to_its_next_page(db, settings, make_fetcher) -> None:
+    """Nov 2026: Indeksonline listed 10 items, all of them new 30 minutes later. Its next page
+    holds the items in between, down to those stored before."""
+    pages = {FEED: _busy_page(19)}  # items 19..10
+    fetcher, requested = _busy_feed(db, make_fetcher, pages)
+    first = ingest_all(db, fetcher, settings).sources[0]
+    assert (first.items_new, first.pages) == (10, 1) and requested == [FEED]  # a first fetch
+
+    # 14 published since: page 1 lists 33..24, page 2 lists 23..14 (20..23 new, 19..14 known)
+    pages.update({FEED: _busy_page(33), f"{FEED}?paged=2": _busy_page(23)})
+    requested.clear()
+    busy = ingest_all(db, fetcher, settings).sources[0]
+    assert requested == [FEED, f"{FEED}?paged=2"]  # page 2 caught up: no page 3
+    assert (busy.items_seen, busy.items_new, busy.pages, busy.items_from_next_pages) == (
+        20,
+        14,
+        2,
+        4,
+    )
+    with db() as s:
+        assert _count(s, FeedItem) == 24
+        fetch = s.scalar(select(FeedFetch).order_by(FeedFetch.id.desc()))
+        assert fetch is not None and (fetch.items_seen, fetch.items_new) == (20, 14)
+        assert check_feed_overflow(s).status == "pass"  # nothing was missed
+
+
+def test_a_feed_without_next_pages_still_reports_the_overflow(db, settings, make_fetcher) -> None:
+    pages = {FEED: _busy_page(19)}
+    fetcher, requested = _busy_feed(db, make_fetcher, pages)
+    ingest_all(db, fetcher, settings)
+    # the feed ignores ?paged and serves page 1 again
+    pages.update({FEED: _busy_page(33), f"{FEED}?paged=2": _busy_page(33)})
+    busy = ingest_all(db, fetcher, settings).sources[0]
+    assert (busy.items_new, busy.pages) == (10, 1)
+    assert requested[-1] == f"{FEED}?paged=2"  # asked once, then stopped
+    with db() as s:
+        result = check_feed_overflow(s)
+    assert result.status == "warn" and result.details["sources"][0]["slug"] == "busy"
+
+
+def test_next_pages_stop_at_the_limit_and_a_missing_page_is_no_failure(
+    db, settings, make_fetcher
+) -> None:
+    pages = {FEED: _busy_page(19)}
+    fetcher, requested = _busy_feed(db, make_fetcher, pages)
+    ingest_all(db, fetcher, settings)
+    # 40 published since: pages 2 and 3 are all new too; page 4 is not read
+    pages.update(
+        {
+            FEED: _busy_page(59),
+            f"{FEED}?paged=2": _busy_page(49),
+            f"{FEED}?paged=3": _busy_page(39),
+            f"{FEED}?paged=4": _busy_page(29),
+        }
+    )
+    requested.clear()
+    busy = ingest_all(db, fetcher, settings).sources[0]
+    assert requested == [FEED, f"{FEED}?paged=2", f"{FEED}?paged=3"]
+    assert (busy.items_new, busy.pages) == (30, 3)
+    with db() as s:
+        assert check_feed_overflow(s).status == "warn"  # 10 items were still missed
+    # an outlet without page 2 (404): the fetch stands, and the source is not failing
+    pages.clear()
+    pages[FEED] = _busy_page(79)
+    busy = ingest_all(db, fetcher, settings).sources[0]
+    assert (busy.status, busy.items_new, busy.pages) == ("ok", 10, 1)
+    with db() as s:
+        src = s.scalar(select(Source))
+        assert src is not None and src.consecutive_failures == 0
 
 
 def test_changed_item_is_requeued(db, settings, make_fetcher) -> None:

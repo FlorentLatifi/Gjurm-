@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from gjurme.config import get_settings
 from gjurme.db.models import DataQualityResult
+from gjurme.ingestion.ingest import OVERFLOW_MIN_ITEMS
 
 
 @dataclass(slots=True)
@@ -399,9 +400,11 @@ def _last_error(disabled_reason: str | None) -> str:
 def check_feed_overflow(s: Session) -> CheckResult:
     """Fetches in which every item was new although the source was fetched one run earlier:
     the outlet published more between two runs than its feed lists (feeds that show only their
-    latest 10 items), so items were missed. A feed that is all new after a gap (the source was
-    auto-disabled or failing, runs were missed) says nothing about the feed: the gap is reported
-    elsewhere, and such fetches are only counted, in ``after_gap``.
+    latest 10 items), and its next pages (read after an overflow, ``?paged=2``) did not reach
+    the items stored before, or the feed has none: items were missed. A feed that is all new
+    after a gap (the source was auto-disabled or failing, runs were missed) says nothing about
+    the feed: the gap is reported elsewhere, and such fetches are only counted, in
+    ``after_gap``.
 
     "One run earlier" is the source's previous successful fetch (or 304) at most 1.5 scheduler
     intervals before."""
@@ -425,11 +428,11 @@ def check_feed_overflow(s: Session) -> CheckResult:
                   AND e.started_at < f.started_at
             ) prev
             WHERE f.started_at >= now() - interval '24 hours' AND f.status = 'ok'
-              AND f.items_seen >= 5 AND f.items_new = f.items_seen
+              AND f.items_seen >= :min_items AND f.items_new = f.items_seen
               AND prev.gap IS NOT NULL  -- not the source's first fetch
             GROUP BY src.slug ORDER BY src.slug
         """),
-            {"normal_gap": normal_gap},
+            {"normal_gap": normal_gap, "min_items": OVERFLOW_MIN_ITEMS},
         )
     ]
     overflowing = [r for r in rows if r["fetches"]]

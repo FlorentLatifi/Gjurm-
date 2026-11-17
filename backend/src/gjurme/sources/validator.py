@@ -5,6 +5,8 @@ feed and reports format, item count, field coverage, timestamp range, duplicate 
 Albanian characters survive decoding. When the declared feed fails (or is not declared), it scans
 the source's discovery pages for ``<link rel="alternate">`` feeds and validates each candidate;
 when none of those works either, it tries the paths where publishing systems usually put a feed.
+For a working feed it also reports whether the feed has a next page (``?paged=2``): what
+ingestion reads when every item of a fetch is new, so that a busy outlet's items are not missed.
 
 Run it from a network with open egress — the GitHub Actions workflow
 ``.github/workflows/sources.yml`` does this weekly and publishes the report as an artifact.
@@ -19,8 +21,8 @@ from typing import Any
 from urllib.parse import urljoin
 
 from gjurme.ingestion.feed_parser import discover_feeds, parse_feed
-from gjurme.ingestion.fetcher import FeedFetcher
-from gjurme.ingestion.normalize import clean_text
+from gjurme.ingestion.fetcher import FeedFetcher, next_page_url
+from gjurme.ingestion.normalize import clean_text, item_key
 from gjurme.sources.registry import SourceConfig
 
 FIELDS = ("title", "link", "id", "published_iso", "summary", "author", "tags", "image")
@@ -52,6 +54,7 @@ class FeedReport:
     has_full_content: bool = False
     albanian_chars_seen: bool = False
     sample_titles: list[str] = field(default_factory=list)
+    next_page: str | None = None  # the declared feed's page 2: "10 more items", "none (...)"
 
 
 @dataclass(slots=True)
@@ -69,7 +72,8 @@ class SourceReport:
         return bool(self.declared and self.declared.ok)
 
 
-def validate_feed(fetcher: FeedFetcher, url: str) -> FeedReport:
+def validate_feed(fetcher: FeedFetcher, url: str, keys: set[str] | None = None) -> FeedReport:
+    """Fetch and describe one feed; ``keys`` receives the identities of its items."""
     result = fetcher.fetch(url)
     report = FeedReport(
         url=url,
@@ -108,9 +112,36 @@ def validate_feed(fetcher: FeedFetcher, url: str) -> FeedReport:
     text_blob = " ".join(clean_text(e.get("title")) for e in parsed.entries)
     report.albanian_chars_seen = any(ch in text_blob for ch in "ëçËÇ")
     report.sample_titles = [clean_text(e.get("title"))[:140] for e in parsed.entries[:3]]
+    if keys is not None:
+        keys.update(_key(e) for e in parsed.entries)
     report.ok = True
     report.status = "ok"
     return report
+
+
+def _key(entry: dict[str, Any]) -> str:
+    """An item's identity, as ingestion computes it."""
+    return item_key(
+        entry.get("id"),
+        entry.get("link"),
+        clean_text(entry.get("title")),
+        entry.get("published_iso"),
+    )
+
+
+def probe_next_page(fetcher: FeedFetcher, feed_url: str, page_one: set[str]) -> str:
+    """Whether the feed serves a next page that ingestion can read after an overflow."""
+    result = fetcher.fetch(next_page_url(feed_url, 2))
+    if result.status != "ok" or result.body is None:
+        code = f" {result.http_status}" if result.http_status else ""
+        return f"none ({result.status}{code})"
+    parsed = parse_feed(
+        result.body, response_headers={"content-type": result.content_type or "application/xml"}
+    )
+    if not parsed.is_feed or not parsed.entries:
+        return "none (not a feed)"
+    more = len({_key(e) for e in parsed.entries} - page_one)
+    return f"{more} more items" if more else "none (page 1 again)"
 
 
 def _iso(entry: dict[str, Any]) -> datetime | None:
@@ -125,9 +156,11 @@ def validate_source(fetcher: FeedFetcher, cfg: SourceConfig) -> SourceReport:
     report = SourceReport(
         slug=cfg.slug, name=cfg.name, enabled=cfg.enabled, declared_feed=cfg.feed_url, declared=None
     )
+    page_one: set[str] = set()
     if cfg.feed_url:
-        report.declared = validate_feed(fetcher, cfg.feed_url)
-    if report.ok:
+        report.declared = validate_feed(fetcher, cfg.feed_url, page_one)
+    if report.ok and report.declared and cfg.feed_url:
+        report.declared.next_page = probe_next_page(fetcher, cfg.feed_url, page_one)
         report.recommendation = "declared feed OK — mark verified"
         return report
     candidates: dict[str, dict[str, str]] = {}
@@ -165,9 +198,9 @@ def to_markdown(reports: list[SourceReport], generated_at: datetime | None = Non
     lines = [
         f"# Source validation report — {generated_at:%Y-%m-%d %H:%M} UTC",
         "",
-        "| Source | Declared feed | Status | Items | Newest item | Title/link/date coverage "
-        "| Photos | ë/ç seen | Recommendation |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| Source | Declared feed | Status | Items | Page 2 | Newest item "
+        "| Title/link/date coverage | Photos | ë/ç seen | Recommendation |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in reports:
         d = r.declared
@@ -183,7 +216,8 @@ def to_markdown(reports: list[SourceReport], generated_at: datetime | None = Non
         lines.append(
             f"| {r.name} | `{r.declared_feed or '—'}` | "
             f"{(d.status + (f' ({d.http_status})' if d.http_status else '')) if d else 'none'} | "
-            f"{d.items if d else 0} | {d.newest if d and d.newest else '—'} | {cov} | "
+            f"{d.items if d else 0} | {d.next_page if d and d.next_page else '—'} | "
+            f"{d.newest if d and d.newest else '—'} | {cov} | "
             f"{photos} | "
             f"{'yes' if d and d.albanian_chars_seen else 'no'} | {r.recommendation} |"
         )

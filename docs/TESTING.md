@@ -48,7 +48,7 @@ The integration fixtures migrate a fresh test database once per session with the
 - Story similarity: Albanian folding and stemming, IDF weighting, the name guard (shared, partial and conflicting places and people; noisy entity types), "a shared person is not a shared event", and hand-written calibration pairs against the default threshold.
 
 **Integration (109).**
-- Ingest → process: idempotency (a second run creates 0 rows), per-source failure isolation, 304 handling, auto-disable after the threshold, dedup L1–L4.
+- Ingest → process: idempotency (a second run creates 0 rows), per-source failure isolation, 304 handling, auto-disable after the threshold, dedup L1–L4; an overflowing feed followed to its next pages until known items (not on a first fetch, at most pages 2–3, a feed that serves page 1 again or a missing page 2 ends it without a failure).
 - Enrichment: daily budget enforcement (including spend from earlier runs), circuit breaker, fatal errors that keep attempts, invalid output recorded and retried, refusal terminal, cache hits, re-enrichment keeping history with one current row, the kill switch, hidden articles never sent to the LLM.
 - Anthropic wire: the real SDK against a fake Messages API, covering request body, usage, cost, refusal, `max_tokens`, 401/403/404 fatal, 400 non-retryable, 429/529 retried, connection failure.
 - API: every public endpoint against a hand-computed dataset (counts, growth `(8 − 2) / 5`, spike `z = 6.0`), validation errors, the error envelope, admin auth, rate limiting, cache invalidation on admin mutations, security headers, `/metrics` protection, the excerpt never leaking, readiness with the DB down.

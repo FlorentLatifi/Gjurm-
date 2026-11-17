@@ -18,7 +18,7 @@ import socket
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
@@ -213,3 +213,13 @@ class FeedFetcher:
 def build_http_client(timeout_seconds: float) -> httpx.Client:
     timeout = httpx.Timeout(timeout_seconds, connect=min(10.0, timeout_seconds))
     return httpx.Client(timeout=timeout, follow_redirects=False, http2=False)
+
+
+def next_page_url(feed_url: str, page: int) -> str:
+    """Page ``page`` of a feed, WordPress style (``?paged=2``): the next 10 items of the 10
+    that page 1 lists. A feed that does not page ignores the parameter and serves page 1
+    again, which the caller recognises by its items."""
+    parts = urlsplit(feed_url)
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != "paged"]
+    query.append(("paged", str(page)))
+    return urlunsplit(parts._replace(query=urlencode(query)))

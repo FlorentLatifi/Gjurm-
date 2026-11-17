@@ -40,7 +40,7 @@ Kosovo's and Albania's largest outlets that were missing, checked by [Source val
 | Lajmi.net | XK | `https://lajmi.net/feed/` | **enabled** | 10 items; fields 100% (both runs) |
 | Sinjali | XK | `https://sinjali.com/feed/` | **enabled** | 10 items; fields 100% (both runs) |
 | Hibrid.info | XK | `https://hibrid.info/feed/` | **enabled** | 10 items; fields 100% (both runs); fact-checking |
-| Ekonomia Online | XK | `https://ekonomiaonline.com/feed/` | **enabled** | 10 items; fields 100% (both runs); business |
+| Ekonomia Online | XK | `https://ekonomiaonline.com/sq/rss.xml` | **enabled** | business. Was `/feed/` (10 items; fields 100% in both runs) until it answered 404 in November 2026; the site now links `/sq/rss.xml` (50 items) |
 | RTSH | AL | `https://rtsh.al/feed/` | **enabled** | 10 items; fields 100% (both runs); public broadcaster |
 | Faktoje.al | AL | `https://faktoje.al/feed/` | **enabled** | 9 items; fields 100% (both runs); fact-checking |
 | RTK, Insajderi, Nacionale | XK | — | excluded | HTTP 403 to automated requests in both runs. Not circumvented. |
@@ -106,7 +106,7 @@ After editing, `gjurme sources sync` (or the next deploy) applies the ratings; t
 - An identifying `User-Agent` with a contact URL (`HTTP_USER_AGENT`, `CONTACT_URL`).
 - `robots.txt` is checked for the feed path (RFC 9309 semantics; `RESPECT_ROBOTS_TXT=true`), and a disallow means no fetch.
 - Conditional GET with `ETag` / `Last-Modified`, so an unchanged feed costs the publisher a 304.
-- At most one fetch per 15 minutes per source (the scheduler interval), a 15 s timeout and a 5 MB response cap.
+- At most one fetch per 15 minutes per source (the scheduler interval), a 15 s timeout and a 5 MB response cap. Only when every item of a fetch is new (the outlet published more since the last fetch than its feed lists) are the feed's next pages read, `?paged=2` and `?paged=3` at most, and only until they reach items already stored. The weekly validation report's *Page 2* column shows which feeds have one.
 - Redirects are followed manually (max 5), and every hop's host must resolve to a public address (SSRF guard). Only `http`/`https`.
 - Failures are isolated per source. After 20 consecutive failures the source is auto-disabled (`is_active = false`, `verification_status = failing`) and an alert asks the operator to check it. It is fetched again every 6 hours and re-enabled automatically when the feed works again. A run in which most sources fail at once is an outage on the server's side and is not counted against any source; `source_freshness_6h` warns while a source is auto-disabled, naming its last error, and fails when no source is collected. `enabled: false` in `sources.yaml` wins over an auto-disable (no more probes, no more warning), and a new `feed_url` enables an auto-disabled source again.
 
