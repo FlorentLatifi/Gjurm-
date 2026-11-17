@@ -115,6 +115,24 @@ Tests found real bugs, not only regressions. The notable ones:
 - Writing the API contract check found the API declaring always-present fields as optional and tone and entity types as plain strings; the schema now says what the API returns.
 - A redesign that looked better was measured slower: a preloaded 47 KB interface font and React Router's data router delayed first content by ~0.45 s on a slow phone connection. Both were reverted; the numbers are below.
 
+## Story clustering against labelled news
+
+Stories are the core of the site: without good grouping there is no coverage comparison, blindspot or "reported first". `tests/fixtures/stories/` holds samples of **real articles from the live feeds, labelled by hand with the event each one reports**, and `gjurme stories-eval` scores the clustering on them. No database and no network; it runs the CLUSTER stage's own grouping (`stories.clustering.group`) on the samples.
+
+```bash
+cd backend
+uv run gjurme stories-eval                                   # current settings, worst pairs listed
+uv run gjurme stories-eval --member-threshold 0.45 --errors 0   # try a value before setting it
+```
+
+**Scores.** Over pairs of articles. *Precision*: of the pairs the clustering put in one story, the share that report one event (a wrong pair is two events merged: coverage misstated). *Recall*: of the pairs that report one event, the share put in one story (a missed pair is an event split: less coverage, maybe a false blindspot). Pairs grow with the square of an event's size, so the report also counts the stories that mix events and the events that are split.
+
+**What a sample holds.** Only metadata and derived data (ADR-003): headline, outlet, time, URL, the analysis' entity names, and the excerpt as its *content words* — the folded, stopword-free words of its first 40 words, deduplicated and sorted: what the clustering reads, never the text. Clustered from this alone, the 2026-11-17 sample gives exactly the stories the live pipeline stored for it (checked: precision = recall = 1 against the stored stories; `test_story_sample_exports_derived_data_and_scores_like_the_stored_stories` checks the same on the test data).
+
+**Labels.** `event` names the event an article reports; articles with the same label must share a story; `null` is an event no other article in the sample reports. `event/part` marks a part of a larger event: the same part must share a story (the 1-0 goal of a match, one reaction to a verdict reported by three outlets); different parts of one event are *related* and scored neither way (the match's goals may be one story or several; the verdict and its reactions too). `related: [...]` lists other events an article belongs to as well (a party leader on the verdict at a press conference about other things). Two events that look alike but are different (two ambassadors received the same day) get different labels. The labels of the first sample were written by Claude Code from the headlines, entity names and excerpt words; a spot check by a person is welcome — change a label you disagree with and the scores follow.
+
+**Adding a sample.** Run the *Source validation* workflow by hand with `story_sample` ticked (it also prints the sample on pushes that change the clustering), copy the JSON between `STORIES_SAMPLE_BEGIN` and `STORIES_SAMPLE_END` from the *Story evaluation sample* step (or take `stories-sample.json` from the run's artifact) into `tests/fixtures/stories/live-YYYY-MM-DD.json`, drop the `story` field (the clustering's own answer, a starting point only), add `event` labels, and add an `about` line. The workflow analyses every article with the keyword rules, as production does sooner or later. Samples from different days and hours matter more than one big sample: one evening is dominated by its two or three big events. Every sample counts in `gjurme stories-eval` and in `test_live_sample_scores_with_the_default_settings`, which fails when a change lowers precision or recall on them below the numbers recorded in [ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings).
+
 ## Performance
 
 **Question:** does the analytics API stay fast after a year of data at the upper design volume (1,000 articles/day)?

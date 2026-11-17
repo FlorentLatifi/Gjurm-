@@ -210,3 +210,20 @@ def test_the_unpooled_database_url_wins(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("DATABASE_URL_UNPOOLED", "postgresql://u:p@ep-x.neon.tech/db")
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
     assert settings.database_url == "postgresql+psycopg://u:p@ep-x.neon.tech/db"
+
+
+def test_the_free_paths_story_settings_default_to_the_codes() -> None:
+    """The workflow repeats each STORY_* default for an unset repository variable; a default
+    changed in config.py must change there too, or the free path keeps the old value."""
+    from gjurme.config import Settings
+
+    workflow = (Path(__file__).parents[3] / ".github/workflows/free-hosting.yml").read_text()
+    found = dict(re.findall(r"(STORY_\w+): \$\{\{ vars\.\1 \|\| '([^']+)' \}\}", workflow))
+    assert set(found) == {
+        "STORY_SIMILARITY_THRESHOLD",
+        "STORY_MEMBER_SIMILARITY_THRESHOLD",
+        "STORY_MERGE_SIMILARITY_THRESHOLD",
+        "STORY_IDF_POWER",
+    }
+    for name, value in found.items():
+        assert float(value) == Settings.model_fields[name.lower()].default, name

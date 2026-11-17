@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -20,7 +22,8 @@ from gjurme.enrichment.service import apply_output
 from gjurme.ingestion.normalize import normalize_key, sha256_hex
 from gjurme.quality.checks import check_story_backlog
 from gjurme.sources.registry import Registry, SourceConfig, sync_sources
-from gjurme.stories.clustering import cluster_pending, rebuild
+from gjurme.stories.clustering import ClusterParams, cluster_pending, rebuild
+from gjurme.stories.evaluation import dumps, export_sample, load_sample, predict, score
 from gjurme.stories.review import review_report
 from tests.integration.helpers import add_source
 
@@ -561,6 +564,35 @@ def test_review_report_lists_stories_weak_members_and_near_misses(
     near = report.split("### Near misses")[1]
     assert "| places |" in near and "Gjakovë" in near
     assert "kritikoi" not in report  # headlines only, never excerpts
+
+
+def test_story_sample_exports_derived_data_and_scores_like_the_stored_stories(
+    db: sessionmaker[Session], settings: Settings, newsroom: dict[str, Any], tmp_path: Path
+) -> None:
+    with db() as s:
+        cluster_pending(s, settings)
+    with db() as s:
+        sample = export_sample(s, hours=48)
+    articles = sample["articles"]
+    assert [a["id"] for a in articles] == list(range(1, len(articles) + 1))
+    budget = [a for a in articles if a["title"] == "Buxheti 2027 kalon në Kuvend me 61 vota"]
+    assert len(budget) == 1
+    # the excerpt as its content words, sorted; never its text (ADR-003)
+    assert budget[0]["words"] == ["2027", "buxhetin", "deputetet", "kuvendit", "votuan"]
+    assert "excerpt" not in budget[0] and budget[0]["orgs"] == ["Kuvendi"]
+    dumped = json.dumps(sample, ensure_ascii=False)
+    assert "opozita kritikoi" not in dumped and "Me 61 vota për" not in dumped
+    assert all(a["story"] is not None for a in articles)
+
+    # Labelled with the stories the database holds, the sample scores perfectly: the evaluation
+    # clusters exactly as the CLUSTER stage does, from the derived data alone.
+    for a in articles:
+        a["event"] = f"s{a.pop('story')}"
+    path = tmp_path / "newsroom.json"
+    path.write_text(dumps(sample), "utf-8")
+    labelled = load_sample(path)
+    scores = score(labelled.articles, predict(labelled, ClusterParams.from_settings(settings)))
+    assert scores.true_pairs > 0 and scores.precision == scores.recall == 1.0
 
 
 def test_story_backlog_check(

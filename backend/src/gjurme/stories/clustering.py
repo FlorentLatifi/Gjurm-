@@ -19,16 +19,19 @@ analyses typed as places.
    (``similarity.names_conflict``);
 3. otherwise it starts a new story.
 
-An article that passes rule 2 for a second story with the member threshold reports both: the
-two stories merge, if their names do not conflict and together they still span at most
-``STORY_WINDOW``. Single-pass clustering depends on the order: a report that happens to come
-first can start a story of its own that later, closer reports would have joined.
+An article that passes rule 2 for a second story with similarity ≥
+``settings.story_merge_similarity_threshold`` reports both: the two stories merge, if their names
+do not conflict and together they still span at most ``STORY_WINDOW``. Single-pass clustering
+depends on the order: a report that happens to come first can start a story of its own that
+later, closer reports would have joined.
 
 Articles never leave their story except when it merges, and a merged story's row stays,
 pointing at the story that took its articles (``merged_into_id``), so story URLs stay valid.
 ``rebuild`` re-clusters a period from scratch after a threshold change. The IDF weights come
 from all articles loaded for the batch (the batch ± the story window), i.e. the news of the
-same few days. See docs/DECISIONS.md (ADR-020).
+same few days, raised to ``settings.story_idf_power``. The grouping itself (:func:`group`)
+reads no database: ``gjurme stories-eval`` runs it on hand-labelled live news to measure it.
+See docs/DECISIONS.md (ADR-020) and docs/TESTING.md.
 """
 
 from __future__ import annotations
@@ -90,16 +93,20 @@ class ClusterStats:
 
 @dataclass(frozen=True, slots=True)
 class ClusterParams:
-    """The tunable thresholds (settings ``STORY_*``; see docs/DECISIONS.md, ADR-020)."""
+    """What can be tuned, from the settings ``STORY_*`` (docs/DECISIONS.md, ADR-020)."""
 
-    threshold: float = 0.45  # cosine to a story's centroid
-    member_threshold: float = 0.5  # cosine to one of its articles; also merges two stories
+    threshold: float  # cosine to a story's centroid
+    member_threshold: float  # cosine to one of its articles
+    merge_threshold: float  # cosine of an article to a second story that merges the two
+    idf_power: float  # IDF weights raised to this power (1 = plain TF-IDF)
 
     @classmethod
     def from_settings(cls, settings: Settings) -> ClusterParams:
         return cls(
             threshold=settings.story_similarity_threshold,
             member_threshold=settings.story_member_similarity_threshold,
+            merge_threshold=settings.story_merge_similarity_threshold,
+            idf_power=settings.story_idf_power,
         )
 
 
@@ -351,7 +358,7 @@ def group(
     No database access: ``gjurme stories-eval`` runs exactly this on the labelled sample."""
     stats = stats if stats is not None else ClusterStats()
     spans = spans or {}
-    idf = idf_table(r.doc for r in rows)
+    idf = idf_table((r.doc for r in rows), power=params.idf_power)
     vectors = {r.id: vector(r.doc, idf) for r in rows}
 
     clusters: dict[int, _Cluster] = {}
@@ -393,7 +400,7 @@ def group(
             # An article that closely matches a second story reports both: merge them.
             for sim, other in found[1:]:
                 assert key is not None
-                if sim < params.member_threshold:
+                if sim < params.merge_threshold:
                     break
                 if clusters[key].can_merge(clusters[other]):
                     key = _merge(clusters, key, other, story_of, index, merged_into)

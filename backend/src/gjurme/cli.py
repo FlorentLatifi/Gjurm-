@@ -392,10 +392,12 @@ def stories_eval(
     ] = None,
     threshold: Annotated[float | None, typer.Option(help="Centroid threshold to try")] = None,
     member_threshold: Annotated[float | None, typer.Option(help="Member threshold")] = None,
+    merge_threshold: Annotated[float | None, typer.Option(help="Merge threshold")] = None,
+    idf_power: Annotated[float | None, typer.Option(help="IDF power")] = None,
     errors: Annotated[int, typer.Option(help="Wrong and missed pairs to list")] = 20,
 ) -> None:
     """Score story clustering on hand-labelled real news: precision and recall over article
-    pairs (no database; docs/TESTING.md). Thresholds default to the current settings."""
+    pairs (no database; docs/TESTING.md). Parameters default to the current settings."""
     settings = _settings(validate=False)
     from dataclasses import replace
 
@@ -403,10 +405,13 @@ def stories_eval(
     from gjurme.stories.evaluation import load_samples, report
 
     params = ClusterParams.from_settings(settings)
-    if threshold is not None:
-        params = replace(params, threshold=threshold)
-    if member_threshold is not None:
-        params = replace(params, member_threshold=member_threshold)
+    overrides = {
+        "threshold": threshold,
+        "member_threshold": member_threshold,
+        "merge_threshold": merge_threshold,
+        "idf_power": idf_power,
+    }
+    params = replace(params, **{k: v for k, v in overrides.items() if v is not None})
     samples = load_samples(paths or [Path("tests/fixtures/stories")])
     if not samples:
         typer.echo("no samples found", err=True)

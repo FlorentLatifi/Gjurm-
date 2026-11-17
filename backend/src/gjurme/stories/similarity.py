@@ -248,14 +248,16 @@ def resolve_names(docs: Sequence[Doc], more_places: frozenset[str] = frozenset()
             d.names = headline_places(d, known)
 
 
-def idf_table(docs: Iterable[Doc]) -> dict[str, float]:
-    """Smoothed inverse document frequency: ln((N + 1) / (df + 1)) + 1."""
+def idf_table(docs: Iterable[Doc], *, power: float = 1.0) -> dict[str, float]:
+    """Smoothed inverse document frequency, ln((N + 1) / (df + 1)) + 1, raised to ``power``.
+
+    A power below 1 narrows the gap between rare and common terms (STORY_IDF_POWER)."""
     df: Counter[str] = Counter()
     n = 0
     for d in docs:
         n += 1
         df.update(d.terms.keys())
-    return {term: math.log((n + 1) / (count + 1)) + 1.0 for term, count in df.items()}
+    return {term: (math.log((n + 1) / (count + 1)) + 1.0) ** power for term, count in df.items()}
 
 
 def vector(doc: Doc, idf: Mapping[str, float]) -> dict[str, float]:

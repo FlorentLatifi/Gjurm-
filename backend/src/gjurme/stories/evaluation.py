@@ -9,10 +9,10 @@ which is all the clustering reads of it and cannot be read back as the text.
 
 **Labels.** ``event`` names the event an article reports; articles with the same label must
 share a story. ``null`` is an event no other article of the sample reports. A label with a
-slash (``thaci-verdict/reactions``) is a part of a larger event: two articles with the same part
-must share a story, two with different parts of one event (or one with a part and one without)
-are *related* and may go either way — a reaction to a verdict can be a story of its own or part
-of the verdict's.
+slash (``specialja/presidency``) is a part of a larger event: two articles with the same part
+must share a story, two with different parts of one event are *related* and may go either way —
+a reaction to a verdict can be a story of its own or part of the verdict's. ``related`` lists
+other events an article belongs to as well (one press conference about a verdict and a law).
 
 **Scores.** Over pairs of articles: *precision* is the share of the pairs the clustering put in
 one story that report the same event (a false pair is two events merged: wrong coverage), and
@@ -119,6 +119,13 @@ class Labelled:
     places: tuple[str, ...] = ()
     orgs: tuple[str, ...] = ()
     duplicate_of: int | None = None
+    related: tuple[str, ...] = ()  # other events (top-level labels) this article is part of
+
+    @property
+    def events(self) -> frozenset[str]:
+        """The top-level events this article belongs to."""
+        top = (self.event.split("/")[0],) if self.event is not None else ()
+        return frozenset((*top, *self.related))
 
     def doc(self) -> Doc:
         return Doc(self.id, self.title, " ".join(self.words), self.people, self.places, self.orgs)
@@ -144,6 +151,7 @@ def load_sample(path: Path) -> Sample:
             places=tuple(a.get("places", ())),
             orgs=tuple(a.get("orgs", ())),
             duplicate_of=a.get("duplicate_of"),
+            related=tuple(a.get("related", ())),
         )
         for a in data["articles"]
     )
@@ -169,13 +177,12 @@ def predict(sample: Sample, params: ClusterParams) -> dict[int, int]:
 # ------------------------------------------------------------------------------------------------
 # Scores
 # ------------------------------------------------------------------------------------------------
-def relation(a: str | None, b: str | None) -> str:
-    """ "same", "related" or "different" for two event labels."""
-    if a is None or b is None:
-        return "different"
-    if a == b:
+def relation(a: Labelled, b: Labelled) -> str:
+    """Same event (or the same part of one), related (parts of one event: scored neither way)
+    or different: "same", "related" or "different"."""
+    if a.event is not None and a.event == b.event:
         return "same"
-    return "related" if a.split("/")[0] == b.split("/")[0] else "different"
+    return "related" if a.events & b.events else "different"
 
 
 Pair = tuple[Labelled, Labelled]
@@ -236,7 +243,7 @@ def score(articles: Sequence[Labelled], story_of: dict[int, int]) -> Scores:
         s.stories += 1
         mixed = False
         for a, b in combinations(members, 2):
-            rel = relation(a.event, b.event)
+            rel = relation(a, b)
             if rel == "same":
                 s.true_pairs += 1
             elif rel == "related":
