@@ -23,6 +23,8 @@ import httpx
 from gjurme.enrichment.pricing import Usage
 from gjurme.ingestion.normalize import fold
 
+LimitScope = Literal["day", "minute"]
+
 
 class LLMError(Exception):
     """A failed LLM call.
@@ -43,6 +45,7 @@ class LLMError(Exception):
         usage: Usage | None = None,
         raw_text: str | None = None,
         request_id: str | None = None,
+        limit_scope: LimitScope | None = None,
     ) -> None:
         super().__init__(f"{kind}: {message}")
         self.kind = kind
@@ -51,6 +54,36 @@ class LLMError(Exception):
         self.usage = usage or Usage()
         self.raw_text = raw_text
         self.request_id = request_id
+        # rate_limited only: which limit the 429 names, None when it does not say
+        self.limit_scope = limit_scope
+
+
+_DAY_LIMIT = re.compile(
+    r"per[\s_-]*day|perday|\bdaily\b|\bRPD\b|\bTPD\b|requests_per_day|tokens_per_day", re.I
+)
+_MINUTE_LIMIT = re.compile(
+    r"per[\s_-]*(?:minute|second)|perminute|\bRPM\b|\bTPM\b|\bRPS\b|_per_minute", re.I
+)
+# A Retry-After this long is no per-minute limit.
+_DAY_RETRY_AFTER_SECONDS = 600.0
+
+
+def rate_limit_scope(text: str, retry_after: str | None = None) -> LimitScope | None:
+    """Which limit a 429 is about: ``day`` (a daily quota, e.g. Gemini's
+    ``GenerateRequestsPerDayPerProjectPerModel-FreeTier`` or Groq's "tokens per day (TPD)"),
+    ``minute`` (Gemini's ``…PerMinute…``, Groq's "tokens per minute (TPM)", Anthropic's "rate
+    limit of … per minute"), or None when the answer does not say. A daily limit wins when
+    both are named. Read from the whole answer, before it is shortened for the log."""
+    if _DAY_LIMIT.search(text):
+        return "day"
+    try:
+        if retry_after is not None and float(retry_after) >= _DAY_RETRY_AFTER_SECONDS:
+            return "day"
+    except ValueError:
+        pass
+    if _MINUTE_LIMIT.search(text):
+        return "minute"
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,7 +185,10 @@ class AnthropicProvider:
         except anthropic.NotFoundError as exc:
             raise LLMError("not_found", exc.message, retryable=False, fatal=True) from exc
         except anthropic.RateLimitError as exc:
-            raise LLMError("rate_limited", exc.message, retryable=True) from exc
+            scope = rate_limit_scope(
+                f"{exc.message} {exc.body}", exc.response.headers.get("retry-after")
+            )
+            raise LLMError("rate_limited", exc.message, retryable=True, limit_scope=scope) from exc
         except anthropic.BadRequestError as exc:
             raise LLMError("bad_request", exc.message, retryable=False) from exc
         except anthropic.APIStatusError as exc:
@@ -227,7 +263,8 @@ class OpenAICompatibleProvider:
     validation and grounding as Claude's.
 
     Free tiers limit requests per minute: ``requests_per_minute`` spaces calls across the worker
-    threads, and 429/5xx/connection errors are retried with backoff (honouring ``Retry-After``).
+    threads, and 429/5xx/connection errors are retried with backoff (honouring ``Retry-After``),
+    except a 429 that names a daily limit (``rate_limit_scope``).
     Temperature is 0 so that the same article gets the same analysis, which comparisons between
     outlets depend on.
     """
@@ -322,8 +359,8 @@ class OpenAICompatibleProvider:
                     return response
                 error = _status_error(response)
                 retry_after = _retry_after_seconds(response)
-            if not error.retryable or attempt >= self._max_retries:
-                raise error
+            if not error.retryable or attempt >= self._max_retries or error.limit_scope == "day":
+                raise error  # a daily quota does not come back within a retry's wait
             attempt += 1
             self._sleep(retry_after if retry_after is not None else min(2.0**attempt, 30.0))
 
@@ -396,7 +433,8 @@ def _status_error(response: httpx.Response) -> LLMError:
     if status == 404:
         return LLMError("not_found", message, retryable=False, fatal=True)
     if status == 429:
-        return LLMError("rate_limited", message, retryable=True)
+        scope = rate_limit_scope(response.text, response.headers.get("retry-after"))
+        return LLMError("rate_limited", message, retryable=True, limit_scope=scope)
     if status >= 500:
         return LLMError("server_error", message, retryable=True)
     return LLMError("bad_request", message, retryable=False)

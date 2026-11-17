@@ -5,14 +5,18 @@ Control flow per run::
     kill switch? ─yes→ skip
     queue = pending ∪ failed-with-attempts-left, newest first, ≤ ENRICH_MAX_PER_RUN
             (then, for a model: what the keyword rules analysed provisionally)
+    the model's share of its daily quota for this run (quota.py); limited by a 429 for the
+    day? → one request first, the rest only once it is answered
     for each article (LLM_BATCH_SIZE of them share one request):
         cache hit (same input hash + prompt + model)?  → reuse, cost 0
+        share of requests used?  → stop dispatching; only cache hits from here (rest stays)
         budget.try_reserve(estimate)?  no → stop dispatching (rest stays pending)
         provider.complete → parse/repair/validate → ground entities
         persist (sequentially, main thread): attempt row + current state + bridges
         consecutive failures ≥ threshold → circuit open, stop
         fatal error (auth / unknown model) → stop immediately
-        rate limit still hit after the provider's retries → stop, attempts kept
+        rate limit still hit after the provider's retries → stop, attempts kept (a 429 for
+            the day also marks the model limited in ops.llm_quota)
 """
 
 from __future__ import annotations
@@ -49,10 +53,12 @@ from gjurme.enrichment.prompt import (
 from gjurme.enrichment.providers import (
     AnthropicProvider,
     FakeProvider,
+    LimitScope,
     LLMError,
     LLMProvider,
     OpenAICompatibleProvider,
 )
+from gjurme.enrichment.quota import QuotaConfig, QuotaPlan, begin_run, note
 from gjurme.enrichment.schema import (
     BATCH_JSON_SCHEMA,
     OUTPUT_JSON_SCHEMA,
@@ -131,6 +137,11 @@ class EnrichStats:
     spent_today_usd: Decimal = Decimal(0)
     time_limited: bool = False  # stopped starting calls after ENRICH_MAX_SECONDS
     rate_limited: bool = False  # the provider still said 429 after its retries (quota used up)
+    rate_limit_scope: LimitScope | None = None  # which limit that 429 named, if it said
+    requests: int = 0  # requests the provider answered (a 429 is not one)
+    request_cap: int | None = None  # this run's share of the daily quota (None = no cap)
+    quota_capped: bool = False  # stopped at that share with articles left for the next model
+    quota: QuotaPlan | None = None
 
     def as_dict(self) -> dict[str, Any]:
         calls = self.attempted - self.cached
@@ -157,6 +168,11 @@ class EnrichStats:
             "fatal_error": self.fatal_error,
             "time_limited": self.time_limited,
             "rate_limited": self.rate_limited,
+            "rate_limit_scope": self.rate_limit_scope,
+            "requests": self.requests,
+            "request_cap": self.request_cap,
+            "quota_capped": self.quota_capped,
+            "quota": self.quota.as_dict() if self.quota else None,
             "skipped_reason": self.skipped_reason,
         }
 
@@ -191,6 +207,10 @@ class CallOutcome:
     # is one failure for the circuit breaker, however many articles it carried.
     counts_for_breaker: bool = True
     batch_fallback: bool = False  # asked for again alone after a request for several
+    # Requests the provider answered for this outcome, which count against a daily quota: one
+    # per request, carried by the first article of a request for several.
+    requests: int = 0
+    limit_scope: LimitScope | None = None  # rate_limited: the limit the 429 named
 
 
 def build_fallback_provider(settings: Settings) -> LLMProvider | None:
@@ -371,6 +391,8 @@ def call_llm(provider: LLMProvider, item: QueueItem, estimate: Decimal) -> CallO
             fatal=exc.fatal,
             request_id=exc.request_id,
             model=provider.model,
+            requests=_answered(exc.kind),
+            limit_scope=exc.limit_scope,
         )
     except Exception as exc:  # defensive: an SDK bug must not kill the stage
         log.exception("unexpected provider error")
@@ -393,8 +415,15 @@ def call_llm(provider: LLMProvider, item: QueueItem, estimate: Decimal) -> CallO
         request_id=result.request_id,
         raw_text=result.text,
         model=provider.model,
+        requests=1,
     )
     return _finish(outcome, result.text)
+
+
+def _answered(kind: str) -> int:
+    """1 when a failed request still reached the provider and counts against its quota: not a
+    429, nor a connection that failed before the request was sent."""
+    return 0 if kind in ("rate_limited", "connection", "unexpected") else 1
 
 
 def _finish(outcome: CallOutcome, text: str | None) -> CallOutcome:
@@ -486,6 +515,8 @@ def call_llm_batch(
                     request_id=exc.request_id,
                     model=provider.model,
                     counts_for_breaker=i == 0,
+                    requests=_answered(exc.kind) if i == 0 else 0,
+                    limit_scope=exc.limit_scope,
                 )
                 for i, (item, estimate) in enumerate(batch)
             ]
@@ -527,6 +558,8 @@ def call_llm_batch(
             outcome.batch_fallback = True
         outcome.usage = _add(outcome.usage, shares[i])
         outcome.cost = cost_usd(provider.model, outcome.usage)
+        if i == 0:
+            outcome.requests += 1  # the request for several, answered either way
         outcomes.append(outcome)
     return outcomes
 
@@ -713,9 +746,12 @@ def run_enrichment(
     on_budget_exhausted: Callable[[], None] | None = None,
     max_seconds: float | None = None,
     batch_size: int = 1,
+    quota_config: QuotaConfig | None = None,
 ) -> EnrichStats:
     """Analyse the queue with one provider. ``max_seconds`` overrides ENRICH_MAX_SECONDS;
-    ``batch_size`` articles share one request (never for the keyword rules)."""
+    ``batch_size`` articles share one request (never for the keyword rules). ``quota_config``
+    is the model's daily quota (the first model's LLM_* settings when not given); articles
+    asked for by id are counted against it but not held back by it."""
     stats = EnrichStats()
     if not settings.enrichment_enabled:
         stats.skipped_reason = "disabled by ENRICHMENT_ENABLED=false"
@@ -738,12 +774,28 @@ def run_enrichment(
     if not is_model:
         batch_size = 1
 
+    quota: QuotaPlan | None = None
+    if is_model:
+        with session_factory() as s, s.begin():
+            quota = begin_run(
+                s,
+                provider.model,
+                quota_config or QuotaConfig.for_model(settings),
+                datetime.now(UTC),
+            )
+        stats.quota = quota
+    paced = quota is not None and article_ids is None
+    request_cap = quota.cap if paced and quota is not None else None
+    stats.request_cap = request_cap
+    # A 429 for the day earlier on: one request finds out whether the quota is back.
+    probing = paced and quota is not None and quota.limited
+
     budget = BudgetGuard(
         settings.llm_daily_budget_usd, stats.spent_today_usd, on_exhausted=on_budget_exhausted
     )
     consecutive_failures = 0
     pending: set[Future[list[CallOutcome]]] = set()
-    queue_iter = iter(queue)
+    pos = 0  # the next article of the queue
     stop_dispatch = False
     limit_seconds = settings.enrich_max_seconds if max_seconds is None else max_seconds
     deadline = time.monotonic() + limit_seconds if limit_seconds else None
@@ -805,6 +857,20 @@ def run_enrichment(
             ):
                 consecutive_failures += 1
 
+    def record_cached(item: QueueItem, cached: CachedResult) -> None:
+        out = EnrichmentOutput.model_validate(cached.output)
+        record(
+            CallOutcome(
+                item=item, estimate=Decimal(0), status="cached", output=out, model=provider.model
+            ),
+            cached_from=cached,
+        )
+
+    def room_for_a_request() -> bool:
+        if probing:
+            return not pending
+        return request_cap is None or stats.requests + len(pending) < request_cap
+
     with ThreadPoolExecutor(
         max_workers=settings.enrich_concurrency, thread_name_prefix="enrich"
     ) as pool:
@@ -821,24 +887,17 @@ def run_enrichment(
                             extra={"max_seconds": settings.enrich_max_seconds},
                         )
                         break
-                    item = next(queue_iter, None)
-                    if item is None:
+                    if pos >= len(queue):
                         stop_dispatch = True
                         break
+                    item = queue[pos]
                     cached = cache.find(item.input_hash, item.article_id)
                     if cached is not None:
-                        out = EnrichmentOutput.model_validate(cached.output)
-                        record(
-                            CallOutcome(
-                                item=item,
-                                estimate=Decimal(0),
-                                status="cached",
-                                output=out,
-                                model=provider.model,
-                            ),
-                            cached_from=cached,
-                        )
+                        pos += 1
+                        record_cached(item, cached)
                         continue
+                    if not batch and not room_for_a_request():
+                        break  # until a request in flight is answered, or for good (below)
                     estimate = estimate_call_cost(
                         provider.model,
                         len(item.article.title) + len(item.article.excerpt or ""),
@@ -856,18 +915,60 @@ def run_enrichment(
                             },
                         )
                         break
+                    pos += 1
                     batch.append((item, estimate))
-                if batch:
-                    stats.batches += len(batch) > 1
-                    room = max(
-                        settings.llm_max_output_tokens,
-                        BATCH_OUTPUT_TOKENS_PER_ARTICLE * len(batch),
-                    )
-                    pending.add(pool.submit(call_llm_batch, provider, batch, room))
+                if not batch:
+                    break
+                stats.batches += len(batch) > 1
+                room = max(
+                    settings.llm_max_output_tokens,
+                    BATCH_OUTPUT_TOKENS_PER_ARTICLE * len(batch),
+                )
+                pending.add(pool.submit(call_llm_batch, provider, batch, room))
             if not pending:
+                if not stop_dispatch and pos < len(queue):
+                    # This run's share of the daily quota is used: the rest is the next
+                    # model's, or the next run's. Identical articles still reuse a result.
+                    stop_dispatch = True
+                    for item in queue[pos:]:
+                        cached = cache.find(item.input_hash, item.article_id)
+                        if cached is not None:
+                            record_cached(item, cached)
+                        else:
+                            stats.quota_capped = True
+                    if stats.quota_capped:
+                        log.info(
+                            "this run's share of the model's daily quota is used",
+                            extra={"model": provider.model, "requests": stats.requests},
+                        )
                 break
             done, pending = wait(pending, return_when=FIRST_COMPLETED)
-            for outcome in (o for fut in done for o in fut.result()):
+            outcomes = [o for fut in done for o in fut.result()]
+            answered = sum(o.requests for o in outcomes)
+            stats.requests += answered
+            day_limit = next(
+                (
+                    o
+                    for o in outcomes
+                    if o.error_kind == "rate_limited" and o.limit_scope != "minute"
+                ),
+                None,
+            )
+            cleared = probing and answered > 0 and day_limit is None
+            if quota is not None and (answered or day_limit or cleared):
+                with session_factory() as s, s.begin():
+                    note(
+                        s,
+                        provider.model,
+                        datetime.now(UTC),
+                        requests=answered,
+                        limited=day_limit is not None,
+                        cleared=cleared,
+                    )
+            if cleared:
+                probing = False
+                log.info("the model answered again after a 429 for the day")
+            for outcome in outcomes:
                 warm_cache = False
                 stats.batch_fallbacks += outcome.batch_fallback
                 budget.settle(outcome.estimate, outcome.cost)
@@ -882,9 +983,10 @@ def run_enrichment(
                     # The provider already retried with backoff: the quota is used up for now,
                     # and every further call would fail the same way. The rest waits.
                     stats.rate_limited = stop_dispatch = True
+                    stats.rate_limit_scope = outcome.limit_scope
                     log.warning(
                         "LLM rate limit reached; the rest waits for the next run",
-                        extra={"error": outcome.error},
+                        extra={"error": outcome.error, "scope": outcome.limit_scope},
                     )
                 if (
                     consecutive_failures >= settings.enrich_circuit_breaker_threshold
@@ -914,19 +1016,26 @@ def enrich_stage(
     """The ENRICH stage: the configured model, then the fallback model, then the rules.
 
     The fallback model (LLM_FALLBACK_*) takes over when the first model stops early: its quota
-    is used up (429), it keeps failing (circuit breaker) or it is misconfigured. It gets the
-    time left of ENRICH_MAX_SECONDS. Then any article that no model analysed within
+    is used up (429), this run's share of its daily quota is used (quota.py), it keeps failing
+    (circuit breaker) or it is misconfigured. It gets the time left of ENRICH_MAX_SECONDS and
+    a share of its own daily quota. Then any article that no model analysed within
     ENRICH_RULES_AFTER_MINUTES gets the keyword-rule analysis. The returned stats are the first
     model's, with ``fallback`` and ``rules`` added when those ran, so alerts and the run status
     still describe the configured model.
     """
     started = time.monotonic()
     stats = run_enrichment(
-        session_factory, settings, provider, run_id=run_id, batch_size=settings.llm_batch_size
+        session_factory,
+        settings,
+        provider,
+        run_id=run_id,
+        batch_size=settings.llm_batch_size,
+        quota_config=QuotaConfig.for_model(settings),
     )
     result: dict[str, Any] = stats.as_dict()
     fallback = None if provider.name == "fake" else build_fallback_provider(settings)
-    if fallback is not None and (stats.rate_limited or stats.circuit_open or stats.fatal_error):
+    stopped_early = stats.rate_limited or stats.quota_capped or stats.circuit_open
+    if fallback is not None and (stopped_early or stats.fatal_error):
         remaining: float | None = None
         if settings.enrich_max_seconds:
             remaining = settings.enrich_max_seconds - (time.monotonic() - started)
@@ -942,6 +1051,7 @@ def enrich_stage(
                 run_id=run_id,
                 max_seconds=remaining or 0,
                 batch_size=settings.llm_fallback_batch_size,
+                quota_config=QuotaConfig.for_model(settings, fallback=True),
             ).as_dict()
     if settings.enrich_rules_after_minutes and provider.name != "fake":
         with session_factory() as session:

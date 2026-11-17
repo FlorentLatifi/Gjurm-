@@ -220,11 +220,19 @@ def test_rate_limit_waits_for_retry_after_then_succeeds() -> None:
 
 def test_retry_after_is_capped() -> None:
     sleeps: list[float] = []
-    endpoint = Recorder(
-        httpx.Response(429, headers={"retry-after": "86400"}), ok(json.dumps(OUTPUT))
-    )
+    endpoint = Recorder(httpx.Response(429, headers={"retry-after": "300"}), ok(json.dumps(OUTPUT)))
     make(endpoint, sleeps=sleeps).complete(SYSTEM_PROMPT, "u", OUTPUT_JSON_SCHEMA)
     assert sleeps == [60.0]
+
+
+def test_a_429_that_says_come_back_tomorrow_is_not_retried() -> None:
+    """A wait of hours is a daily quota: retrying would only use up the run's time."""
+    sleeps: list[float] = []
+    endpoint = Recorder(httpx.Response(429, headers={"retry-after": "86400"}))
+    with pytest.raises(LLMError) as err:
+        make(endpoint, sleeps=sleeps).complete(SYSTEM_PROMPT, "u", OUTPUT_JSON_SCHEMA)
+    assert (err.value.kind, err.value.limit_scope) == ("rate_limited", "day")
+    assert sleeps == [] and len(endpoint.requests) == 1
 
 
 def test_server_errors_back_off_then_give_up_as_retryable() -> None:
