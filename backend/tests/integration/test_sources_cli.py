@@ -228,6 +228,55 @@ def test_validator_reports_whether_the_feed_has_a_next_page(make_fetcher) -> Non
     assert report.declared is not None and report.declared.next_page == "none (page 1 again)"
 
 
+def test_validator_looks_for_more_of_a_short_feed_without_page_2(make_fetcher) -> None:  # type: ignore[no-untyped-def]
+    """Zëri's feed lists 10 items and has no page 2: the report says which longer variant or
+    other feed of the site would give the items it misses at the outlet's busiest hours."""
+    from tests.integration.helpers import pubdate, rss
+
+    def items(numbers: range) -> list[dict[str, str]]:
+        return [
+            {
+                "title": f"Lajmi {i} nga Prishtina",
+                "guid": f"z{i}",
+                "link": f"https://zz.example.com/{i}",
+                "pubDate": pubdate(i / 10),
+            }
+            for i in numbers
+        ]
+
+    cfg = SourceConfig(
+        slug="zz",
+        name="Zz",
+        homepage_url="https://zz.example.com/",
+        feed_url="https://zz.example.com/rss/",
+        discovery_urls=("https://zz.example.com/",),
+        language="sq",
+        country="XK",
+    )
+    homepage = (
+        b'<html><head><link rel="alternate" type="application/rss+xml" '
+        b'href="https://zz.example.com/rss/"></head><body>'
+        b'<a href="/rss/aktuale">Aktuale RSS</a><a href="/rss/sport">Sport RSS</a></body></html>'
+    )
+    routes = {
+        "https://zz.example.com/rss/": (200, rss(items(range(10))), {}),
+        "https://zz.example.com/rss/?limit=50": (200, rss(items(range(50))), {}),
+        "https://zz.example.com/": (200, homepage, {}),
+        "https://zz.example.com/rss/aktuale": (200, rss(items(range(5, 15))), {}),
+        "https://zz.example.com/rss/sport": (200, rss(items(range(3))), {}),  # nothing new
+    }
+    report = validate_source(make_fetcher(feed_server(routes)), cfg)
+    assert report.declared is not None and report.declared.next_page == "none (http_error 404)"
+    found = {d.url: d.not_in_declared for d in report.alternatives}
+    assert found == {
+        "https://zz.example.com/rss/?limit=50": 40,
+        "https://zz.example.com/rss/aktuale": 5,
+    }
+    md = to_markdown([report])
+    assert "## Other feeds of Zz (its feed lists 10 items and has no page 2)" in md
+    assert "- `https://zz.example.com/rss/?limit=50` — 50 items, 40 not in the declared feed" in md
+
+
 # ------------------------------------------------------------------------------------------
 # CLI (in-process, against the test database)
 # ------------------------------------------------------------------------------------------

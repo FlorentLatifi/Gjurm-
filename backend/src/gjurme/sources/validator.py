@@ -7,6 +7,9 @@ the source's discovery pages for ``<link rel="alternate">`` feeds and validates 
 when none of those works either, it tries the paths where publishing systems usually put a feed.
 For a working feed it also reports whether the feed has a next page (``?paged=2``): what
 ingestion reads when every item of a fetch is new, so that a busy outlet's items are not missed.
+A short feed without one (``SHORT_FEED_ITEMS`` items or fewer) gets its alternatives looked for:
+the size parameters content systems commonly read (``?limit=50``), and the other feeds the site
+links (section and category feeds), each with how many of its items the declared feed lacks.
 
 Run it from a network with open egress — the GitHub Actions workflow
 ``.github/workflows/sources.yml`` does this weekly and publishes the report as an artifact.
@@ -21,7 +24,7 @@ from typing import Any
 from urllib.parse import urljoin
 
 from gjurme.ingestion.feed_parser import discover_feeds, parse_feed
-from gjurme.ingestion.fetcher import FeedFetcher, next_page_url
+from gjurme.ingestion.fetcher import FeedFetcher, next_page_url, with_query
 from gjurme.ingestion.normalize import clean_text, item_key
 from gjurme.sources.registry import SourceConfig
 
@@ -29,6 +32,12 @@ FIELDS = ("title", "link", "id", "published_iso", "summary", "author", "tags", "
 MAX_CANDIDATES = 6
 # WordPress, Drupal, Joomla and most news CMSs serve their feed at one of these paths.
 WELL_KNOWN_FEED_PATHS = ("/feed/", "/rss", "/rss/", "/rss.xml", "/feed.xml", "/feed/rss")
+# A feed listing this few items without a next page loses items at a busy outlet's peak.
+SHORT_FEED_ITEMS = 10
+# How content systems commonly let a list be longer (Joomla, Drupal views, custom CMSs).
+SIZE_PARAMS = ("limit", "count", "items_per_page", "per_page")
+LONGER_FEED_SIZE = 50
+MAX_ALTERNATIVES = 12
 
 
 @dataclass(slots=True)
@@ -55,6 +64,7 @@ class FeedReport:
     albanian_chars_seen: bool = False
     sample_titles: list[str] = field(default_factory=list)
     next_page: str | None = None  # the declared feed's page 2: "10 more items", "none (...)"
+    not_in_declared: int | None = None  # an alternative: its items the declared feed lacks
 
 
 @dataclass(slots=True)
@@ -66,6 +76,8 @@ class SourceReport:
     declared: FeedReport | None
     discovered: list[FeedReport] = field(default_factory=list)
     recommendation: str = ""
+    # a short declared feed without a next page: longer variants and the site's other feeds
+    alternatives: list[FeedReport] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -144,6 +156,35 @@ def probe_next_page(fetcher: FeedFetcher, feed_url: str, page_one: set[str]) -> 
     return f"{more} more items" if more else "none (page 1 again)"
 
 
+def find_alternatives(
+    fetcher: FeedFetcher, cfg: SourceConfig, declared: set[str]
+) -> list[FeedReport]:
+    """Feeds that could give more of a short feed's items: the declared feed with a size
+    parameter, and the other feeds the source's discovery pages link. Only working feeds with
+    items the declared feed lacks are kept."""
+    assert cfg.feed_url is not None
+    found: list[FeedReport] = []
+
+    def keep(url: str) -> None:
+        keys: set[str] = set()
+        candidate = validate_feed(fetcher, url, keys)
+        if candidate.ok and keys - declared:
+            candidate.not_in_declared = len(keys - declared)
+            found.append(candidate)
+
+    for param in SIZE_PARAMS:
+        keep(with_query(cfg.feed_url, param, str(LONGER_FEED_SIZE)))
+    links: dict[str, None] = {}
+    for page in cfg.discovery_urls or (cfg.homepage_url,):
+        result = fetcher.fetch_page(page)
+        if result.status == "ok" and result.body:
+            for cand in discover_feeds(result.body, result.final_url or page):
+                links.setdefault(cand["url"], None)
+    for url in [u for u in links if u != cfg.feed_url][:MAX_ALTERNATIVES]:
+        keep(url)
+    return found
+
+
 def _iso(entry: dict[str, Any]) -> datetime | None:
     value = entry.get("published_iso")
     try:
@@ -162,6 +203,10 @@ def validate_source(fetcher: FeedFetcher, cfg: SourceConfig) -> SourceReport:
     if report.ok and report.declared and cfg.feed_url:
         report.declared.next_page = probe_next_page(fetcher, cfg.feed_url, page_one)
         report.recommendation = "declared feed OK — mark verified"
+        if report.declared.items <= SHORT_FEED_ITEMS and report.declared.next_page.startswith(
+            "none"
+        ):
+            report.alternatives = find_alternatives(fetcher, cfg, page_one)
         return report
     candidates: dict[str, dict[str, str]] = {}
     for page in cfg.discovery_urls or (cfg.homepage_url,):
@@ -221,6 +266,19 @@ def to_markdown(reports: list[SourceReport], generated_at: datetime | None = Non
             f"{photos} | "
             f"{'yes' if d and d.albanian_chars_seen else 'no'} | {r.recommendation} |"
         )
+    for r in reports:
+        if r.alternatives:
+            lines += [
+                "",
+                f"## Other feeds of {r.name} (its feed lists "
+                f"{r.declared.items if r.declared else 0} items and has no page 2)",
+                "",
+            ]
+            for d in r.alternatives:
+                lines.append(
+                    f"- `{d.url}` — {d.items} items, {d.not_in_declared} not in the declared "
+                    f"feed, newest {d.newest or '—'}"
+                )
     for r in reports:
         if r.discovered:
             lines += ["", f"## Discovered feeds for {r.name}", ""]
