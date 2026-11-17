@@ -265,10 +265,18 @@ def load_queue(
     *,
     upgrade_rules: bool = False,
 ) -> list[QueueItem]:
-    """Articles to analyse, newest first. With ``upgrade_rules`` (a model is asking and
-    ENRICH_RULES_UPGRADE_HOURS is set), the articles the keyword rules analysed in those hours
-    follow the ones that have no analysis yet."""
+    """Articles to analyse: first those without any analysis, then those that have one and
+    wait for a better one, each newest first. With ``upgrade_rules`` (a model is asking and
+    ENRICH_RULES_UPGRADE_HOURS is set) the latter include the articles the keyword rules
+    analysed in those hours; and those ``enrich-requeue`` put back (the workflow's
+    *reanalyse*) rank among them by date, not ahead of them: a free model's daily quota goes
+    to today's news before last month's, which readers no longer open."""
     is_upgrade = Article.enrichment_status == "succeeded"
+    analysed = (
+        select(Enrichment.id)
+        .where(Enrichment.article_id == Article.id, Enrichment.is_current.is_(True))
+        .exists()
+    )
     query = (
         select(
             Article.id,
@@ -302,9 +310,7 @@ def load_queue(
                 & Article.id.in_(by_rules)
             )
         query = query.where(or_(*due))
-    query = query.order_by(is_upgrade, Article.published_at.desc()).limit(
-        settings.enrich_max_per_run
-    )
+    query = query.order_by(analysed, Article.published_at.desc()).limit(settings.enrich_max_per_run)
     items = []
     for row in session.execute(query):
         art = ArticleInput(

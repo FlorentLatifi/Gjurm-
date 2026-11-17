@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     fetch_concurrency: int = Field(default=4, ge=1, le=16)
     respect_robots_txt: bool = True
     source_failure_disable_threshold: int = Field(default=20, ge=1)
+    # A source that fails this many fetches in a row makes the run "partial" (and the public
+    # status "degraded"); one or two failures in a row are an outlet's blip, not a problem.
+    source_failure_partial_threshold: int = Field(default=3, ge=1)
     max_item_age_days: int = Field(default=14, ge=1)
     excerpt_max_chars: int = Field(default=1200, ge=100)
 

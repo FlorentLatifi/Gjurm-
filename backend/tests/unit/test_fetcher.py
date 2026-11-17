@@ -5,7 +5,7 @@ import socket
 import httpx
 import pytest
 
-from gjurme.ingestion.fetcher import UnsafeHostError, assert_public_host
+from gjurme.ingestion.fetcher import UnsafeHostError, assert_public_host, next_page_url
 from tests.conftest import feed_server, fixture_bytes
 
 FEED = "https://portali.example.com/feed/"
@@ -164,3 +164,15 @@ def test_fetcher_uses_dns_guard(make_fetcher) -> None:
 
     result = make_fetcher(feed_server({}), host_validator=deny).fetch(FEED)
     assert result.status == "invalid_url"
+
+
+@pytest.mark.parametrize(
+    ("feed", "page", "expected"),
+    [
+        ("https://indeksonline.net/feed/", 2, "https://indeksonline.net/feed/?paged=2"),
+        ("https://x.example.com/rss?lang=sq", 3, "https://x.example.com/rss?lang=sq&paged=3"),
+        ("https://x.example.com/feed/?paged=2", 3, "https://x.example.com/feed/?paged=3"),
+    ],
+)
+def test_next_page_url(feed: str, page: int, expected: str) -> None:
+    assert next_page_url(feed, page) == expected

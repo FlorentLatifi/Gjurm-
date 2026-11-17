@@ -62,13 +62,13 @@ sources:
     discovery_urls: [https://www.gazetaexpress.com/]
     language: sq
     country: XK
-    enabled: true
+    enabled: false
     ownership: media_group
     owner: "Media Works (Media A.B.C. Holding B.V.)"
     bias: center
     factuality: mixed
     ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Sampled headlines (21–25 Oct 2026, n=16) are neutral and cover all parties. Former director Berat Buzhala was a PDK member of parliament (2010–13) and the largest shareholder 2018–21; ownership has since passed to a Dutch holding linked to the ABC group (Media Ownership Monitor). Factuality mixed: among the most complained-about outlets at the Kosovo Press Council in 2020–21 (18 complaints, Çohu) and found in breach of the right of reply in an NGO Aktiv case. Confidence: low (perspective), medium (factuality). Next review 2027-01. Evidence: docs/RATINGS.md."
-    notes: Verified 2026-09-24 — 10 items (short window; frequent polling needed).
+    notes: "Verified 2026-09-24 — 10 items (short window; frequent polling needed). Disabled 2026-11-17: HTTP 403 to automated requests for days, from the free pipeline's GitHub runners and in the Source validation runs alike; auto-disabled after 20 failures in a row. Not circumvented. The weekly validation shows when the feed answers again; then set enabled: true."
 
   - slug: kallxo
     name: Kallxo
@@ -366,7 +366,7 @@ sources:
   - slug: ekonomia-online
     name: Ekonomia Online
     homepage_url: https://ekonomiaonline.com/
-    feed_url: https://ekonomiaonline.com/feed/
+    feed_url: https://ekonomiaonline.com/sq/rss.xml
     discovery_urls: [https://ekonomiaonline.com/]
     language: sq
     country: XK
@@ -375,7 +375,7 @@ sources:
     bias: center
     factuality: unrated
     ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Business and economy portal; sampled political headlines (21–25 Oct 2026, n=12) are statement-based and cover both camps; the owner is not publicly documented. Factuality not rated: no record found. Confidence: low. Next review 2027-01. Evidence: docs/RATINGS.md."
-    notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo business and economy."
+    notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo business and economy. 2026-11-17: /feed/ answers 404 and the source was auto-disabled; the site now links its feed at /sq/rss.xml (50 items, found by the Source validation workflow)."
 
   - slug: shqiptarja
     name: Shqiptarja.com

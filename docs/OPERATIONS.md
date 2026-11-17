@@ -19,12 +19,18 @@ admin() { curl -fsS -H "Authorization: Bearer $TOKEN" "https://$DOMAIN/api/v1/ad
 | **Uptime monitor** (GitHub Actions, every 30 min, a few minutes after the free-hosting pipeline) | Failed workflow run → GitHub e-mail to the owner | Site or API down, DB unreachable, **pipeline stale** (`/api/v1/status` = `stale`: no successful run for 120 min), TLS certificate < 14 days. Works when the whole server is down, but GitHub disables scheduled workflows after 60 days without repository activity, so also set up the dead-man checks below. |
 | **Dead-man checks** (optional: `HEALTHCHECK_PING_URL`, `BACKUP_HEALTHCHECK_URL`) | The external service's e-mail/app | Every pipeline run and every backup pings (`/fail` on failure); the service alerts when pings stop: server down, scheduler stuck, backups not running ([DEPLOYMENT.md](DEPLOYMENT.md#8-verify)). |
 | **Alert webhook** (from the scheduler) | Slack / Discord / ntfy / generic JSON | Run failed, all sources down, source auto-disabled, LLM budget exhausted, LLM fatal error, circuit breaker open, data-quality failures, abnormal article volume. Deduplicated per key for 6 h; every alert (including suppressed ones) is in `ops.alert_events`. |
-| `GET /api/v1/status` (public) | Browser / curl / the dashboard's Status page | `ok` / `degraded` / `stale`, last run, scheduler heartbeat, backlog, per-source health |
+| `GET /api/v1/status` (public) | Browser / curl / the dashboard's Status page | `ok` / `degraded` / `stale`, last run, scheduler heartbeat, backlog, per-source health. `degraded`: the last run was not `succeeded`, a source failed `SOURCE_FAILURE_PARTIAL_THRESHOLD` (3) fetches in a row, or a source is auto-disabled |
 | `GET /health/ready` | Caddy, deploy.sh, monitor | DB reachable and migration revision |
 | Docker healthchecks | `dc ps` | `db` (pg_isready), `api` (/health), `scheduler` (heartbeat ≤ 5 min old). Compose marks an unhealthy container but **does not restart it**, which is why the external monitor exists. |
 | Logs | `dc logs -f --tail 200 scheduler api` | JSON lines with `run_id` (pipeline) and `request_id` (API) for correlation |
 | Metrics | `/metrics`, internal only (404 through Caddy) | `gjurme_http_requests_total`, `gjurme_http_request_duration_seconds`, `gjurme_http_rate_limited_total`, `gjurme_pipeline_last_run_status`, `gjurme_pipeline_last_success_timestamp_seconds`, `gjurme_enrichment_backlog`, `gjurme_llm_cost_today_usd`, `gjurme_llm_daily_budget_usd`, `gjurme_source_active`, `gjurme_source_consecutive_failures`, `gjurme_metrics_db_up`. No Prometheus server is part of V1; the endpoint is ready for one on the internal network. |
 | Slow queries | `dc logs db` | PostgreSQL logs every statement slower than 500 ms |
+
+### Run status
+
+A run ends `succeeded`, `partial` or `failed`. **`partial`** means a part of the work needs a look: a source failed `SOURCE_FAILURE_PARTIAL_THRESHOLD` (default 3) fetches in a row (`stats.ingest.sources_failing`), every source failed, most sources failed at once (an outage on this side), or a model stopped (fatal error or circuit breaker, also the fallback model's). A source that fails once or twice and is back on the next run, and an auto-disabled source probed again (every 6 h) that still fails, leave the run `succeeded`: they are in `stats.ingest.per_source`, and the second was alerted when it was disabled. **`failed`** is a stage that crashed.
+
+On the free path, the *Free hosting* run's page shows each quality warning as an annotation that says what and where (`source_freshness_6h: not collected: gazeta-express auto-disabled (http_error: HTTP 403; last success …)`); the job fails only for a `failed` run.
 
 ### Daily glance (2 minutes)
 
@@ -47,26 +53,28 @@ admin alerts | jq '.[0:5]'
 | `llm_fatal_error` | critical | Auth or permission error, or unknown model | Check `ANTHROPIC_API_KEY` (revoked? out of credit?) and `LLM_MODEL`. Nothing was consumed; fix `.env`, `dc up -d scheduler`. |
 | `llm_circuit_open` | critical | 5 consecutive LLM failures in a run | `admin failures` for the errors. Timeouts or 5xx usually mean an Anthropic incident (check status.anthropic.com); the next run retries automatically. |
 | `llm_fallback_fatal_error`, `llm_fallback_circuit_open` | critical | The second model (`LLM_FALLBACK_*`) has a bad key or unknown model, or failed 5 times in a row, after the first model's quota ran out. The run ends `partial`; the keyword rules take what no model analysed | Check `LLM_FALLBACK_API_KEY` and `LLM_FALLBACK_MODEL` (free tiers retire models); the run's log names the error. |
-| `dq:<check>` | warning | A data-quality check failed (or volume anomaly warned) | See the check table below. |
+| `dq:<check>` | warning | A data-quality check failed (or volume anomaly or database size warned). The message ends with the check's summary: what and where | See the check table below. |
 
 ## Data-quality checks
 
-Run after every pipeline run (and on demand: `gj quality`). Results are in `ops.data_quality_results` and at `admin quality`.
+Run after every pipeline run (and on demand: `gj quality`). Results are in `ops.data_quality_results` and at `admin quality`; a check that does not pass says in one line what and where (the run's log, its annotations, the alert).
+
+A check warns only about something to act on. Expected limits are recorded in its details, not raised: a free model's used-up daily quota (429), articles queued again on purpose for a better analysis (`reanalyse`), a feed that is all new because nothing fetched it for hours.
 
 | Check | Window | Warn / fail at | Likely cause when it fires |
 |---|---|---|---|
 | `raw_rejection_rate_24h` | 24 h | > 10% / > 30% | A feed changed format (missing links/dates) → `admin failures` |
 | `duplicate_rate_24h` | 24 h | > 95% (info) | A feed republishing old items |
 | `estimated_publication_dates_24h` | 24 h | > 20% | A feed dropped or broke its dates |
-| `enrichment_backlog_6h` | still due an analysis > 6 h after arriving (pending, or failed with attempts left) | > 200 / > 1000 | Budget too small, enrichment paused, or LLM failing |
-| `enrichment_failure_rate_24h` | 24 h | > 10% / > 30% (critical) | LLM incident, bad key, schema problem. A used-up quota (429) is not counted; `details.rate_limited` has their number |
+| `enrichment_backlog_6h` | articles with **no** analysis > 6 h after arriving (pending, or failed with attempts left) | > 200 / > 1000 | Enrichment paused or crashing, budget too small with no rules fallback, LLM failing. Articles that keep an analysis while queued for a better one (`enrich-requeue`, the workflow's *reanalyse*, a changed title) are not counted: `details.awaiting_better_analysis` |
+| `enrichment_failure_rate_24h` | model calls in 24 h, from 20 answered calls (below, recorded only) | > 10% / > 30% (critical) | LLM incident (5xx, timeouts), bad key, schema problem: `details.failed_by` names model and error kind. A used-up quota (429) is not counted (`details.rate_limited`), nor are the keyword rules' results |
 | `rule_based_share_24h` | analysed in 24 h, when a model is configured (≥ 20 articles) | > 50% / > 90% by the keyword rules | The models' free quotas do not cover the volume, or a model stopped (key, retired model). Above 90% it alerts. With `LLM_PROVIDER=fake` the share is only recorded |
 | `enrichment_consistency` | all | any (critical) | `succeeded` article without a current enrichment, or the reverse (a bug) |
 | `story_backlog_2h` | unclustered > 2 h after it could be clustered (analysed, or `STORY_ENRICHMENT_WAIT_MINUTES` passed) | > 50 / > 500 | CLUSTER stage failing or skipped (`gjurme cluster` runs it alone) |
 | `malformed_entities` | all | any | Empty or markup-like entity names (prompt or repair regression) |
 | `ungrounded_entity_rate_24h` | 24 h | > 15% | The model is inventing entities: review the prompt or model |
-| `source_freshness_6h` | sources | any stale or auto-disabled / all stale or none active (critical) | No successful fetch in 6 h; an auto-disabled source is retried every 6 h and re-enabled when it works |
-| `feed_overflow_24h` | 24 h | any (warning) | A fetch in which every item (≥ 5) was new: the feed published more between two polls than it lists, so items were probably missed. Poll that source more often or ask the outlet for a longer feed |
+| `source_freshness_6h` | sources | any stale or auto-disabled / all stale or none active (critical) | A source this collects nothing from: no successful fetch in 6 h, or auto-disabled after 20 failures in a row (retried every 6 h, re-enabled when it works). The summary names each with its last error and last success. It needs a decision: [Source failing](#a-source-is-failing); `enabled: false` in sources.yaml ends the warning |
+| `feed_overflow_24h` | 24 h | any (warning) | A fetch, one run after the previous one (≤ 1.5 × `SCHEDULER_INTERVAL_MINUTES`), in which every item (≥ 5) was new, also on the next pages ingestion then reads (`?paged=2`, `?paged=3`), or the feed has no next page: the outlet published more between two runs than its feed lists, so items were missed. The summary names the sources and how often; the *Source validation* report's *Page 2* column says whether a feed has a next page. Poll more often or ask the outlet for a longer feed. A feed all new after a gap (source failing or disabled, runs missed) is only counted, in `details.after_gap` |
 | `article_volume_anomaly` | 24 h vs 14-day baseline | \|z\| > 3, or 0 articles with a baseline ≥ 10 | Sources silently broken, or a real news surge |
 | `foreign_domain_links_24h` | 24 h | > 5% (info) | Feed links pointing off-site (syndication, tracking redirects) |
 | `low_confidence_rate_24h` | 24 h | > 30% (info) | Unusual content mix, or the model struggling |
@@ -89,9 +97,9 @@ gj run --stages ingest,process      # or directly, for specific stages (the advi
 
 ### A source is failing
 1. `curl -fsS https://$DOMAIN/api/v1/status | jq '.sources[] | select(.consecutive_failures > 0)'`
-2. Validate it the same way as when it was added: `gj sources validate --slug <slug>`. The report shows HTTP status, robots.txt verdict, format and fields, and any autodiscovered new feed URL.
-3. If the feed moved, update `feed_url` in `sources.yaml`, commit, deploy (the migrate step syncs sources), then `gj sources enable <slug>`.
-4. If the publisher now blocks automated access (403) or robots.txt disallows it, **leave it disabled**. Do not circumvent. Note it in `sources.yaml`.
+2. Validate it the same way as when it was added: `gj sources validate --slug <slug>` (without a server: the *Source validation* workflow, which runs every Monday and on every change to `sources/`). The report shows HTTP status, robots.txt verdict, format and fields, and any autodiscovered new feed URL.
+3. If the feed moved, update `feed_url` in `sources.yaml`, commit, deploy (the migrate step syncs sources). An auto-disabled source is enabled again by the new URL; one you disabled yourself needs `gj sources enable <slug>`.
+4. If the publisher now blocks automated access (403) or robots.txt disallows it, **leave it disabled**. Do not circumvent. Set `enabled: false` with a note in `sources.yaml`: that ends the 6-hourly probes and the `source_freshness_6h` warning.
 5. Manual control: `gj sources disable <slug> --reason "..."` / `gj sources enable <slug>` (or the admin endpoints).
 
 ### Stop all LLM spending now

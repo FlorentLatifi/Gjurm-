@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 import pytest
 from pydantic import SecretStr
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from gjurme.alerts.engine import Alert, AlertDispatcher, evaluate_run
@@ -15,16 +15,25 @@ from gjurme.db.models import (
     AlertEvent,
     Article,
     DataQualityResult,
+    Enrichment,
     FeedFetch,
     FeedItem,
     PipelineRun,
+    Source,
 )
 from gjurme.enrichment.providers import FakeProvider
+from gjurme.enrichment.service import requeue
 from gjurme.pipeline.locking import PIPELINE_LOCK_KEY, advisory_lock
 from gjurme.pipeline.retention import apply_retention
 from gjurme.pipeline.runner import run_pipeline
 from gjurme.pipeline.scheduler import HEARTBEAT_KEY, Scheduler
-from gjurme.quality.checks import check_enrichment_backlog, check_feed_overflow, run_checks
+from gjurme.quality.checks import (
+    check_enrichment_backlog,
+    check_enrichment_failure_rate,
+    check_feed_overflow,
+    check_source_freshness,
+    run_checks,
+)
 from gjurme.runtime_settings import RUN_REQUEST, get_setting, put_setting
 from tests.conftest import feed_server, fixture_bytes
 from tests.integration.helpers import add_source, pubdate, rss
@@ -223,6 +232,144 @@ def test_backlog_counts_only_articles_still_due_an_analysis(db, settings, make_f
     assert backlog.observed == len(ids) - 3
 
 
+def test_a_source_failing_once_is_no_partial_run_failing_again_is(
+    db, settings, make_fetcher
+) -> None:
+    """An outlet that times out once is back on the next run; SOURCE_FAILURE_PARTIAL_THRESHOLD
+    failures in a row are a source failing, and the run says so."""
+    with db() as s, s.begin():
+        for slug in ("aa", "bb", "cc"):
+            add_source(s, slug, f"https://{slug}.example.com/feed/")
+    routes = {
+        f"https://{slug}.example.com/feed/": (200, fixture_bytes("atom.xml"), {})
+        for slug in ("aa", "bb")
+    }
+    routes["https://cc.example.com/feed/"] = (503, b"busy", {})
+    fetcher = make_fetcher(feed_server(routes))
+    threshold = settings.source_failure_partial_threshold
+    statuses = []
+    for _ in range(threshold):
+        result = run_pipeline(
+            settings,
+            db,
+            trigger="test",
+            provider=FakeProvider(),
+            fetcher=fetcher,
+            stages=["ingest"],
+        )
+        statuses.append(result.status)
+    assert statuses == ["succeeded"] * (threshold - 1) + ["partial"]
+    assert result.stats["ingest"]["sources_failing"] == ["cc"]
+    assert result.stats["ingest"]["sources_failed"] == 1
+
+
+def test_an_auto_disabled_source_probed_again_is_no_partial_run(db, settings, make_fetcher) -> None:
+    """An auto-disabled source is fetched again every 6 hours; that it still fails was reported
+    when it was disabled, and the freshness check names it with its last error."""
+    with db() as s, s.begin():
+        add_source(s, "aa", "https://aa.example.com/feed/")
+        dead = add_source(s, "dd", "https://dd.example.com/feed/", active=False)
+        dead.disabled_reason = (
+            "auto-disabled after 20 consecutive failures (last: http_error: HTTP 404)"
+        )
+        dead.consecutive_failures = 20
+        dead.last_fetch_at = datetime.now(UTC) - timedelta(hours=7)
+    fetcher = make_fetcher(
+        feed_server({"https://aa.example.com/feed/": (200, fixture_bytes("atom.xml"), {})})
+    )
+    result = run_pipeline(
+        settings, db, trigger="test", provider=FakeProvider(), fetcher=fetcher, stages=["ingest"]
+    )
+    probe = {x["slug"]: x for x in result.stats["ingest"]["per_source"]}["dd"]
+    assert probe["reprobe"] and probe["status"] == "http_error"
+    assert result.status == "succeeded" and result.stats["ingest"]["sources_failing"] == []
+    with db() as s:
+        freshness = check_source_freshness(s)
+    assert freshness.status == "warn" and freshness.details["auto_disabled"] == ["dd"]
+    assert freshness.summary.startswith("not collected: dd auto-disabled (http_error: HTTP 404;")
+    # the operator's answer, enabled: false in sources.yaml, ends the warning and the probes
+    with db() as s, s.begin():
+        s.execute(
+            update(Source)
+            .where(Source.slug == "dd")
+            .values(disabled_reason="disabled in sources.yaml")
+        )
+        assert check_source_freshness(s).status == "pass"
+
+
+def test_backlog_leaves_out_articles_queued_again_for_a_better_analysis(
+    db, settings, make_fetcher
+) -> None:
+    """The workflow's "reanalyse" puts every rules-analysed article back in the queue for a
+    model; they keep their analysis meanwhile, and with a free quota wait for days by design."""
+    fetcher = _sources(db, make_fetcher)
+    run_pipeline(settings, db, trigger="test", provider=FakeProvider(), fetcher=fetcher)
+    with db() as s, s.begin():
+        requeued = requeue(s, provider=FakeProvider.name)
+        s.execute(update(Article).values(ingested_at=datetime.now(UTC) - timedelta(hours=7)))
+        backlog = check_enrichment_backlog(s)
+        assert requeued > 0
+        assert backlog.status == "pass" and backlog.observed == 0
+        assert backlog.details["awaiting_better_analysis"] == requeued
+        # an article that never got any analysis is backlog
+        s.execute(
+            update(Enrichment)
+            .where(Enrichment.article_id == s.scalar(select(func.min(Article.id))))
+            .values(is_current=False)
+        )
+        assert check_enrichment_backlog(s).observed == 1
+
+
+def test_failure_rate_counts_model_calls_not_quotas_or_rules(db, settings, make_fetcher) -> None:
+    fetcher = _sources(db, make_fetcher)
+    run_pipeline(
+        settings,
+        db,
+        trigger="test",
+        provider=FakeProvider(),
+        fetcher=fetcher,
+        stages=["ingest", "process"],
+    )
+    with db() as s, s.begin():
+        article_id = s.scalar(select(func.min(Article.id)))
+        assert article_id is not None
+        made = 0
+
+        def calls(n: int, provider: str, model: str, status: str, error: str | None = None) -> None:
+            nonlocal made
+            for _ in range(n):
+                made += 1
+                s.add(
+                    Enrichment(
+                        article_id=article_id,
+                        provider=provider,
+                        model=model,
+                        prompt_version="v1.0",
+                        schema_version="test",
+                        status=status,
+                        attempt=1,
+                        input_hash=f"h{made}",
+                        error=error,
+                        is_current=False,
+                    )
+                )
+            s.flush()
+
+        calls(60, "fake", "keyword-rules", "succeeded")  # the rules cannot fail
+        calls(15, "openai_compatible", "gemini", "failed", "rate_limited: HTTP 429: quota")
+        calls(3, "openai_compatible", "gemini", "failed", "server_error: HTTP 503: overloaded")
+        few = check_enrichment_failure_rate(s)
+        assert few.status == "pass" and "fewer than" in few.details["reason"]  # 3 calls: no rate
+        calls(16, "openai_compatible", "gemini", "succeeded")
+        calls(1, "openai_compatible", "gemini", "invalid", "missing field")
+        result = check_enrichment_failure_rate(s)
+    # 4 of 20 model calls; counted with the rules' 60 successes it read 5 %
+    assert result.status == "warn" and result.observed == 0.2
+    assert result.details["rate_limited"] == 15
+    assert result.details["failed_by"] == {"gemini: server_error": 3, "gemini: invalid": 1}
+    assert result.summary.startswith("4 of 20 model calls failed (gemini: server_error ×3")
+
+
 def test_feed_overflow_flags_fetches_where_every_item_was_new(db, settings, make_fetcher) -> None:
     fetcher = _sources(db, make_fetcher)
     run_pipeline(
@@ -245,6 +392,34 @@ def test_feed_overflow_flags_fetches_where_every_item_was_new(db, settings, make
         s.flush()
         result = check_feed_overflow(s)
     assert result.status == "warn" and result.details["sources"][0]["fetches"] == 1
+    assert result.summary.startswith("published more between two runs than the feed lists: ")
+
+
+def test_feed_overflow_after_a_gap_says_nothing_about_the_feed(db, settings, make_fetcher) -> None:
+    """Nov 2026: Dukagjini, re-enabled after hours auto-disabled, was all new (50 of 50). The gap
+    was the problem, and the freshness check reported it; the feed lists enough."""
+    fetcher = _sources(db, make_fetcher)
+    run_pipeline(
+        settings, db, trigger="test", provider=FakeProvider(), fetcher=fetcher, stages=["ingest"]
+    )
+    with db() as s, s.begin():
+        s.execute(update(FeedFetch).values(started_at=FeedFetch.started_at - timedelta(hours=5)))
+        first = s.scalar(select(FeedFetch).order_by(FeedFetch.id))
+        assert first is not None
+        s.add(
+            FeedFetch(
+                source_id=first.source_id,
+                started_at=datetime.now(UTC),
+                duration_ms=10,
+                status="ok",
+                items_seen=50,
+                items_new=50,
+            )
+        )
+        s.flush()
+        result = check_feed_overflow(s)
+    assert result.status == "pass" and result.summary == ""
+    assert [r["after_gap"] for r in result.details["after_gap"]] == [1]
 
 
 def test_retention_purges_only_old_data(db, settings, make_fetcher) -> None:

@@ -116,6 +116,17 @@ def test_sync_sources_semantics(session) -> None:  # type: ignore[no-untyped-def
     src.is_active, src.disabled_reason = False, "auto-disabled after 20 failures"
     sync_sources(session, reg(True, "https://a.example.com/rss"))
     assert not src.is_active  # operator/auto disables are not silently undone
+    # a new feed URL for an auto-disabled source: the failures were the old URL's
+    sync_sources(session, reg(True, "https://a.example.com/sq/rss.xml"))
+    assert src.is_active and src.disabled_reason is None
+    # YAML disable wins over an auto-disable too: no more probes, no longer reported as lost
+    src.is_active, src.disabled_reason = False, "auto-disabled after 20 failures"
+    sync_sources(session, reg(False, "https://a.example.com/sq/rss.xml"))
+    assert not src.is_active and src.disabled_reason == "disabled in sources.yaml"
+    # and the operator's own disable is still not undone by a URL change
+    src.disabled_reason = "publisher request"
+    sync_sources(session, reg(True, "https://a.example.com/feed/"))
+    assert not src.is_active and src.disabled_reason == "publisher request"
 
 
 def test_validator_reports_and_autodiscovers(make_fetcher) -> None:  # type: ignore[no-untyped-def]
@@ -192,6 +203,29 @@ def test_validator_ok_source(make_fetcher) -> None:  # type: ignore[no-untyped-d
     report = validate_source(fetcher, cfg)
     assert report.ok and report.declared is not None and report.declared.items == 2
     assert report.discovered == []
+    assert report.declared.next_page == "none (http_error 404)"
+
+
+def test_validator_reports_whether_the_feed_has_a_next_page(make_fetcher) -> None:  # type: ignore[no-untyped-def]
+    """What ingestion reads after an overflow: a WordPress feed's ?paged=2, or nothing."""
+    cfg = SourceConfig(
+        slug="wp",
+        name="WordPress",
+        homepage_url="https://wp.example.com/",
+        feed_url="https://wp.example.com/feed/",
+        language="sq",
+        country="XK",
+    )
+    routes = {
+        "https://wp.example.com/feed/": (200, fixture_bytes("wordpress_sq.xml"), {}),
+        "https://wp.example.com/feed/?paged=2": (200, fixture_bytes("atom.xml"), {}),
+    }
+    report = validate_source(make_fetcher(feed_server(routes)), cfg)
+    assert report.declared is not None and report.declared.next_page == "2 more items"
+    assert "| 3 | 2 more items |" in to_markdown([report])
+    routes["https://wp.example.com/feed/?paged=2"] = routes["https://wp.example.com/feed/"]
+    report = validate_source(make_fetcher(feed_server(routes)), cfg)
+    assert report.declared is not None and report.declared.next_page == "none (page 1 again)"
 
 
 # ------------------------------------------------------------------------------------------
@@ -256,7 +290,18 @@ def test_cli_scheduler_once_is_one_tick(
 
     def fake_run(_settings: object, _factory: object, trigger: str) -> SimpleNamespace:
         calls.append(trigger)
-        quality = {"warnings": ["database_size"], "failures": []}
+        quality = {
+            "warnings": ["database_size", "source_freshness_6h"],
+            "failures": [],
+            "results": [
+                {"name": "database_size", "status": "warn", "summary": ""},
+                {
+                    "name": "source_freshness_6h",
+                    "status": "warn",
+                    "summary": "not collected: aa auto-disabled (http_error: HTTP 403; 100% lost)",
+                },
+            ],
+        }
         return SimpleNamespace(status=status, stats={"quality": quality})
 
     monkeypatch.setattr("gjurme.pipeline.scheduler.run_pipeline", fake_run)
@@ -266,6 +311,12 @@ def test_cli_scheduler_once_is_one_tick(
     assert f"pipeline run: {status}" in result.output and calls == ["schedule"]
     # a warning shows on the workflow run's page; it does not fail the job
     assert "::warning title=Data quality::database_size" in result.output
+    # and says what and where, so the run's page is enough to act on it
+    assert (
+        "data quality warning: source_freshness_6h: not collected: aa auto-disabled"
+        in result.output
+    )
+    assert "HTTP 403; 100%25 lost) (docs/OPERATIONS.md)" in result.output
     with get_sessionmaker()() as s:
         assert get_setting(s, SCHEDULER_HEARTBEAT) is not None
         assert get_setting(s, "retention_last_run") is not None

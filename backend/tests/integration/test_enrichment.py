@@ -187,19 +187,30 @@ def test_a_used_up_quota_is_not_a_failure_rate(db, settings) -> None:
     """A free tier's quota runs out daily (429): the check is for a model that really fails."""
     from gjurme.quality.checks import check_enrichment_failure_rate
 
-    ids = _articles(db, 4)
+    ids = _articles(db, 24)
     run_enrichment(db, settings, ScriptedProvider([GOOD, GOOD]), article_ids=ids[:2])
     quota = LLMError("rate_limited", "HTTP 429: quota", retryable=True)
     run_enrichment(db, settings, ScriptedProvider([quota]), article_ids=ids[2:3])
-    with db() as s:
-        result = check_enrichment_failure_rate(s)
-    assert (result.status, result.observed) == ("pass", 0.0)
-    assert result.details == {"failed": 0, "attempts": 2, "rate_limited": 1}
     broken = LLMError("server_error", "HTTP 500", retryable=True)
-    run_enrichment(db, settings, ScriptedProvider([broken]), article_ids=ids[3:])
+    run_enrichment(db, settings, ScriptedProvider([broken]), article_ids=ids[3:4])
+    with db() as s:
+        few = check_enrichment_failure_rate(s)
+    # 1 of 3 answered calls (the 429 is not one): too few calls for a rate, only recorded
+    assert (few.status, few.threshold) == ("pass", None)
+    assert (few.details["failed"], few.details["attempts"], few.details["rate_limited"]) == (
+        1,
+        3,
+        1,
+    )
+    run_enrichment(db, settings, ScriptedProvider([GOOD]), article_ids=ids[4:21])
     with db() as s:
         result = check_enrichment_failure_rate(s)
-    assert result.status == "fail" and result.details["failed"] == 1
+    assert (result.status, result.observed) == ("pass", 0.05)  # 1 of 20
+    run_enrichment(db, settings, ScriptedProvider([broken]), article_ids=ids[21:])
+    with db() as s:
+        result = check_enrichment_failure_rate(s)
+    assert result.status == "warn" and result.details["failed"] == 4  # 4 of 23
+    assert result.details["failed_by"] == {"claude-sonnet-5: server_error": 4}
 
 
 def test_rule_based_share_warns_only_where_a_model_is_configured(
@@ -748,6 +759,30 @@ def test_new_articles_go_before_upgrades_and_old_rule_analyses_stay(
         assert [q.upgrade for q in queue] == [False, True, True]
         assert {q.article_id for q in queue if q.upgrade} == set(old[2:])
         assert not [q for q in load_queue(s, cfg, "fake") if q.upgrade]  # only a model upgrades
+
+
+def test_todays_rule_analyses_go_before_old_ones_put_back_for_a_model(
+    db, settings, monkeypatch
+) -> None:
+    """Nov 2026: "reanalyse" put every article the rules had analysed back in the queue, and
+    ranked before the day's provisional rule analyses they took a free model's whole quota for
+    weeks-old news (queued_upgrades = 0 in every run). Both wait for a better analysis; the
+    newer goes first. An article without any analysis still goes before both."""
+    ids = _articles(db, 4)  # published oldest first
+    cfg = _with_fallback(settings, monkeypatch, None).model_copy(
+        update={"enrich_rules_after_minutes": 60, "enrich_rules_upgrade_hours": 48}
+    )
+    enrich_stage(db, cfg, ScriptedProvider([QUOTA]))  # the rules analyse all four
+    with db() as s, s.begin():
+        assert requeue(s, article_ids=ids[:2]) == 2  # the two oldest, put back by "reanalyse"
+        s.execute(  # the newest has no analysis (e.g. it arrived after the rules ran)
+            update(Enrichment).where(Enrichment.article_id == ids[3]).values(is_current=False)
+        )
+        s.execute(update(Article).where(Article.id == ids[3]).values(enrichment_status="pending"))
+    with db() as s:
+        queue = load_queue(s, cfg, "gemini-test", upgrade_rules=True)
+    assert [q.article_id for q in queue] == [ids[3], ids[2], ids[1], ids[0]]
+    assert [q.upgrade for q in queue] == [False, True, False, False]
 
 
 def test_a_failed_upgrade_keeps_the_rules_analysis(db, settings, monkeypatch) -> None:
