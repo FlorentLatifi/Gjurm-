@@ -88,23 +88,26 @@ def stem(token: str) -> str:
     return token
 
 
-def tokens(text: str | None, *, max_words: int | None = None) -> list[str]:
-    """Folded, stopword-free, stemmed content tokens of ``text``."""
+def content_words(text: str | None, *, max_words: int | None = None) -> list[str]:
+    """Folded words of ``text`` that carry content, before stemming: no stopwords, outlet labels,
+    words under three letters or one-digit numbers. ``max_words`` cuts ``text`` first."""
     if not text:
         return []
     words = normalize_key(text).split()
     if max_words is not None:
         words = words[:max_words]
-    out: list[str] = []
-    for w in words:
-        if w.isdigit():
-            if len(w) >= 2:
-                out.append(w)
-            continue
-        if len(w) < 3 or w in STOPWORDS or w in NOISE_TOKENS:
-            continue
-        out.append(stem(w))
-    return out
+    return [
+        w
+        for w in words
+        if (len(w) >= 2 if w.isdigit() else len(w) >= 3)
+        and w not in STOPWORDS
+        and w not in NOISE_TOKENS
+    ]
+
+
+def tokens(text: str | None, *, max_words: int | None = None) -> list[str]:
+    """Folded, stopword-free, stemmed content tokens of ``text``."""
+    return [stem(w) for w in content_words(text, max_words=max_words)]
 
 
 BROAD_PLACES = frozenset(stem(w) for w in _BROAD_PLACE_WORDS)

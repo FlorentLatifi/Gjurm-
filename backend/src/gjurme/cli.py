@@ -368,6 +368,22 @@ def stories_review(
         markdown.write_text(report, "utf-8")
 
 
+@app.command("stories-sample")
+def stories_sample(
+    out: Annotated[Path, typer.Option(help="Write the sample (JSON) here")],
+    hours: Annotated[int, typer.Option(help="Look-back window")] = 72,
+) -> None:
+    """Export the latest articles as a story-evaluation sample to label (derived data only:
+    headlines, entities and the excerpt's content words, never its text; ADR-003)."""
+    _settings(validate=False)
+    from gjurme.stories.evaluation import dumps, export_sample
+
+    with _session_factory()() as s:
+        sample = export_sample(s, hours=hours)
+    out.write_text(dumps(sample), "utf-8")
+    typer.echo(f"{len(sample['articles'])} articles → {out}")
+
+
 @app.command("enrich-requeue")
 def enrich_requeue(
     older_than_version: Annotated[str | None, typer.Option(help="Prompt version cut-off")] = None,
