@@ -395,6 +395,69 @@ def test_feed_overflow_flags_fetches_where_every_item_was_new(db, settings, make
     assert result.summary.startswith("published more between two runs than the feed lists: ")
 
 
+def test_a_busy_short_feed_is_read_again_at_the_end_of_the_run(db, settings, make_fetcher) -> None:
+    """Zëri lists 10 items without a page 2, and was all new one run after the previous one:
+    it is read once more at the end of each run, so the next overflow has less time to happen.
+    Other sources are read once."""
+    with db() as s, s.begin():
+        busy = add_source(s, "busy", "https://busy.example.com/rss/")
+        add_source(s, "calm", "https://calm.example.com/feed/")
+        now = datetime.now(UTC)
+        for minutes_ago, new in ((40, 3), (25, 10)):  # 10 of 10 new, one run after the last
+            s.add(
+                FeedFetch(
+                    source_id=busy.id,
+                    started_at=now - timedelta(minutes=minutes_ago),
+                    duration_ms=10,
+                    status="ok",
+                    items_seen=10,
+                    items_new=new,
+                )
+            )
+    items = [
+        {
+            "title": f"Lajmi {i} nga Prishtina për zgjedhjet",
+            "guid": f"z{i}",
+            "link": f"https://busy.example.com/{i}",
+            "pubDate": pubdate(i / 10),
+        }
+        for i in range(10)
+    ]
+    routes = {
+        "https://busy.example.com/rss/": (200, rss(items), {}),
+        "https://calm.example.com/feed/": (200, fixture_bytes("atom.xml"), {}),
+    }
+    requested: list[str] = []
+    serve = feed_server(routes)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested.append(str(request.url))
+        return serve(request)
+
+    off = settings.model_copy(update={"ingest_second_read": False})
+    result = run_pipeline(
+        off, db, trigger="test", provider=FakeProvider(), fetcher=make_fetcher(handler)
+    )
+    assert "second_read" not in result.stats
+
+    on = settings.model_copy(update={"ingest_second_read_after_minutes": 0})
+    requested.clear()
+    result = run_pipeline(
+        on, db, trigger="test", provider=FakeProvider(), fetcher=make_fetcher(handler)
+    )
+    assert result.stats["second_read"]["sources"] == ["busy"]
+    assert result.stats["second_read"]["per_source"] == {"busy": "ok"}
+    assert requested.count("https://busy.example.com/rss/") == 2
+    assert requested.count("https://calm.example.com/feed/") == 1
+    with db() as s:
+        reads = s.scalars(
+            select(FeedFetch.status).where(
+                FeedFetch.run_id == result.run_id, FeedFetch.source_id == busy.id
+            )
+        ).all()
+    assert list(reads) == ["ok", "ok"]
+
+
 def test_feed_overflow_after_a_gap_says_nothing_about_the_feed(db, settings, make_fetcher) -> None:
     """Nov 2026: Dukagjini, re-enabled after hours auto-disabled, was all new (50 of 50). The gap
     was the problem, and the freshness check reported it; the feed lists enough."""

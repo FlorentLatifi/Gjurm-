@@ -4,6 +4,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Added
+- **Zëri is read twice a run.** Its feed lists 10 items and has no next page; on 17 Nov it was all new between two runs 4 times. The *Source validation* report, which now looks for more of a short feed without a page 2 (`?limit=50` and similar, and the other feeds the site links), found no longer variant and no other feed. So a source whose feed overflowed one run after another in the last 24 hours without catching up is now read a second time at the end of each run (`INGEST_SECOND_READ`, on by default; `INGEST_SECOND_READ_AFTER_MINUTES`, 3): the time in which its items can fall out of the feed unread is the rest of the interval, not all of it. No extra run and no extra database wake-up; its items reach the site with the next run.
+
 ### Fixed
 - **Every warning on a run now points at a real problem, and says what and where.** In November's live runs almost every run warned about `source_freshness_6h` and `feed_overflow_24h`, failed `enrichment_backlog_6h` (and alerted it every 6 hours), and many ended `partial`, while the 30-minute runs were regular. From the runs' logs (13–17 Nov) and the *Source validation* report:
   - `enrichment_backlog_6h` counted the articles the workflow's *reanalyse* (`enrich-requeue --provider fake`) put back for a model on purpose: thousands, each with the keyword rules' analysis, waiting for days by design under a free quota. It now counts only articles with **no** analysis 6 h after arriving; the others are in `details.awaiting_better_analysis`.
