@@ -10,7 +10,7 @@ Validation ran on GitHub's runners, because the build container's egress policy 
 |---|---|---|---|---|
 | Telegrafi | XK / sq | `https://telegrafi.com/feed/` | **enabled** | RSS 2.0, 30 items; title / link / date present on 100% |
 | KOHA | XK / sq | `https://www.koha.net/rss` | **enabled** | 20 items; fields 100% |
-| Gazeta Express | XK / sq | `https://www.gazetaexpress.com/feed/` | **enabled** | 10 items (short window, so it needs frequent polling). The XML is not well-formed; feedparser recovers it and the fetch is flagged `malformed` in `raw.feed_fetches`. |
+| Gazeta Express | XK / sq | `https://www.gazetaexpress.com/feed/` | **disabled** (2026-11-17) | 10 items (short window, so it needs frequent polling). The XML is not well-formed; feedparser recovers it and the fetch is flagged `malformed` in `raw.feed_fetches`. Since November 2026 HTTP 403 to automated requests, see *Occasional 403s* below. |
 | Kallxo (BIRN Kosovo) | XK / sq | `https://kallxo.com/feed/` | **enabled** | 11 items; investigative / justice |
 | Radio Evropa e Lirë (RFE/RL) | XK / sq | `https://www.evropaelire.org/api/` | **enabled** | The declared `/rssfeeds` page is not a feed; the validator's **autodiscovery** found the feed (20 items) |
 | Top Channel | AL / sq | `https://top-channel.tv/feed/` | **excluded** | HTTP 403 to automated requests. Not circumvented. |
@@ -49,9 +49,9 @@ Kosovo's and Albania's largest outlets that were missing, checked by [Source val
 | Klan Kosova | XK | — | excluded | `/feed/` answers with a page that is not a feed; nothing at the usual paths |
 | Monitor | AL | — | excluded | `robots.txt` disallows the feed path. Respected. |
 
-19 sources are enabled: 13 Kosovo-based, 5 Albanian, 1 North Macedonian. The live pipeline of run #36 stored 230 articles from them, and its largest story brought together 8 outlets. Top Channel, A2 CNN, TV Klan and Report TV still have no usable feed; if one of them publishes a feed, or allows GitHub's runners, the weekly validation shows it.
+18 sources are enabled: 12 Kosovo-based, 5 Albanian, 1 North Macedonian (Gazeta Express was disabled on 2026-11-17). The live pipeline of run #36 stored 230 articles from them, and its largest story brought together 8 outlets. Top Channel, A2 CNN, TV Klan and Report TV still have no usable feed; if one of them publishes a feed, or allows GitHub's runners, the weekly validation shows it.
 
-**Occasional 403s.** A source can answer 403 to one weekly check and 200 to the next: Gazeta Express did on 2026-09-28, Kallxo on 2026-10-05. That points to the publisher's protection reacting to GitHub's shared runner addresses rather than to a dead feed, so a single 403 does not disable a source. The server polls from its own address, and 20 consecutive failures there disable a source automatically.
+**Occasional 403s.** A source can answer 403 to one weekly check and 200 to the next: Gazeta Express did on 2026-09-28, Kallxo on 2026-10-05. That points to the publisher's protection reacting to GitHub's shared runner addresses rather than to a dead feed, so a single 403 does not disable a source. The server polls from its own address, and 20 consecutive failures there disable a source automatically. Without a server (ADR-027) the pipeline itself runs on GitHub's runners, so such a block is not occasional any more: in November 2026 Gazeta Express answered 403 for days, to the pipeline and to the validation alike, and was set to `enabled: false` (no probes every 6 hours, no `source_freshness_6h` warning). When the weekly validation shows its feed `ok` again, set `enabled: true`.
 
 ## Adding or changing a source
 

@@ -98,7 +98,7 @@ Untrusted input everywhere: feed content (XSS, prompt injection), feed URLs (SSR
 Enrichment is the bottleneck and the cost driver: the Message Batches API (half price) for non-urgent work, then more concurrency. For analytics, a daily rollup table of entity × day counts. Rate limiting and caching would move from process memory to the edge or Redis once there are several API replicas. PostgreSQL itself would be fine for a long time.
 
 **What's something you're not happy with yet?**
-Source coverage still leans to Kosovo: 13 of 19 outlets. Story grouping without embeddings misses some paraphrases and can merge "X meets Y" with "X meets Z" on the same day. The real outlets have no perspective ratings yet, because that is an editorial judgement to document, not to guess. And model quality hasn't been evaluated on real articles yet, because that needs the API key.
+Source coverage still leans to Kosovo: 12 of 18 outlets. Story grouping without embeddings misses some paraphrases and can merge "X meets Y" with "X meets Z" on the same day. The real outlets have no perspective ratings yet, because that is an editorial judgement to document, not to guess. And model quality hasn't been evaluated on real articles yet, because that needs the API key.
 
 **A bug your tests caught that would have hurt in production?**
 httpx treats a `304 Not Modified` as a redirect. The fetcher would have tried to follow it, failed, and after 20 runs auto-disabled every healthy source that supports conditional GET. That's exactly the feeds you most want to keep.
