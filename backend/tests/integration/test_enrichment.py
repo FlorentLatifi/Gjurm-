@@ -761,6 +761,30 @@ def test_new_articles_go_before_upgrades_and_old_rule_analyses_stay(
         assert not [q for q in load_queue(s, cfg, "fake") if q.upgrade]  # only a model upgrades
 
 
+def test_todays_rule_analyses_go_before_old_ones_put_back_for_a_model(
+    db, settings, monkeypatch
+) -> None:
+    """Nov 2026: "reanalyse" put every article the rules had analysed back in the queue, and
+    ranked before the day's provisional rule analyses they took a free model's whole quota for
+    weeks-old news (queued_upgrades = 0 in every run). Both wait for a better analysis; the
+    newer goes first. An article without any analysis still goes before both."""
+    ids = _articles(db, 4)  # published oldest first
+    cfg = _with_fallback(settings, monkeypatch, None).model_copy(
+        update={"enrich_rules_after_minutes": 60, "enrich_rules_upgrade_hours": 48}
+    )
+    enrich_stage(db, cfg, ScriptedProvider([QUOTA]))  # the rules analyse all four
+    with db() as s, s.begin():
+        assert requeue(s, article_ids=ids[:2]) == 2  # the two oldest, put back by "reanalyse"
+        s.execute(  # the newest has no analysis (e.g. it arrived after the rules ran)
+            update(Enrichment).where(Enrichment.article_id == ids[3]).values(is_current=False)
+        )
+        s.execute(update(Article).where(Article.id == ids[3]).values(enrichment_status="pending"))
+    with db() as s:
+        queue = load_queue(s, cfg, "gemini-test", upgrade_rules=True)
+    assert [q.article_id for q in queue] == [ids[3], ids[2], ids[1], ids[0]]
+    assert [q.upgrade for q in queue] == [False, True, False, False]
+
+
 def test_a_failed_upgrade_keeps_the_rules_analysis(db, settings, monkeypatch) -> None:
     ids = _articles(db, 1)
     cfg = _with_fallback(settings, monkeypatch, None).model_copy(
