@@ -74,6 +74,11 @@ class Settings(BaseSettings):
     # A source that fails this many fetches in a row makes the run "partial" (and the public
     # status "degraded"); one or two failures in a row are an outlet's blip, not a problem.
     source_failure_partial_threshold: int = Field(default=3, ge=1)
+    # A source whose feed overflowed in the last 24 hours although its next pages were read, or
+    # that has none (Zëri lists 10 items without a page 2), is read a second time at the end of
+    # each run, once INGEST_SECOND_READ_AFTER_MINUTES have passed since the run fetched it.
+    ingest_second_read: bool = True
+    ingest_second_read_after_minutes: float = Field(default=3.0, ge=0)
     max_item_age_days: int = Field(default=14, ge=1)
     excerpt_max_chars: int = Field(default=1200, ge=100)
 

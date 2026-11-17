@@ -215,11 +215,16 @@ def build_http_client(timeout_seconds: float) -> httpx.Client:
     return httpx.Client(timeout=timeout, follow_redirects=False, http2=False)
 
 
+def with_query(url: str, name: str, value: str) -> str:
+    """``url`` with the query parameter ``name`` set to ``value`` (others kept)."""
+    parts = urlsplit(url)
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != name]
+    query.append((name, value))
+    return urlunsplit(parts._replace(query=urlencode(query)))
+
+
 def next_page_url(feed_url: str, page: int) -> str:
     """Page ``page`` of a feed, WordPress style (``?paged=2``): the next 10 items of the 10
     that page 1 lists. A feed that does not page ignores the parameter and serves page 1
     again, which the caller recognises by its items."""
-    parts = urlsplit(feed_url)
-    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != "paged"]
-    query.append(("paged", str(page)))
-    return urlunsplit(parts._replace(query=urlencode(query)))
+    return with_query(feed_url, "paged", str(page))

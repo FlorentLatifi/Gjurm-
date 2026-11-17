@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from gjurme.config import get_settings
 from gjurme.db.models import DataQualityResult
-from gjurme.ingestion.ingest import OVERFLOW_MIN_ITEMS
+from gjurme.ingestion.ingest import feed_overflows
 
 
 @dataclass(slots=True)
@@ -407,34 +407,9 @@ def check_feed_overflow(s: Session) -> CheckResult:
     ``after_gap``.
 
     "One run earlier" is the source's previous successful fetch (or 304) at most 1.5 scheduler
-    intervals before."""
-    normal_gap = get_settings().scheduler_interval_minutes * 90  # seconds
-    rows = [
-        dict(r._mapping)
-        for r in s.execute(
-            text("""
-            SELECT src.slug,
-                   count(*) FILTER (WHERE prev.gap <= make_interval(secs => :normal_gap))
-                       AS fetches,
-                   count(*) FILTER (WHERE prev.gap > make_interval(secs => :normal_gap))
-                       AS after_gap,
-                   max(f.items_seen) AS items_listed
-            FROM raw.feed_fetches f
-            JOIN core.sources src ON src.id = f.source_id
-            CROSS JOIN LATERAL (
-                SELECT f.started_at - max(e.started_at) AS gap
-                FROM raw.feed_fetches e
-                WHERE e.source_id = f.source_id AND e.status IN ('ok', 'not_modified')
-                  AND e.started_at < f.started_at
-            ) prev
-            WHERE f.started_at >= now() - interval '24 hours' AND f.status = 'ok'
-              AND f.items_seen >= :min_items AND f.items_new = f.items_seen
-              AND prev.gap IS NOT NULL  -- not the source's first fetch
-            GROUP BY src.slug ORDER BY src.slug
-        """),
-            {"normal_gap": normal_gap, "min_items": OVERFLOW_MIN_ITEMS},
-        )
-    ]
+    intervals before. Such a source is also read a second time at the end of each run
+    (``INGEST_SECOND_READ``), which shortens the time in which the next overflow can happen."""
+    rows = feed_overflows(s, get_settings().scheduler_interval_minutes)
     overflowing = [r for r in rows if r["fetches"]]
     return CheckResult(
         "feed_overflow_24h",

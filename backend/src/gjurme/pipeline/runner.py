@@ -26,7 +26,7 @@ from gjurme.db.models import PipelineRun
 from gjurme.enrichment.providers import LLMProvider
 from gjurme.enrichment.service import build_provider, enrich_stage
 from gjurme.ingestion.fetcher import FeedFetcher, build_http_client
-from gjurme.ingestion.ingest import ingest_all
+from gjurme.ingestion.ingest import busy_short_feeds, ingest_all
 from gjurme.ingestion.processor import process_pending
 from gjurme.logging_setup import run_id_var
 from gjurme.pipeline.locking import PIPELINE_LOCK_KEY, advisory_lock
@@ -159,9 +159,16 @@ def _run_stages(
     fetcher: FeedFetcher | None,
     only_sources: list[str] | None,
 ) -> None:
+    ingest_started: float | None = None
     for stage in ALL_STAGES:
+        if stage == "quality" and ingest_started is not None and not stage_errors:
+            _second_read(
+                settings, session_factory, run_id, stats, fetcher, ingest_started, only_sources
+            )
         if stage not in stages:
             continue
+        if stage == "ingest":
+            ingest_started = time.monotonic()
         if stage_errors and stage in ("process", "enrich", "cluster"):
             # Upstream stage crashed (e.g. database unavailable): don't pile on.
             stats[stage] = {"skipped": "upstream stage failed"}
@@ -182,6 +189,55 @@ def _run_stages(
             stage_errors[stage] = f"{type(exc).__name__}: {exc}"[:500]
             stats[stage] = {"error": stage_errors[stage]}
         stats[stage]["duration_ms"] = int((time.monotonic() - t0) * 1000)
+
+
+def _second_read(
+    settings: Settings,
+    session_factory: sessionmaker[Session],
+    run_id: int,
+    stats: dict[str, Any],
+    fetcher: FeedFetcher | None,
+    ingest_started: float,
+    only_sources: list[str] | None,
+) -> None:
+    """Read once more, at the end of the run, the feeds that overflowed one run after
+    another in the last 24 hours and could not be caught up by their next pages (Zëri lists
+    10 items without a page 2). The time between two reads of such a feed becomes the rest of
+    the interval instead of all of it, so fewer items fall out of it unread. Its items wait in
+    the raw store for the next run's PROCESS stage. Never fails the run: a failed read counts
+    against the source as any other fetch."""
+    if not settings.ingest_second_read:
+        return
+    if time.monotonic() - ingest_started < settings.ingest_second_read_after_minutes * 60:
+        return
+    try:
+        with session_factory() as s:
+            slugs = busy_short_feeds(s, settings.scheduler_interval_minutes)
+        if only_sources is not None:
+            slugs = [slug for slug in slugs if slug in only_sources]
+        if not slugs:
+            return
+        own = fetcher is None
+        reader = fetcher or FeedFetcher(
+            client=build_http_client(settings.http_timeout_seconds),
+            user_agent=settings.http_user_agent,
+            max_bytes=settings.http_max_bytes,
+            respect_robots=settings.respect_robots_txt,
+        )
+        try:
+            result = ingest_all(session_factory, reader, settings, run_id=run_id, only_slugs=slugs)
+        finally:
+            if own:
+                reader.client.close()
+        stats["second_read"] = {
+            "sources": slugs,
+            "items_new": result.items_new,
+            "per_source": {x.slug: x.status for x in result.sources},
+        }
+        log.info("second read of busy short feeds", extra=stats["second_read"])
+    except Exception as exc:  # the run's own work is done; this is a bonus
+        log.exception("second read failed")
+        stats["second_read"] = {"error": f"{type(exc).__name__}: {exc}"[:300]}
 
 
 def _run_stage(

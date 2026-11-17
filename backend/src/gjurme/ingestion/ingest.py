@@ -50,6 +50,48 @@ OVERFLOW_MIN_ITEMS = 5
 # Next pages read after an overflow: pages 2 and 3, up to 30 items of a feed that lists 10.
 NEXT_PAGES_MAX = 2
 
+_OVERFLOWS = text(
+    """
+    SELECT src.slug,
+           count(*) FILTER (WHERE prev.gap <= make_interval(secs => :normal_gap)) AS fetches,
+           count(*) FILTER (WHERE prev.gap > make_interval(secs => :normal_gap)) AS after_gap,
+           max(f.items_seen) AS items_listed
+    FROM raw.feed_fetches f
+    JOIN core.sources src ON src.id = f.source_id
+    CROSS JOIN LATERAL (
+        SELECT f.started_at - max(e.started_at) AS gap
+        FROM raw.feed_fetches e
+        WHERE e.source_id = f.source_id AND e.status IN ('ok', 'not_modified')
+          AND e.started_at < f.started_at
+    ) prev
+    WHERE f.started_at >= now() - interval '24 hours' AND f.status = 'ok'
+      AND f.items_seen >= :min_items AND f.items_new = f.items_seen
+      AND prev.gap IS NOT NULL  -- not the source's first fetch
+    GROUP BY src.slug ORDER BY src.slug
+    """
+)
+
+
+def feed_overflows(session: Session, scheduler_interval_minutes: int) -> list[dict[str, Any]]:
+    """Per source, the fetches of the last 24 hours in which every item was new (at least
+    ``OVERFLOW_MIN_ITEMS``), counting the next pages read after it: ``fetches`` one run after the
+    source's previous successful fetch (at most 1.5 scheduler intervals before), ``after_gap``
+    the others. A feed whose next page caught up does not show here."""
+    return [
+        dict(r._mapping)
+        for r in session.execute(
+            _OVERFLOWS,
+            {"normal_gap": scheduler_interval_minutes * 90, "min_items": OVERFLOW_MIN_ITEMS},
+        )
+    ]
+
+
+def busy_short_feeds(session: Session, scheduler_interval_minutes: int) -> list[str]:
+    """Sources whose feed overflowed one run after another in the last 24 hours, its next
+    pages read or none there (Zëri lists 10 items without a page 2): those a second read at
+    the end of a run (``INGEST_SECOND_READ``) helps."""
+    return [r["slug"] for r in feed_overflows(session, scheduler_interval_minutes) if r["fetches"]]
+
 
 @dataclass(slots=True)
 class SourceIngestStats:
