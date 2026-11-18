@@ -24,7 +24,8 @@ from gjurme.alerts.engine import AlertDispatcher, evaluate_run
 from gjurme.config import Settings
 from gjurme.db.models import PipelineRun
 from gjurme.enrichment.providers import LLMProvider
-from gjurme.enrichment.service import build_provider, enrich_stage
+from gjurme.enrichment.quota import QuotaConfig
+from gjurme.enrichment.service import build_fallback_provider, build_provider, enrich_stage
 from gjurme.ingestion.fetcher import FeedFetcher, build_http_client
 from gjurme.ingestion.ingest import busy_short_feeds, ingest_all
 from gjurme.ingestion.processor import process_pending
@@ -32,10 +33,14 @@ from gjurme.logging_setup import run_id_var
 from gjurme.pipeline.locking import PIPELINE_LOCK_KEY, advisory_lock
 from gjurme.quality.checks import describe, run_checks, summarize
 from gjurme.stories.clustering import cluster_pending
+from gjurme.stories.summaries import summarize_stage
 
 log = logging.getLogger(__name__)
 
-ALL_STAGES: tuple[str, ...] = ("ingest", "process", "enrich", "cluster", "quality")
+# SUMMARIZE comes before ENRICH: a free model's daily quota goes first to the stories readers
+# open (one request each), then to the articles. It summarises the stories the previous run's
+# CLUSTER formed, so a new story gets its summary one run later.
+ALL_STAGES: tuple[str, ...] = ("ingest", "process", "summarize", "enrich", "cluster", "quality")
 
 
 @dataclass(slots=True)
@@ -169,7 +174,7 @@ def _run_stages(
             continue
         if stage == "ingest":
             ingest_started = time.monotonic()
-        if stage_errors and stage in ("process", "enrich", "cluster"):
+        if stage_errors and stage in ("process", "summarize", "enrich", "cluster"):
             # Upstream stage crashed (e.g. database unavailable): don't pile on.
             stats[stage] = {"skipped": "upstream stage failed"}
             continue
@@ -269,6 +274,13 @@ def _run_stage(
     if stage == "process":
         with session_factory() as s:
             return process_pending(s, settings).as_dict()
+    if stage == "summarize":
+        llm = provider or build_provider(settings)
+        chain: list[tuple[LLMProvider, QuotaConfig]] = [(llm, QuotaConfig.for_model(settings))]
+        second = None if llm.name == "fake" else build_fallback_provider(settings)
+        if second is not None:
+            chain.append((second, QuotaConfig.for_model(settings, fallback=True)))
+        return summarize_stage(session_factory, settings, chain)
     if stage == "enrich":
         llm = provider or build_provider(settings)
         return enrich_stage(session_factory, settings, llm, run_id=run_id)

@@ -1606,6 +1606,16 @@ export interface components {
              */
             summary_sq: string | null;
             /**
+             * Summary Scope
+             * @description Whose summary this is: the story's own, written by a model from all its outlets' headlines and opening lines (`story`), or its lead article's (`article`); null when there is none (the keyword rules write none)
+             */
+            summary_scope: ("story" | "article") | null;
+            /**
+             * Summary Outlets
+             * @description With `summary_scope` `story`: how many outlets it was written from
+             */
+            summary_outlets: number | null;
+            /**
              * Image Url
              * @description The photo an outlet put in its own feed entry for this story, at the outlet's address (never copied); none when no outlet gave one or it opted out
              */
@@ -1696,6 +1706,16 @@ export interface components {
              * @description The summary in Albanian (prompt v1.2+)
              */
             summary_sq: string | null;
+            /**
+             * Summary Scope
+             * @description Whose summary this is: the story's own, written by a model from all its outlets' headlines and opening lines (`story`), or its lead article's (`article`); null when there is none (the keyword rules write none)
+             */
+            summary_scope: ("story" | "article") | null;
+            /**
+             * Summary Outlets
+             * @description With `summary_scope` `story`: how many outlets it was written from
+             */
+            summary_outlets: number | null;
             /**
              * Image Url
              * @description The photo an outlet put in its own feed entry for this story, at the outlet's address (never copied); none when no outlet gave one or it opted out

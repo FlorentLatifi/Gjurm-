@@ -402,6 +402,15 @@ class StorySummary(Model):
     language: str
     summary_en: str | None
     summary_sq: str | None = Field(None, description="The summary in Albanian (prompt v1.2+)")
+    summary_scope: Literal["story", "article"] | None = Field(
+        None,
+        description="Whose summary this is: the story's own, written by a model from all its "
+        "outlets' headlines and opening lines (`story`), or its lead article's (`article`); "
+        "null when there is none (the keyword rules write none)",
+    )
+    summary_outlets: int | None = Field(
+        None, description="With `summary_scope` `story`: how many outlets it was written from"
+    )
     image_url: str | None = Field(
         None,
         description="The photo an outlet put in its own feed entry for this story, at the "

@@ -126,10 +126,14 @@ _PAGE_SQL = """
 """
 
 _HEADS_SQL = """
-    SELECT st.id, st.representative_article_id, t.slug AS topic_slug, t.name_en AS topic_name
+    SELECT st.id, st.representative_article_id, t.slug AS topic_slug, t.name_en AS topic_name,
+           st.summary_sq AS story_summary_sq, st.summary_en AS story_summary_en,
+           st.summary_outlets
     FROM core.stories st LEFT JOIN core.topics t ON t.id = st.primary_topic_id
     WHERE st.id = ANY(:ids)
 """
+# The keyword rules store a placeholder, not a summary (enrichment/providers.py).
+_NO_SUMMARY = "[headline"
 
 _MEMBERS_SQL = """
     SELECT a.story_id, a.id, a.title, a.url, a.published_at, a.published_at_estimated,
@@ -224,13 +228,28 @@ def _summary(
         ownership[m["source_ownership"]] += 1
         region[m["source_country"]] += 1
     tone = Counter(m["sentiment_label"] for m in members if m["sentiment_label"])
+    # The story's own summary (SUMMARIZE stage) when it has one, else its lead article's.
+    if head["story_summary_sq"]:
+        summary = {
+            "summary_en": head["story_summary_en"],
+            "summary_sq": head["story_summary_sq"],
+            "summary_scope": "story",
+            "summary_outlets": head["summary_outlets"],
+        }
+    else:
+        real = (rep["summary_sq"] or rep["summary_en"] or "").strip()
+        summary = {
+            "summary_en": rep["summary_en"],
+            "summary_sq": rep["summary_sq"],
+            "summary_scope": "article" if real and not real.startswith(_NO_SUMMARY) else None,
+            "summary_outlets": None,
+        }
     return {
         "id": head["id"],
         "title": rep["title"],
         "url": rep["url"],
         "language": rep["language"],
-        "summary_en": rep["summary_en"],
-        "summary_sq": rep["summary_sq"],
+        **summary,
         # the lead article's photo, else the first one an outlet gave (ADR-030)
         "image_url": rep["image_url"]
         or next((m["image_url"] for m in members if m["image_url"]), None),
