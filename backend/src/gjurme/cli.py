@@ -438,6 +438,22 @@ def retention(dry_run: Annotated[bool, typer.Option()] = True) -> None:
         _echo_json(apply_retention(s, settings, dry_run=dry_run))
 
 
+@app.command("entities-cleanup")
+def entities_cleanup(
+    apply: Annotated[bool, typer.Option(help="Make the changes (default: report only)")] = False,
+    show: Annotated[int, typer.Option(help="Merges to list in the report")] = 40,
+) -> None:
+    """Remove outlets' own names from their articles' entities and merge the case forms of one
+    person or place (Kosova / Kosovës / Kosovën). Read the report first: --apply cannot be undone
+    except from a backup."""
+    _settings()
+    from gjurme.enrichment.entities import cleanup_entities
+
+    factory = _session_factory()
+    with _pipeline_lock(factory), factory() as s, s.begin():
+        _echo_json(cleanup_entities(s, apply=apply, show=show))
+
+
 @app.command()
 def scheduler(
     once: Annotated[

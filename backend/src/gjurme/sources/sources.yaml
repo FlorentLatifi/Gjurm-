@@ -162,6 +162,7 @@ sources:
 
   - slug: reporteri
     name: Reporteri.net
+    aliases: ["Gazeta Online Reporteri"] # in every excerpt of its feed
     homepage_url: https://reporteri.net/
     feed_url: https://reporteri.net/feed/
     discovery_urls: [https://reporteri.net/]
