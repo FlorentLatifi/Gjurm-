@@ -169,6 +169,7 @@ flowchart TD
 | L1 | MVP | Feed entry key `(source, sha256(guid or canonical link))`. A refetched entry updates `last_seen_at` only. |
 | L2 | MVP | Canonical URL (lower-cased host, no fragment, tracking params removed, sorted query, no trailing slash) → `url_hash` unique. |
 | L3 | MVP | Same source + normalized-title hash within ±48 h → treated as the same article (slug edits, republishing). |
+| L3b | Added | Same source, headline edited by a typo, an ending or one word within ±3 h → hidden revision linked by `duplicate_of_id`; the article shown takes the newest wording (ADR-034). |
 | L4 | Advanced | Cross-source near-duplicates: trigram similarity of normalized titles ≥ 0.8 **and** only noise words differ, within 48 h → `duplicate_of_id` link (threshold calibrated on real headlines, ADR-008). Both rows are kept, because each outlet's coverage counts, and a "unique stories" metric is exposed. |
 | L5 | Advanced | Enrichment cache: identical `(prompt_version, model, input_hash)` reuses the prior result at zero cost. |
 
