@@ -8,10 +8,12 @@ from gjurme.enrichment.entities import (
     _merge_plan,
     _Stored,
     drop_self_references,
+    retype_persons,
     same_entity,
     self_names,
     variant_keys,
 )
+from gjurme.enrichment.providers import rule_entity
 from gjurme.enrichment.schema import EntityOut
 from gjurme.ingestion.normalize import normalize_key
 
@@ -106,3 +108,73 @@ def test_merge_keeps_the_most_linked_entity_under_its_nominative_name() -> None:
     people[1].mentions = 900
     [plan] = _merge_plan([people])
     assert plan["keep_id"] == 20049 and plan["name"] == "Hashim Thaçi"
+
+
+@pytest.mark.parametrize(
+    ("run", "expected"),
+    [
+        ("Presidentja e Kosovës", ("Kosovës", "location")),  # the role goes, then the "e"
+        ("Vitomiricë të Pejës", ("Vitomiricë të Pejës", "location")),  # a village of Peja
+        ("Kuvendit të Kosovës", ("Kuvendit të Kosovës", "organization")),
+        ("Komunën e Prishtinës", ("Komunën e Prishtinës", "organization")),
+        ("Policisë së Kosovës", ("Policisë së Kosovës", "organization")),
+        ("Gjykata Themelore në Prishtinë", ("Gjykata Themelore në Prishtinë", "organization")),
+        ("Trajneri Blerta Zeqiri", ("Blerta Zeqiri", "person")),
+        ("Albin Kurti", ("Albin Kurti", "person")),
+        ("NATO", ("NATO", "organization")),
+        ("Dënimi i Thaçit", ("Dënimi i Thaçit", "organization")),  # no person
+        ("Shtetet e Bashkuara", ("Shtetet e Bashkuara", "location")),
+        ("Malit të Zi", ("Malit të Zi", "location")),
+        ("Dogana e Kosovës", ("Dogana e Kosovës", "organization")),
+        ("Lidhjes Demokratike të Kosovës", ("Lidhjes Demokratike të Kosovës", "organization")),
+        ("Radio Evropa e Lirë", ("Radio Evropa e Lirë", "organization")),
+        ("Kryetarja e Kuvendit të Kosovës", ("Kuvendit të Kosovës", "organization")),
+        ("i LDK-së", ("LDK", "organization")),
+        ("i SHBA-së", ("SHBA", "location")),
+        ("i Izraelit", ("Izraelit", "location")),
+        ("Franco Foda", ("Franco Foda", "person")),
+        ("Ish-presidentja e Kosovës", ("Kosovës", "location")),
+        ("Superligën e Kosovës", ("Superligën e Kosovës", "organization")),  # no village
+        ("Gjonaj të Prizrenit", ("Gjonaj të Prizrenit", "location")),  # a village
+        ("i Listës Studentore", ("Listës Studentore", "organization")),
+        ("e Republikës", None),  # a fragment: "Presidenti i Republikës"
+        ("Sipas", None),
+    ],
+)
+def test_keyword_rules_read_names(run: str, expected: tuple[str, str] | None) -> None:
+    assert rule_entity(run) == expected
+
+
+def test_a_person_with_a_connector_is_read_again() -> None:
+    """Live data, 2026-11-18: "i Kosovës" (349 articles), "Kuvendit të Kosovës" (201) and
+    "Vitomiricë të Pejës" (460) were persons."""
+    entities = [
+        EntityOut(name="i Kosovës", type="person"),
+        EntityOut(name="Kuvendit të Kosovës", type="person"),
+        EntityOut(name="Vitomiricë të Pejës", type="person"),
+        EntityOut(name="Dënimi i Thaçit", type="person"),
+        EntityOut(name="Albin Kurti", type="person"),
+        EntityOut(name="Lidhja Demokratike e Kosovës", type="organization"),
+        EntityOut(name="e Kosovës", type="organization"),
+    ]
+    kept, changed = retype_persons(entities)
+    assert [(e.name, e.type) for e in kept] == [
+        ("Kosovës", "location"),
+        ("Kuvendit të Kosovës", "organization"),
+        ("Vitomiricë të Pejës", "location"),
+        ("Dënimi i Thaçit", "organization"),  # an event, but no person
+        ("Albin Kurti", "person"),
+        ("Lidhja Demokratike e Kosovës", "organization"),  # an organisation may have an "e"
+    ]
+    assert changed == [
+        "i Kosovës",
+        "Kuvendit të Kosovës",
+        "Vitomiricë të Pejës",
+        "Dënimi i Thaçit",
+        "e Kosovës",  # "Kosovës" is kept once
+    ]
+
+
+def test_more_outlet_aliases() -> None:
+    assert "gazeta sinjali" in self_names("Sinjali")
+    assert "gazeta online reporteri net" in self_names("Reporteri.net")

@@ -141,3 +141,57 @@ def test_cli_reports_by_default(monkeypatch: pytest.MonkeyPatch, db, stored) -> 
     finally:
         for cached in (get_settings, get_engine, get_sessionmaker):
             cached.cache_clear()
+
+
+def test_not_persons_are_read_again_then_forms_merged(db: sessionmaker[Session]) -> None:
+    """The keyword rules stored "i Kosovës", "Vitomiricë të Pejës" and "Kuvendit të Kosovës" as
+    persons (live data, 2026-11-18): each becomes what it is, and its links follow it."""
+    with db() as s, s.begin():
+        koha = _source(s, "koha", "KOHA")
+        k1, k2, k3 = (_article(s, koha, n) for n in (1, 2, 3))
+        kosova = _entity(s, "Kosova", "location", [k1, k2])
+        _entity(s, "i Kosovës", "person", [k1, k3])
+        _entity(s, "Vitomiricë të Pejës", "person", [k2])
+        _entity(s, "Kuvendit të Kosovës", "person", [k3])
+        _entity(s, "Dënimi i Thaçit", "person", [k3])
+        albin = _entity(s, "Albin Kurti", "person", [k1])
+    with db() as s, s.begin():
+        report = cleanup_entities(s, apply=False)
+    assert report["not_persons"] == 4 and report["not_persons_links"] == 5
+    becomes = {j["name"]: j["becomes"] for j in report["not_persons_largest"]}
+    assert becomes["i Kosovës"] == {"name": "Kosovës", "type": "location"}
+    assert becomes["Dënimi i Thaçit"] == {"name": "Dënimi i Thaçit", "type": "organization"}
+    with db() as s, s.begin():
+        cleanup_entities(s, apply=True)
+    with db() as s:
+        found = {(e.name, e.type) for e in s.scalars(select(Entity))}
+        assert found == {
+            ("Kosova", "location"),  # "i Kosovës" → "Kosovës", then merged into Kosova
+            ("Vitomiricë të Pejës", "location"),
+            ("Kuvendit të Kosovës", "organization"),
+            ("Dënimi i Thaçit", "organization"),
+            ("Albin Kurti", "person"),
+        }
+        assert _links(s, kosova) == 3 and _links(s, albin) == 1
+    with db() as s, s.begin():
+        again = cleanup_entities(s, apply=True)
+    assert again["not_persons"] == 0 and again["merge_groups"] == 0
+
+
+def test_cli_apply_commits(monkeypatch: pytest.MonkeyPatch, db, stored) -> None:
+    monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
+    monkeypatch.setenv("GJURME_ENV", "test")
+    monkeypatch.setenv("LLM_PROVIDER", "fake")
+    monkeypatch.setenv("LOG_FORMAT", "text")
+    for cached in (get_settings, get_engine, get_sessionmaker):
+        cached.cache_clear()
+    try:
+        result = CliRunner().invoke(app, ["entities-cleanup", "--apply", "--show", "5"])
+        assert result.exit_code == 0, result.output
+        with db() as s:  # a new session: the change was committed
+            assert s.get(Entity, stored["kosova"]) is None
+            place = s.get(Entity, stored["kosoves"])
+            assert place is not None and place.name == "Kosova"
+    finally:
+        for cached in (get_settings, get_engine, get_sessionmaker):
+            cached.cache_clear()

@@ -806,7 +806,7 @@ _COUNTRY_HINTS = {
     "prishtin": "XK",
     "beograd": "RS",
 }
-_LOCATION_HINTS = (
+_CITY_HINTS = (
     "prishtin",
     "tiran",
     "prizren",
@@ -832,10 +832,30 @@ _LOCATION_HINTS = (
     "kumanov",
     "gostivar",
     "strug",
+)
+_LOCATION_HINTS = (
+    *_CITY_HINTS,
     "kosov",
     "shqipëri",
     "serbi",
     "maqedoni",
+    # countries in the news; prefixes that start no common first name ("Franc…" would catch
+    # "Franco Foda", so France is left out)
+    "shba",
+    "gjermani",
+    "zvicër",
+    "ukrain",
+    "izrael",
+    "iran",
+    "irak",
+    "itali",
+    "spanj",
+    "greqi",
+    "turqi",
+    "austri",
+    "kroaci",
+    "evrop",
+    "bruksel",
 )
 _ROLE_PREFIXES = frozenset(
     {
@@ -859,9 +879,69 @@ _ROLE_PREFIXES = frozenset(
         "presidenti",
         "kryetari",
         "zedhenesja",
+        "kryetarja",
+        "kryeministrja",
+        "zevendeskryeministri",
+        "zevendeskryeministrja",
+        "zevendesministri",
+        "zevendesministrja",
+        "ambasadorja",
+        # occupations that precede a name ("Sulmuesi i Kosovës", "Gazetari Almer Toska")
+        "sulmuesi",
+        "mesfushori",
+        "mbrojtesi",
+        "portieri",
+        "kapiteni",
+        "lojtari",
+        "futbollisti",
+        "trajnerja",
+        "aktori",
+        "aktorja",
+        "kengetari",
+        "kengetarja",
+        "gazetari",
+        "gazetarja",
+        "zyrtari",
+        "zyrtarja",
+        "prokurori",
+        "prokurorja",
+        "gjyqtari",
+        "gjyqtarja",
+        "profesori",
+        "profesoresha",
     }
 )
 _ORG_HINTS = (
+    # institutions whose names join a genitive: "Dogana e Kosovës", "Ushtria Çlirimtare e
+    # Kosovës", "Lidhja Demokratike e Kosovës", "Qendra Klinike Universitare e Kosovës"
+    "lidhja",
+    "ushtria",
+    "dogana",
+    "dhomat",
+    "qendra",
+    "shoqata",
+    "fondacioni",
+    "akademia",
+    "inspektorati",
+    "autoriteti",
+    "zyra",
+    "departamenti",
+    "drejtoria",
+    "këshilli",
+    "asociacioni",
+    "sindikata",
+    "federata",
+    "radio",
+    "televizioni",
+    "gazeta",
+    "ambasada",
+    "fakulteti",
+    "organizata",
+    "aleanca",
+    "lista",
+    "nisma",
+    "parlamenti",
+    "presidenca",
     "komisioni",
     "agjencia",
     "instituti",
@@ -902,7 +982,112 @@ _ORG_HINTS = (
 )
 # Hints are written with Albanian letters for readability; names are compared folded (ë → e).
 _LOCATION_KEYS = tuple(fold(h) for h in _LOCATION_HINTS)
+_CITY_KEYS = tuple(fold(h) for h in _CITY_HINTS)
 _ORG_KEYS = tuple(fold(h) for h in _ORG_HINTS)
+# "i", "e", "të", "së", "në" (folded): they join a noun to its genitive ("Kuvendi i Kosovës",
+# "Vitomiricë të Pejës"), never the words of a person's name.
+CONNECTORS = frozenset({"i", "e", "te", "se", "ne"})
+_ACRONYM_CASE = re.compile(r"^([A-ZÇË]{2,6})-[a-zçë]{1,4}$")
+# Places named with such a word, in the cases the news uses them (folded)
+_PLACE_PHRASES = (
+    "shtetet e bashkuara",
+    "shteteve te bashkuara",
+    "shtetet te bashkuara",
+    "mali i zi",
+    "malit te zi",
+    "mal te zi",
+    "malin e zi",
+    "lindja e mesme",
+    "lindjen e mesme",
+    "lindjes se mesme",
+    "lindje e mesme",
+    "bosnja e hercegovin",
+    "bosnje e hercegovin",
+    "bosnjes dhe hercegovin",
+    "maqedonia e veriut",
+    "maqedonise se veriut",
+    "maqedonine e veriut",
+    "maqedoni e veriut",
+    "britania e madhe",
+    "britanise se madhe",
+    "mbreteria e bashkuar",
+    "mbreterise se bashkuar",
+    "koreja e jugut",
+    "korese se jugut",
+    "koreja e veriut",
+    "korese se veriut",
+    "afrika e jugut",
+    "emiratet e bashkuara",
+    "republika e kosov",
+    "republiken e kosov",
+    "republikes se kosov",
+    "republika e shqiperi",
+    "republiken e shqiperi",
+    "republikes se shqiperi",
+)
+_CASE_ENDINGS = frozenset(
+    {"", "a", "e", "i", "u", "n", "s", "t", "en", "es", "in", "it", "ut", "un", "se", "ne"}
+)
+
+
+def _inflected_hint(token: str, hint: str) -> bool:
+    """``token`` is a case form of the organisation word ``hint``: "Kuvendit" of "Kuvendi",
+    "Komunën" of "Komuna", "Policisë" of "Policia". Short hints (acronyms) match exactly only."""
+    if len(hint) < 5:
+        return False
+    n = 0
+    for a, b in zip(token, hint, strict=False):
+        if a != b:
+            break
+        n += 1
+    return n >= len(hint) - 1 and token[n:] in _CASE_ENDINGS and hint[n:] in _CASE_ENDINGS
+
+
+def rule_entity(name: str) -> tuple[str, str] | None:
+    """The keyword rules' reading of a capitalised run of words: (name, type), or None when it
+    is no entity.
+
+    Leading roles ("Trajneri Blerta Zeqiri"), sentence-initial function words ("Sipas
+    Agjencisë …") and connectors left by a dropped role ("Presidentja e Kosovës" → "Kosovës")
+    go. Then, in order: a place by its name or a known place of several words ("Shtetet e
+    Bashkuara", "Mali i Zi"); an organisation by its first word in any case ("Kuvendit të
+    Kosovës", "Lidhjes Demokratike të Kosovës"); a village of a town ("Vitomiricë të Pejës");
+    any other name joined by "i", "e", "të" is an institution, a title or an event ("Dhomat e
+    Specializuara", "Liga e Kampionëve"), never a person: Albanian personal names have no such
+    word. A person needs two words."""
+    words = name.split()
+    while words and (
+        fold(words[0]).removeprefix("ish-") in _ROLE_PREFIXES  # "Ish-presidentja"
+        or words[0] in _SENTENCE_START_STOP
+        or fold(words[0]) in CONNECTORS
+    ):
+        words = words[1:]
+    if not words:
+        return None
+    if len(words) == 1 and (acronym := _ACRONYM_CASE.match(words[0])):
+        words = [acronym.group(1)]  # "LDK-së" → "LDK", "SHBA-ja" → "SHBA"
+    name = " ".join(words)
+    key = fold(name)
+    tokens = key.split()
+    if any(key.startswith(h) for h in _LOCATION_KEYS) or key.startswith(_PLACE_PHRASES):
+        return name, "location"
+    if any(
+        tokens[0] == h or key.startswith(h + " ") or _inflected_hint(tokens[0], h)
+        for h in _ORG_KEYS
+    ) or (name.isupper() and len(name) <= 6):
+        return name, "organization"
+    joins = [i for i, t in enumerate(tokens) if t in CONNECTORS]
+    if joins:
+        tail = tokens[joins[-1] + 1 :]
+        # a village "of" a town; "… e Kosovës" is an institution or a team, not a village
+        if joins[0] == 1 and tail and any(tail[0].startswith(h) for h in _CITY_KEYS):
+            return name, "location"
+        return name, "organization"
+    if len(tokens) >= 2:
+        return name, "person"
+    return None
+
+
 _NAME_SEQ = re.compile(r"\b([A-ZÇË][\wçëÇË-]+(?:\s+(?:e|i|të)?\s*[A-ZÇË][\wçëÇË-]+){0,3})")
 _SENTENCE_START_STOP = {
     "Sipas",
@@ -967,26 +1152,10 @@ class FakeProvider:
 
         entities: list[dict[str, str]] = []
         for match in _NAME_SEQ.finditer(text):
-            name = match.group(1).strip()
-            words = name.split()
-            # Drop leading roles ("Trajneri Blerta Zeqiri") and sentence-initial function words
-            # ("Sipas Agjencisë …" = "according to the agency …").
-            while words and (fold(words[0]) in _ROLE_PREFIXES or words[0] in _SENTENCE_START_STOP):
-                words = words[1:]
-            if not words:
+            found = rule_entity(match.group(1).strip())
+            if found is None:
                 continue
-            name = " ".join(words)
-            key = fold(name)
-            if any(key.startswith(h) for h in _LOCATION_KEYS):
-                etype = "location"
-            elif any(key.split()[0] == h or key.startswith(h + " ") for h in _ORG_KEYS) or (
-                name.isupper() and len(name) <= 6
-            ):
-                etype = "organization"
-            elif len(name.split()) >= 2:
-                etype = "person"
-            else:
-                continue
+            name, etype = found
             if all(e["name"] != name for e in entities):
                 entities.append({"name": name, "type": etype})
         countries = sorted({code for hint, code in _COUNTRY_HINTS.items() if fold(hint) in folded})
