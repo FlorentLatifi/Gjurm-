@@ -162,7 +162,7 @@ sources:
 
   - slug: reporteri
     name: Reporteri.net
-    aliases: ["Gazeta Online Reporteri"] # in every excerpt of its feed
+    aliases: ["Gazeta Online Reporteri", "Gazeta Online Reporteri.net"] # in every excerpt of its feed
     homepage_url: https://reporteri.net/
     feed_url: https://reporteri.net/feed/
     discovery_urls: [https://reporteri.net/]
@@ -304,6 +304,7 @@ sources:
 
   - slug: sinjali
     name: Sinjali
+    aliases: ["Gazeta Sinjali"] # names itself in its feed
     homepage_url: https://sinjali.com/
     feed_url: https://sinjali.com/feed/
     discovery_urls: [https://sinjali.com/]

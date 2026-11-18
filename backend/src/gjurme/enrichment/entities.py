@@ -19,6 +19,12 @@ followed by case endings only. Organisations are left alone: their first word in
 narrower than the grounding check's (``grounding._ENDINGS``): a false merge joins two people,
 a missed one only leaves two entries apart. ``gjurme entities-cleanup`` merges the forms
 already stored, after a dry run that lists them.
+
+A third fault came from the keyword rules (two thirds of the articles on the free path): runs of
+capitalised words joined by "i", "e", "të" became *persons*: "Vitomiricë të Pejës" (a village,
+460 articles), "i Kosovës" (349), "Kuvendit të Kosovës" (201). Albanian personal names have no
+such word, so a "person" with one is read again by the rules (``providers.rule_entity``): a
+place, an organisation, or nothing.
 """
 
 from __future__ import annotations
@@ -33,6 +39,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from gjurme.enrichment.providers import CONNECTORS, rule_entity
 from gjurme.enrichment.schema import EntityOut
 from gjurme.ingestion.normalize import normalize_key
 
@@ -157,6 +164,45 @@ def drop_self_references(
 
 
 # ---------------------------------------------------------------------------------------------
+# "Persons" that are no person
+# ---------------------------------------------------------------------------------------------
+def _is_junk_person(key: str, etype: str) -> bool:
+    tokens = key.split()
+    return bool(tokens) and (
+        tokens[0] in CONNECTORS or (etype == "person" and any(t in CONNECTORS for t in tokens))
+    )
+
+
+def _reread(name: str, etype: str) -> tuple[str, str] | None:
+    """What a junk entity is: a person by the rules' reading; another type keeps its type
+    without the leading connector ("e Kosovës" → "Kosovës")."""
+    if etype == "person":
+        return rule_entity(name)
+    words = name.split()
+    while words and normalize_key(words[0]) in CONNECTORS:
+        words = words[1:]
+    return (" ".join(words), etype) if words else None
+
+
+def retype_persons(entities: list[EntityOut]) -> tuple[list[EntityOut], list[str]]:
+    """Read again a person with "i", "e", "të" in its name, and any name that starts with one:
+    returns the entities to keep (retyped where needed) and the names changed or dropped."""
+    kept: list[EntityOut] = []
+    changed: list[str] = []
+    for ent in entities:
+        if not _is_junk_person(normalize_key(ent.name), ent.type):
+            kept.append(ent)
+            continue
+        changed.append(ent.name)
+        found = _reread(ent.name, ent.type)
+        if found is not None and all(
+            normalize_key(k.name) != normalize_key(found[0]) for k in kept
+        ):
+            kept.append(EntityOut(name=found[0], type=found[1]))
+    return kept, changed
+
+
+# ---------------------------------------------------------------------------------------------
 # Merging the forms already stored
 # ---------------------------------------------------------------------------------------------
 @dataclass(slots=True)
@@ -273,7 +319,56 @@ def cleanup_entities(session: Session, *, apply: bool, show: int = 40) -> dict[s
             {"ids": sorted({r["entity_id"] for r in self_refs})},
         ).rowcount  # type: ignore[attr-defined]
 
-    # 2. Case forms of one person or place
+    # 2. "Persons" that are no person, and names that start with "i", "e", "të"
+    junk: list[dict[str, Any]] = []
+    for r in session.execute(
+        text("""
+        SELECT e.id, e.type, e.name, e.normalized_key, count(ae.article_id) AS links
+        FROM core.entities e
+        LEFT JOIN core.article_entities ae ON ae.entity_id = e.id
+        WHERE split_part(e.normalized_key, ' ', 1) = ANY(:connectors)
+           OR (e.type = 'person' AND string_to_array(e.normalized_key, ' ') && :connectors)
+        GROUP BY e.id
+        ORDER BY links DESC, e.id"""),
+        {"connectors": sorted(CONNECTORS)},
+    ):
+        if not _is_junk_person(r.normalized_key, r.type):
+            continue
+        found = _reread(r.name, r.type)
+        junk.append(
+            {
+                "entity_id": r.id,
+                "name": r.name,
+                "type": r.type,
+                "links": r.links,
+                "becomes": None if found is None else {"name": found[0], "type": found[1]},
+            }
+        )
+        if not apply:
+            continue
+        if found is not None:
+            target = session.execute(
+                text("""
+                INSERT INTO core.entities (type, normalized_key, name) VALUES (:t, :k, :n)
+                ON CONFLICT (type, normalized_key) DO UPDATE SET type = EXCLUDED.type
+                RETURNING id"""),
+                {"t": found[1], "k": normalize_key(found[0]), "n": found[0]},
+            ).scalar_one()
+            if target == r.id:
+                continue
+            session.execute(
+                text("""
+                INSERT INTO core.article_entities (article_id, entity_id, published_date)
+                SELECT article_id, :target, published_date FROM core.article_entities
+                WHERE entity_id = :junk
+                ON CONFLICT DO NOTHING"""),
+                {"target": target, "junk": r.id},
+            )
+        # its links go with it (ON DELETE CASCADE)
+        session.execute(text("DELETE FROM core.entities WHERE id = :junk"), {"junk": r.id})
+
+    # 3. Case forms of one person or place (after step 2 when applied; a report counts the
+    # forms as they are stored now)
     stored = [
         _Stored(r.id, r.type, r.normalized_key, r.name, r.mentions)
         for r in session.execute(
@@ -310,12 +405,19 @@ def cleanup_entities(session: Session, *, apply: bool, show: int = 40) -> dict[s
         "self_references": self_refs,
         "self_reference_links": sum(r["links"] for r in self_refs),
         "self_reference_entities_deleted": orphans,
+        "not_persons": len(junk),
+        "not_persons_links": sum(j["links"] for j in junk),
+        "not_persons_largest": junk[:show],
         "merge_groups": len(plan),
         "entities_merged_away": sum(len(p["merged"]) - 1 for p in plan),
         "largest_merges": plan[:show],
     }
     log.info(
         "entities cleanup",
-        extra={k: v for k, v in result.items() if k not in ("self_references", "largest_merges")},
+        extra={
+            k: v
+            for k, v in result.items()
+            if k not in ("self_references", "largest_merges", "not_persons_largest")
+        },
     )
     return result

@@ -124,7 +124,7 @@ Bump `PROMPT_VERSION`, deploy, then `gj enrich-requeue --older-than-version <old
 The entity pages count a person or place once only when its case forms are one entity (*Kosova / Kosovës / Kosovën*, *Thaçi / Thaçit*) and an outlet's own name is not an entity of its own articles (Reporteri.net's "Gazeta Online Reporteri"; outlets' other names go in `aliases` in `sources.yaml`). New analyses do both (`enrichment/entities.py`); what was stored before needs one cleanup:
 
 1. *Actions → Free hosting → Run workflow → task: backup* (the merge cannot be undone except from a backup).
-2. *task: entities-report*: lists what would change (self-references, the largest merges, the totals) and changes nothing. Read the merges: organisations are never merged; persons and places only when every word but the last is the same and the last words differ by a case ending.
+2. *task: entities-report*: lists what would change and changes nothing: `self_references` (an outlet's own name on its own articles), `not_persons_largest` (stored "persons" with "i", "e", "të" and what each becomes: a place, an organisation, or `null` = deleted) and `largest_merges` (case forms of one person or place). Read them: organisations are never merged; persons and places only when every word but the last is the same and the last words differ by a case ending. The merges are counted before the not-persons are moved, so the applied run merges a few more.
 3. *task: entities-merge*: the same, applied. Running it again finds nothing.
 
 On a server: `gjurme entities-cleanup` (report) and `gjurme entities-cleanup --apply`. Both hold the pipeline lock.

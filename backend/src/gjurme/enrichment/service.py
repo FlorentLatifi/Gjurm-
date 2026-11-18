@@ -39,7 +39,12 @@ from sqlalchemy.orm import Session
 from gjurme.config import Settings
 from gjurme.db.models import Article, ArticleEntity, ArticleTopic, Enrichment, Entity, Source
 from gjurme.enrichment.budget import BudgetGuard, spent_today
-from gjurme.enrichment.entities import drop_self_references, same_entity, variant_keys
+from gjurme.enrichment.entities import (
+    drop_self_references,
+    retype_persons,
+    same_entity,
+    variant_keys,
+)
 from gjurme.enrichment.grounding import ground_entities, split_proper_names
 from gjurme.enrichment.pricing import Usage, cost_usd, estimate_call_cost, register_price
 from gjurme.enrichment.prompt import (
@@ -451,7 +456,10 @@ def _finish(outcome: CallOutcome, text: str | None) -> CallOutcome:
     kept, own = drop_self_references(kept, item.article.source_name)
     if own:
         flags["entities_self_reference"] = [e.name for e in own]
-    if common or dropped or own:
+    kept, reread = retype_persons(kept)
+    if reread:
+        flags["entities_not_person"] = reread
+    if common or dropped or own or reread:
         output = output.model_copy(update={"entities": kept})
     outcome.output, outcome.flags = output, flags
     return outcome
