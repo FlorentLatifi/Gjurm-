@@ -147,8 +147,9 @@ export function Shell() {
             <Link to="/about">{t("How it works")}</Link>
           </p>
           <p>
-            <a href="/api/docs">{t("Public API")}</a> · <Link to="/status">{t("Status")}</Link> ·{" "}
-            <Link to="/about#contact">{t("Corrections & removal")}</Link>
+            <Link to="/who-we-are">{t("Who we are")}</Link> · <Link to="/privacy">{t("Privacy")}</Link> ·{" "}
+            <Link to="/about#contact">{t("Corrections & removal")}</Link> · <a href="/api/docs">{t("Public API")}</a> ·{" "}
+            <Link to="/status">{t("Status")}</Link>
           </p>
         </div>
       </footer>

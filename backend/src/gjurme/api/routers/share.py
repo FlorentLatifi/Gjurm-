@@ -117,6 +117,8 @@ SITE_PAGES = (
     "/sources",
     "/articles",
     "/about",
+    "/who-we-are",
+    "/privacy",
 )
 
 

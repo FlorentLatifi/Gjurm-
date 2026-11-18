@@ -386,7 +386,7 @@ test.describe("GJURMË dashboard", () => {
 
   for (const path of [
     "/", "/blindspot", "/my-news", "/sources/demo-tirana", "/dashboard", "/trends", "/topics", "/entities",
-    "/sources", "/articles", "/about", "/status",
+    "/sources", "/articles", "/about", "/who-we-are", "/privacy", "/status",
   ]) {
     test(`no serious accessibility violations on ${path}`, async ({ page }) => {
       await page.goto(path);
@@ -459,7 +459,7 @@ test.describe("GJURMË in Albanian", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Metodologjia, burimet dhe kufizimet");
   });
 
-  for (const path of ["/", "/about"]) {
+  for (const path of ["/", "/about", "/who-we-are", "/privacy"]) {
     test(`no serious accessibility violations in Albanian on ${path}`, async ({ page }) => {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();

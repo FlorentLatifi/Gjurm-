@@ -38,6 +38,8 @@ const Entity = lazy(() => import("@/features/analytics/pages/Entities").then((m)
 const Articles = lazy(() => import("@/features/articles/pages/Articles").then((m) => ({ default: m.ArticlesPage })));
 const Article = lazy(() => import("@/features/articles/pages/Articles").then((m) => ({ default: m.ArticlePage })));
 const About = lazy(() => import("@/features/system/pages/Info").then((m) => ({ default: m.AboutPage })));
+const Who = lazy(() => import("@/features/system/pages/Who").then((m) => ({ default: m.WhoPage })));
+const Privacy = lazy(() => import("@/features/system/pages/Privacy").then((m) => ({ default: m.PrivacyPage })));
 const Status = lazy(() => import("@/features/system/pages/Info").then((m) => ({ default: m.StatusPage })));
 const NotFound = lazy(() => import("@/features/system/pages/Info").then((m) => ({ default: m.NotFoundPage })));
 
@@ -72,6 +74,8 @@ export const appRoutes: AppRoute[] = [
   { path: "/articles", element: <Articles />, prefetch: (s) => articlesQueries(s) },
   { path: "/articles/:id", element: <Article />, prefetch: byId(articleQueries) },
   { path: "/about", element: <About />, prefetch: () => ({ taxonomy: taxonomyQuery(), status: statusQuery() }) },
+  { path: "/who-we-are", element: <Who /> },
+  { path: "/privacy", element: <Privacy /> },
   { path: "/status", element: <Status />, prefetch: () => ({ status: statusQuery() }) },
   { path: "*", element: <NotFound /> },
 ];

@@ -44,6 +44,12 @@ export const sq: Record<string, string> = {
   Sources: "Mediat",
   Articles: "Artikujt",
   Methodology: "Metodologjia",
+  "Who we are": "Kush jemi",
+  "Who runs GJURMË, how it is funded, how outlets can reply and how corrections work.":
+    "Kush e drejton GJURMË-n, si financohet, si mund të përgjigjen mediat dhe si funksionojnë korrigjimet.",
+  Privacy: "Privatësia",
+  "What GJURMË keeps about its readers: on the server, in your browser, and at its providers.":
+    "Çfarë ruan GJURMË për lexuesit: në server, në shfletuesin tuaj dhe te ofruesit e hostimit.",
 
   // --- states ----------------------------------------------------------------------------
   Loading: "Po ngarkohet",
