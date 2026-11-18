@@ -21,6 +21,25 @@ Legend: ✅ done and verified (evidence linked) · 👤 needs the owner (account
 | ✅ | Images build and pass Trivy | Caddy rebuilt from source (ADR-017); both images passed and were pushed to GHCR ([run 11](https://github.com/FlorentLatifi/Gjurm-/actions/runs/36059125970)). Multi-arch (amd64 + arm64) builds added for the free Oracle path. |
 | ✅ | Free mode is honest | Rule-based analysis is disclosed in `/api/v1/status`, a site banner and every article page (backend and frontend tests) |
 
+## 1a. Launch review, 2026-11-18
+
+An end-to-end review of the live site, its data and its operation before promoting it. Fixed in the code (CHANGELOG, *Fixed (launch review)*); the rows marked 👤 need the owner.
+
+| | Item | Why it matters |
+|---|---|---|
+| ✅ | `robots.txt` allows `/api/v1/`; API answers carry `X-Robots-Tag: noindex` | The pages read their content from the API: while `/api/` was disallowed, search engines rendered every story without it. |
+| 👤 | After the deploy: Google Search Console → *URL inspection* of one story → *Test live URL*: the screenshot must show the headline and outlets; then *Request indexing* and watch *Pages* for a week | Confirms the fix where it counts. |
+| ✅ | Status is no longer `degraded` because of an outlet disabled in `sources.yaml` | The yellow pill on every page told every visitor something was broken. |
+| ✅ | New analyses keep one entity per person or place and drop an outlet's own name | "Kosovës", "Kosova", "Kosovë" and "Kosovën" were four places; "Gazeta Online Reporteri" the third most-mentioned person. |
+| 👤 | *Free hosting → task: backup*, then *entities-report*, read it, then *entities-merge* | Cleans what is already stored ([OPERATIONS.md](OPERATIONS.md#clean-up-entities-outlets-own-names-case-forms)). |
+| 👤 | **Neon compute**: open Neon's usage page now. The free plan has 100 CU-hours a month; the pipeline alone keeps the database awake ≈ 11 of every 30 minutes (runs take ≈ 6 minutes), and once readers arrive every cache miss wakes it, so at launch traffic it can stay awake all day (≈ 180 CU-hours at the smallest size). At the cap the compute is suspended until the next month and the site shows nothing. | Decide before promoting: Neon's paid plan, or the server path. |
+| 👤 | **Neon storage**: 1 GB per project, writes fail above it. At ≈ 1,900 articles a day the database grows a few hundred MB a month; the `database_size` check warns at 80 %. | Plan the move before it warns. |
+| 👤 | **Vercel Hobby is for non-commercial use only.** Ads, sponsorship or a paid tier need Vercel Pro or the server path. | A legal condition of the free host. |
+| 👤 | **AI analysis**: 66 % of recent articles were analysed by keyword rules (the free models' quotas), and the site says so on every page. `claude-haiku-5-5` would analyse all of them for ≈ $12 a month; check its quality on 30–50 articles first ([AI_ENRICHMENT.md](AI_ENRICHMENT.md#cost-model)). Free tiers of some providers may use the requests (here: publishers' excerpts) to improve their products; paid tiers generally do not. | Credibility of the topic, tone and names on every page. |
+| 👤 | **Who runs GJURMË**: the methodology page rates outlets' political leaning but names no operator, legal entity or funding. A short "who we are, how we are funded, how to correct us" with a named person or organisation. | Trust, and the first question an outlet that disagrees with its rating will ask. |
+| 👤 | **Privacy notice** as its own page (what the site stores: nothing server-side about readers; "My news bias" stays in the browser; the host's access logs) and, if you add one, the analytics tool. | Kosovo's and Albania's data protection laws follow the GDPR; the readership includes the EU diaspora. |
+| 👤 | **Measure use**: the site has no analytics, so a launch cannot be judged. A cookieless tool (e.g. a self-hosted or free privacy-friendly counter) needs a CSP change and a line in the privacy notice. | Without it there is no way to know whether anyone returns. |
+
 ## 2. Owner actions (cannot be done from the codebase) 👤
 
 ### The $0 path without a server (recommended): Vercel + Neon + GitHub Actions ([ADR-027](DECISIONS.md#adr-027-a-0-path-without-a-server-vercel--neon--github-actions))
