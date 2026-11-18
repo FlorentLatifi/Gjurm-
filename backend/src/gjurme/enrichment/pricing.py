@@ -1,9 +1,14 @@
 """LLM price table and cost arithmetic.
 
-Prices are USD per million tokens (first-party Anthropic API), last checked 2026-09-24 against
+Prices are USD per million tokens (first-party Anthropic API), last checked 2026-11-17 against
 Anthropic's published model table. Re-verify at https://www.anthropic.com/pricing before changing
 budgets. Unknown models are priced at the most expensive known rate so that a typo in
-``LLM_MODEL`` can never make the budget guard *under*-estimate spend.
+``LLM_MODEL`` can never make the budget guard *under*-estimate spend. A current model missing
+here is therefore priced like Fable: Haiku 5.5 at 100 times its price, and the daily budget would
+stop the analysis after a few articles.
+
+Cache reads are charged at 10 % of the input price here; the newest models charge less
+(Sonnet 5.5 and Opus 5.5 about 5 %), so the estimate errs on the expensive side.
 """
 
 from __future__ import annotations
@@ -13,12 +18,15 @@ from decimal import Decimal
 
 PRICES_PER_MTOK: dict[str, tuple[Decimal, Decimal]] = {
     # model: (input, output)
+    "claude-fable-5-2": (Decimal("8.00"), Decimal("40.00")),
     "claude-fable-5-1": (Decimal("10.00"), Decimal("50.00")),
     "claude-opus-5-5": (Decimal("4.00"), Decimal("20.00")),
     "claude-opus-5": (Decimal("5.00"), Decimal("25.00")),
     "claude-opus-4-8": (Decimal("5.00"), Decimal("25.00")),
+    "claude-sonnet-5-5": (Decimal("2.00"), Decimal("10.00")),
     "claude-sonnet-5": (Decimal("2.00"), Decimal("10.00")),
     "claude-sonnet-4-6": (Decimal("3.00"), Decimal("15.00")),
+    "claude-haiku-5-5": (Decimal("0.10"), Decimal("0.50")),  # prompts up to 100K tokens
     "claude-haiku-4-5": (Decimal("1.00"), Decimal("5.00")),
     "fake": (Decimal("0"), Decimal("0")),
 }
