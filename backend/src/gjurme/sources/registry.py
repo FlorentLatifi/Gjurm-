@@ -11,8 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from gjurme.db.models import Source
-from gjurme.ingestion.ingest import AUTO_DISABLED
+from gjurme.db.models import AUTO_DISABLED, Source
 from gjurme.ingestion.normalize import validate_public_http_url
 from gjurme.sources.ratings import BIAS_VALUES, FACTUALITY_VALUES, OWNERSHIP_VALUES
 
@@ -41,6 +40,9 @@ class SourceConfig(BaseModel):
     ratings_note: str | None = None
     # false: the outlet's photos are not shown, on its request (ADR-030)
     images: bool = True
+    # Other names the outlet calls itself in its feed (bylines, boilerplate in every excerpt):
+    # never a person or organisation in the news of its own articles (enrichment/entities.py).
+    aliases: tuple[str, ...] = ()
 
     @field_validator("homepage_url", "feed_url")
     @classmethod

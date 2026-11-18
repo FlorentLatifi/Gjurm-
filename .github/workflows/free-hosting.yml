@@ -29,9 +29,11 @@ on:
       task:
         description: "pipeline: one run now. reanalyse: queue what the keyword rules analysed for
           the AI (after adding a free model or ANTHROPIC_API_KEY), then one run. backup: a
-          backup now."
+          backup now. entities-report: what entities-merge would change, nothing changed.
+          entities-merge: merge entities' case forms, drop outlets' own names (run a backup
+          first; docs/OPERATIONS.md)."
         type: choice
-        options: [pipeline, reanalyse, backup]
+        options: [pipeline, reanalyse, backup, entities-report, entities-merge]
         default: pipeline
 
 permissions:
@@ -42,7 +44,7 @@ jobs:
     if: >-
       vars.FREE_HOSTING == 'true' &&
       (github.event.schedule == '11,41 * * * *' || inputs.task == 'pipeline' ||
-      inputs.task == 'reanalyse' ||
+      inputs.task == 'reanalyse' || startsWith(inputs.task, 'entities-') ||
       (github.event_name == 'push' &&
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch)))
     runs-on: ubuntu-latest
@@ -175,6 +177,14 @@ jobs:
           # API, so a throwaway one will do.
           export ADMIN_API_TOKEN="$(openssl rand -hex 32)"
           uv run gjurme db upgrade
+          # Entity cleanup instead of a pipeline run: a report, or the merge (docs/OPERATIONS.md)
+          if [ "$TASK" = entities-report ]; then
+            uv run gjurme entities-cleanup --show 60
+            exit 0
+          elif [ "$TASK" = entities-merge ]; then
+            uv run gjurme entities-cleanup --apply --show 60
+            exit 0
+          fi
           if [ "$TASK" = reanalyse ]; then
             # within LLM_DAILY_BUDGET_USD: what one day's budget does not cover, later runs do
             uv run gjurme enrich-requeue --provider fake

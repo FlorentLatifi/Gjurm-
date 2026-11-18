@@ -121,6 +121,7 @@ Assumptions per article: ~350 input tokens (template + headline + excerpt), ~300
 
 | Model | $/MTok in / out | $/article | 100/day | 500/day | 1,000/day | 10,000/day |
 |---|---|---|---|---|---|---|
+| `claude-haiku-5-5` | 0.10 / 0.50 | 0.0002 | $0.02 | $0.10 | $0.20 | $2.00 |
 | `claude-haiku-4-5` | 1 / 5 | 0.0020 | $0.20 | $0.99 | $1.99 | $19.90 |
 | **`claude-sonnet-5`** (default) | 2 / 10 | 0.0040 | $0.40 | $1.99 | $3.98 | $39.80 |
 | `claude-opus-5-5` | 4 / 20 | 0.0080 | $0.80 | $3.98 | $7.96 | $79.60 |
@@ -128,7 +129,9 @@ Assumptions per article: ~350 input tokens (template + headline + excerpt), ~300
 
 Per month (×30) at the default model: 100/day ≈ $12, 500/day ≈ $60, 1,000/day ≈ $119, 10,000/day ≈ $1,194. The default `LLM_DAILY_BUDGET_USD=2.00` caps spend at ≈ $60/month, whatever the volume. The five verified sources currently publish on the order of hundreds of items per day, so the default budget covers them with headroom (to be confirmed by `/admin/costs` after launch).
 
-Levers, cheapest first: keep dedup and caching on (default), use the Message Batches API for non-urgent backfills (−50%; a V2 item), move to `claude-haiku-4-5` if the evaluation below shows acceptable quality, or lower `ENRICH_MAX_PER_RUN` / the budget.
+Levers, cheapest first: keep dedup and caching on (default), use the Message Batches API for non-urgent backfills (−50%; a V2 item), move to a Haiku model if the evaluation below shows acceptable quality, or lower `ENRICH_MAX_PER_RUN` / the budget.
+
+**At the live volume (≈ 1,900 articles a day in November 2026)** the default model would cost ≈ $7.60 a day (≈ $230 a month) and the default `LLM_DAILY_BUDGET_USD=2.00` would analyse only about a quarter of the news. `claude-haiku-5-5` costs about a twentieth of that: ≈ $0.40 a day, ≈ $12 a month for every article, inside the default budget. It is priced in `pricing.py` and asked not to think (`thinking: disabled`); its quality on Albanian names is still to be checked on 30–50 real articles (*Source validation* workflow, `enrich_limit`) before it replaces the free models. A model missing from `pricing.py` is priced like the most expensive one, so the budget would stop it after a few articles: add a new model there before using it.
 
 ## Model choice
 

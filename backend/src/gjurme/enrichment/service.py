@@ -39,6 +39,7 @@ from sqlalchemy.orm import Session
 from gjurme.config import Settings
 from gjurme.db.models import Article, ArticleEntity, ArticleTopic, Enrichment, Entity, Source
 from gjurme.enrichment.budget import BudgetGuard, spent_today
+from gjurme.enrichment.entities import drop_self_references, same_entity, variant_keys
 from gjurme.enrichment.grounding import ground_entities, split_proper_names
 from gjurme.enrichment.pricing import Usage, cost_usd, estimate_call_cost, register_price
 from gjurme.enrichment.prompt import (
@@ -447,7 +448,10 @@ def _finish(outcome: CallOutcome, text: str | None) -> CallOutcome:
     kept, dropped = ground_entities(proper, source_text)
     if dropped:
         flags["entities_ungrounded"] = [e.name for e in dropped]
-    if common or dropped:
+    kept, own = drop_self_references(kept, item.article.source_name)
+    if own:
+        flags["entities_self_reference"] = [e.name for e in own]
+    if common or dropped or own:
         output = output.model_copy(update={"entities": kept})
     outcome.output, outcome.flags = output, flags
     return outcome
@@ -574,6 +578,8 @@ def call_llm_batch(
 # Persistence (main thread)
 # ---------------------------------------------------------------------------------------------
 def _upsert_entities(session: Session, output: EnrichmentOutput) -> list[int]:
+    """The entity ids of ``output``'s names: an existing entity of the same name or of another
+    case form of it ("Kosovës" joins "Kosova", enrichment/entities.py), else a new one."""
     wanted: dict[tuple[str, str], str] = {}
     for ent in output.entities:
         key = normalize_key(ent.name)
@@ -581,23 +587,45 @@ def _upsert_entities(session: Session, output: EnrichmentOutput) -> list[int]:
             wanted.setdefault((ent.type, key), ent.name)
     if not wanted:
         return []
-    # One round trip: insert the new names, and read the ids of new and existing ones together.
-    rows = [{"type": t, "normalized_key": k, "name": n} for (t, k), n in wanted.items()]
-    inserted = (
-        insert(Entity)
-        .values(rows)
-        .on_conflict_do_nothing(index_elements=[Entity.type, Entity.normalized_key])
-        .returning(Entity.id, Entity.type, Entity.normalized_key)
-        .cte("inserted")
-    )
-    existing = select(Entity.id, Entity.type, Entity.normalized_key).where(
-        Entity.normalized_key.in_([k for _, k in wanted]),
-        Entity.type.in_({t for t, _ in wanted}),
-    )
-    found = session.execute(
-        select(inserted.c.id, inserted.c.type, inserted.c.normalized_key).union(existing)
-    )
-    return sorted({r.id for r in found if (r.type, r.normalized_key) in wanted})
+    lookup = {k for _, k in wanted} | {v for (t, k) in wanted for v in variant_keys(k, t)}
+    existing: dict[tuple[str, str], int] = {
+        (r.type, r.normalized_key): r.id
+        for r in session.execute(
+            select(Entity.id, Entity.type, Entity.normalized_key).where(
+                Entity.normalized_key.in_(sorted(lookup)),
+                Entity.type.in_({t for t, _ in wanted}),
+            )
+        )
+    }
+    ids: set[int] = set()
+    missing: dict[tuple[str, str], str] = {}
+    for (etype, key), name in wanted.items():
+        if (etype, key) in existing:
+            ids.add(existing[(etype, key)])
+            continue
+        forms = [i for (t, k), i in existing.items() if t == etype and same_entity(key, k, t)]
+        if forms:
+            ids.add(min(forms))  # the oldest form; entities-cleanup merges the rest
+        else:
+            missing[(etype, key)] = name
+    if missing:
+        rows = [{"type": t, "normalized_key": k, "name": n} for (t, k), n in missing.items()]
+        session.execute(
+            insert(Entity)
+            .values(rows)
+            .on_conflict_do_nothing(index_elements=[Entity.type, Entity.normalized_key])
+        )
+        ids.update(
+            r.id
+            for r in session.execute(
+                select(Entity.id, Entity.type, Entity.normalized_key).where(
+                    Entity.normalized_key.in_([k for _, k in missing]),
+                    Entity.type.in_({t for t, _ in missing}),
+                )
+            )
+            if (r.type, r.normalized_key) in missing
+        )
+    return sorted(ids)
 
 
 def apply_output(

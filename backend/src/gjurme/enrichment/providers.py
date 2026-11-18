@@ -120,11 +120,17 @@ def _thinking_kwargs(model: str) -> dict[str, Any]:
     """Keep extraction cheap: no extended thinking.
 
     * Sonnet 5 / Opus 5 / 4.x accept ``thinking: {type: disabled}``.
+    * Haiku 5.5 thinks unless told not to (adaptive by default); ``disabled`` is accepted at
+      its default effort.
+    * Sonnet 5.5 refuses ``disabled`` (400); ``between_tools`` turns thinking off for a request
+      without tools.
     * Opus 5.5 and the Fable/Mythos tier cannot disable thinking (400) — use the lowest effort.
     * Haiku 4.5 does not think unless asked.
     """
-    if model.startswith("claude-haiku"):
+    if model.startswith("claude-haiku-4"):
         return {}
+    if model.startswith("claude-sonnet-5-5"):
+        return {"thinking": {"type": "between_tools"}}
     if model.startswith(("claude-opus-5-5", "claude-fable", "claude-mythos")):
         return {"effort": "low"}
     return {"thinking": {"type": "disabled"}}

@@ -119,6 +119,16 @@ The article disappears from every public endpoint immediately (the API drops its
 ### Reprocess after a prompt or model change
 Bump `PROMPT_VERSION`, deploy, then `gj enrich-requeue --older-than-version <old>`. The scheduler works through the queue within the daily budget. See [AI_ENRICHMENT.md](AI_ENRICHMENT.md#versioning-and-reprocessing).
 
+### Clean up entities (outlets' own names, case forms)
+
+The entity pages count a person or place once only when its case forms are one entity (*Kosova / Kosovës / Kosovën*, *Thaçi / Thaçit*) and an outlet's own name is not an entity of its own articles (Reporteri.net's "Gazeta Online Reporteri"; outlets' other names go in `aliases` in `sources.yaml`). New analyses do both (`enrichment/entities.py`); what was stored before needs one cleanup:
+
+1. *Actions → Free hosting → Run workflow → task: backup* (the merge cannot be undone except from a backup).
+2. *task: entities-report*: lists what would change (self-references, the largest merges, the totals) and changes nothing. Read the merges: organisations are never merged; persons and places only when every word but the last is the same and the last words differ by a case ending.
+3. *task: entities-merge*: the same, applied. Running it again finds nothing.
+
+On a server: `gjurme entities-cleanup` (report) and `gjurme entities-cleanup --apply`. Both hold the pipeline lock.
+
 ### Check or retune story clustering
 `gj stories-review --hours 48` lists the multi-outlet stories, the weakest member of each story (possible wrong merges) and the closest near misses (possible missed merges). The *Source validation* workflow publishes the same report for the live feeds. To change the thresholds: set `STORY_SIMILARITY_THRESHOLD` (similarity to the whole story, default 0.45) or `STORY_MEMBER_SIMILARITY_THRESHOLD` (to its closest report, which also merges two stories that one report matches, default 0.5) in `.env`; lower merges more. Restart, then `gj cluster --rebuild-days 3` (story ids in that period change, so shared story links break). Merges during normal runs keep links working: a merged story's URL opens the story it joined. An article joins a story only once its analysis is done, or after `STORY_ENRICHMENT_WAIT_MINUTES` (default 360) without one, so while enrichment is paused or out of budget new articles reach stories with that delay. See [ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings).
 

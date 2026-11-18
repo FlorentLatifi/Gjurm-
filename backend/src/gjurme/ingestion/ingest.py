@@ -32,7 +32,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from gjurme.config import Settings
-from gjurme.db.models import FeedFetch, FeedItem, Source
+from gjurme.db.models import AUTO_DISABLED, FeedFetch, FeedItem, Source
 from gjurme.ingestion.feed_parser import parse_feed
 from gjurme.ingestion.fetcher import FeedFetcher, FetchResult, next_page_url
 from gjurme.ingestion.normalize import clean_text, item_key, sha256_hex
@@ -40,7 +40,6 @@ from gjurme.ingestion.normalize import clean_text, item_key, sha256_hex
 log = logging.getLogger(__name__)
 
 SUCCESS_STATUSES = ("ok", "not_modified")
-AUTO_DISABLED = "auto-disabled"  # prefix of Source.disabled_reason
 REPROBE_AFTER = timedelta(hours=6)
 # At least this many sources fetched, and at least this share of them failing: an outage here.
 OUTAGE_MIN_SOURCES = 3

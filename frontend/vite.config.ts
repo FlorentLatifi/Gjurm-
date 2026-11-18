@@ -7,6 +7,16 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import { interfaceStrings, parseCatalog } from "./src/shared/i18n/extract.ts";
 
 /**
+ * The robots.txt rules. The site is a single-page app: a page's content comes from the public
+ * API, so a search engine that renders the page (Googlebot, Bingbot) must be allowed to fetch
+ * /api/v1/ or every story renders empty for it. The API's own answers carry
+ * `X-Robots-Tag: noindex` (backend/src/gjurme/api/app.py), so the JSON is fetched but never
+ * listed. The admin API, the API docs and the share pages stay closed: in robots.txt the
+ * longest matching rule wins.
+ */
+export const ROBOTS_RULES = ["User-agent: *", "Allow: /", "Allow: /api/v1/", "Disallow: /api/v1/admin", "Disallow: /api/"];
+
+/**
  * Emits robots.txt and, when the deployment URL is known at build time (VITE_PUBLIC_URL), the
  * absolute og:image. Canonical links and og:url are set per page (shared/hooks/useTitle): one
  * built into index.html would declare every route a copy of the home page. The sitemap is built
@@ -22,7 +32,7 @@ function seoFiles(publicUrl: string | undefined): Plugin {
       return [{ tag: "meta", attrs: { property: "og:image", content: `${base}/og-image.png` }, injectTo: "head" }];
     },
     generateBundle() {
-      const robots = ["User-agent: *", "Allow: /", "Disallow: /api/"];
+      const robots = [...ROBOTS_RULES];
       if (base) robots.push(`Sitemap: ${base}/sitemap.xml`);
       this.emitFile({ type: "asset", fileName: "robots.txt", source: robots.join("\n") + "\n" });
     },

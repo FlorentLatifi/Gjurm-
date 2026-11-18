@@ -9,7 +9,14 @@ import pytest
 
 from gjurme.enrichment.budget import BudgetGuard
 from gjurme.enrichment.grounding import ground_entities, split_proper_names
-from gjurme.enrichment.pricing import FALLBACK_PRICE, Usage, cost_usd, estimate_call_cost
+from gjurme.enrichment.pricing import (
+    FALLBACK_PRICE,
+    PRICES_PER_MTOK,
+    Usage,
+    cost_usd,
+    estimate_call_cost,
+    price_for,
+)
 from gjurme.enrichment.prompt import (
     SYSTEM_PROMPT,
     ArticleInput,
@@ -334,10 +341,20 @@ class TestProviders:
             ("claude-opus-5-5", {"effort": "low"}),
             ("claude-fable-5-1", {"effort": "low"}),
             ("claude-haiku-4-5", {}),
+            ("claude-haiku-5-5", {"thinking": {"type": "disabled"}}),
+            ("claude-sonnet-5-5", {"thinking": {"type": "between_tools"}}),
+            ("claude-fable-5-2", {"effort": "low"}),
         ],
     )
     def test_thinking_parameters_per_model(self, model: str, expected: dict[str, object]) -> None:
         assert _thinking_kwargs(model) == expected
+
+    @pytest.mark.parametrize("model", ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-fable-5-2"])
+    def test_current_models_have_their_own_price(self, model: str) -> None:
+        """A model missing from the table is priced like the most expensive one: the daily
+        budget would then stop a cheap model after a fraction of the articles it can afford."""
+        assert model in PRICES_PER_MTOK
+        assert price_for("claude-haiku-5-5") < price_for("claude-haiku-4-5")
 
 
 class TestBatch:

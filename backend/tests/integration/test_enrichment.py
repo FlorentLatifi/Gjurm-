@@ -19,6 +19,7 @@ from gjurme.db.models import (
     Enrichment,
     Entity,
     LLMQuota,
+    Source,
 )
 from gjurme.enrichment.pricing import Usage
 from gjurme.enrichment.prompt import PROMPT_VERSION
@@ -993,3 +994,61 @@ def test_without_a_known_limit_nothing_is_held_back_until_a_429_teaches_one(db) 
     with db() as s, s.begin():
         plan = begin_run(s, model, cfg, day1 + timedelta(days=1))
         assert (plan.daily_limit, plan.limit_source, plan.cap) == (270, "learned", 12)
+
+
+def test_a_case_form_joins_the_entity_already_stored(db, settings) -> None:
+    """ "Kosovës" in one answer and "Kosova" in the next are one place, not two entities."""
+    _articles(db, 2)
+    first = {**GOOD, "entities": [{"name": "Kosovës", "type": "location"}]}
+    second = {**GOOD, "entities": [{"name": "Kosova", "type": "location"}]}
+    serial = settings.model_copy(update={"enrich_concurrency": 1, "llm_batch_size": 1})
+    stats = run_enrichment(db, serial, ScriptedProvider([first, second]))
+    assert stats.succeeded == 2
+    with db() as s:
+        places = s.execute(select(Entity.id, Entity.name).where(Entity.type == "location")).all()
+        assert len(places) == 1
+        assert s.scalar(select(func.count()).select_from(ArticleEntity)) == 2
+
+
+def test_an_outlet_naming_itself_is_dropped_and_flagged(db, settings) -> None:
+    with db() as s, s.begin():
+        src = Source(
+            slug="reporteri",
+            name="Reporteri.net",
+            homepage_url="https://reporteri.example.com/",
+            feed_url="https://reporteri.example.com/feed/",
+            language="sq",
+            country="XK",
+        )
+        s.add(src)
+        s.flush()
+        title = "Policia arreston dy persona në Prizren"
+        s.add(
+            Article(
+                source_id=src.id,
+                url="https://reporteri.example.com/1",
+                canonical_url="https://reporteri.example.com/1",
+                url_hash=sha256_hex("r1"),
+                title=title,
+                title_normalized=normalize_key(title),
+                title_hash=sha256_hex(title),
+                excerpt="Policia njoftoi arrestimin. Gazeta Online Reporteri",
+                language="sq",
+                published_at=datetime(2026, 9, 24, 10, 0, tzinfo=UTC),
+                published_date=date(2026, 9, 24),
+                content_hash=sha256_hex(title, "r1"),
+            )
+        )
+    out = {
+        **GOOD,
+        "entities": [
+            {"name": "Gazeta Online Reporteri", "type": "person"},
+            {"name": "Prizren", "type": "location"},
+        ],
+    }
+    assert run_enrichment(db, settings, ScriptedProvider([out])).succeeded == 1
+    with db() as s:
+        assert set(s.scalars(select(Entity.name))) == {"Prizren"}
+        enr = s.scalar(select(Enrichment))
+        assert enr is not None
+        assert enr.quality_flags == {"entities_self_reference": ["Gazeta Online Reporteri"]}
