@@ -29,11 +29,13 @@ on:
       task:
         description: "pipeline: one run now. reanalyse: queue what the keyword rules analysed for
           the AI (after adding a free model or ANTHROPIC_API_KEY), then one run. backup: a
-          backup now. entities-report: what entities-merge would change, nothing changed.
+          backup now. db-usage: database and table sizes, stage durations, the compute the
+          pipeline keeps awake, and what retention would delete (nothing changed).
+          entities-report: what entities-merge would change, nothing changed.
           entities-merge: merge entities' case forms, drop outlets' own names (run a backup
           first; docs/OPERATIONS.md)."
         type: choice
-        options: [pipeline, reanalyse, backup, entities-report, entities-merge]
+        options: [pipeline, reanalyse, backup, db-usage, entities-report, entities-merge]
         default: pipeline
 
 permissions:
@@ -44,11 +46,15 @@ jobs:
     if: >-
       vars.FREE_HOSTING == 'true' &&
       (github.event.schedule == '11,41 * * * *' || inputs.task == 'pipeline' ||
-      inputs.task == 'reanalyse' || startsWith(inputs.task, 'entities-') ||
+      inputs.task == 'reanalyse' || inputs.task == 'db-usage' ||
+      startsWith(inputs.task, 'entities-') ||
       (github.event_name == 'push' &&
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch)))
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read # the fallback clock's check below
     concurrency:
       group: free-hosting-pipeline
       cancel-in-progress: false
@@ -122,22 +128,53 @@ jobs:
       ALERT_WEBHOOK_FORMAT: ${{ vars.ALERT_WEBHOOK_FORMAT || 'generic' }}
       PUBLIC_BASE_URL: ${{ vars.PUBLIC_URL }}
       # Neon's free plan: 1 GB of storage. Shorter retention keeps the database inside it for
-      # longer; the database_size check warns at 80 %.
+      # longer; the database_size check warns at 80 %. Retention never touches what a page
+      # shows (docs/DATA_MODEL.md#retention); task db-usage shows what it would delete.
       DB_SIZE_LIMIT_MB: ${{ vars.DB_SIZE_LIMIT_MB || '1024' }}
       RETENTION_RAW_PAYLOAD_DAYS: "7"
       RETENTION_EXCERPT_DAYS: "30"
+      RETENTION_FEED_ITEM_DAYS: "14"
+      RETENTION_SUPERSEDED_ENRICHMENT_DAYS: "14"
+      RETENTION_RAW_RESPONSE_DAYS: "14"
+      RETENTION_FETCH_DAYS: "30"
+      RETENTION_RUN_DAYS: "30"
       SCHEDULER_INTERVAL_MINUTES: "30"
       # GitHub may start a scheduled run late; "stale" only after two missed runs and more.
       ALERT_STALE_PIPELINE_MINUTES: "150"
       DB_POOL_SIZE: "3"
       DB_MAX_OVERFLOW: "2"
     steps:
+      # GitHub's own schedule is the fallback clock (ADR-029). When the outside clock started a
+      # run in the last 20 minutes, stop here, asking GitHub rather than the database: the
+      # migration below and the database's own check (--skip-if-recent) would wake Neon for
+      # 5 minutes each time, up to 48 times a day (ADR-034). If GitHub cannot say, the
+      # database's check decides, as before.
+      - name: Has the outside clock just run the pipeline?
+        id: clock
+        if: github.event_name == 'schedule'
+        working-directory: . # before the checkout, backend/ does not exist yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          since="$(date -u -d '20 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
+          recent="$(gh api -X GET "repos/${{ github.repository }}/actions/workflows/free-hosting.yml/runs" \
+            -f event=workflow_dispatch -f created=">=$since" -f per_page=10 \
+            --jq '[.workflow_runs[] | select(.conclusion != "failure" and .conclusion != "cancelled"
+                   and .conclusion != "timed_out")] | length' || echo "")"
+          echo "runs started by the outside clock since $since: ${recent:-unknown}"
+          if [ -n "$recent" ] && [ "$recent" -gt 0 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "pipeline run: skipped (the outside clock started one in the last 20 minutes)"
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: steps.clock.outputs.skip != 'true'
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        if: steps.clock.outputs.skip != 'true'
         with:
           python-version: "3.12"
           enable-cache: true
       - name: Check the configuration
+        if: steps.clock.outputs.skip != 'true'
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::Add the DATABASE_URL secret (Settings → Secrets and variables → Actions). docs/NISJA.md, part B."
@@ -154,7 +191,9 @@ jobs:
           echo "analysis: $LLM_PROVIDER${LLM_MODEL:+ ($LLM_MODEL)}${LLM_FALLBACK_MODEL:+, then $LLM_FALLBACK_MODEL}"
           echo "requests a day: ${LLM_REQUESTS_PER_DAY:-0}, reset at midnight $LLM_QUOTA_TIMEZONE${LLM_FALLBACK_MODEL:+; fallback ${LLM_FALLBACK_REQUESTS_PER_DAY:-0}, $LLM_FALLBACK_QUOTA_TIMEZONE} (0 = learned from the 429s)"
       - run: uv sync --frozen --no-dev
+        if: steps.clock.outputs.skip != 'true'
       - name: Migrate, then one scheduler tick
+        if: steps.clock.outputs.skip != 'true'
         env:
           TASK: ${{ inputs.task }}
           EVENT: ${{ github.event_name }}
@@ -177,6 +216,14 @@ jobs:
           # API, so a throwaway one will do.
           export ADMIN_API_TOKEN="$(openssl rand -hex 32)"
           uv run gjurme db upgrade
+          # Measurements instead of a pipeline run: sizes, stage durations, and what the
+          # retention policy would delete (a dry run). Nothing is changed.
+          if [ "$TASK" = db-usage ]; then
+            uv run gjurme db-usage --days 7
+            echo "retention, dry run (rows it would delete or clear):"
+            uv run gjurme retention --dry-run
+            exit 0
+          fi
           # Entity cleanup instead of a pipeline run: a report, or the merge (docs/OPERATIONS.md)
           if [ "$TASK" = entities-report ]; then
             uv run gjurme entities-cleanup --show 60

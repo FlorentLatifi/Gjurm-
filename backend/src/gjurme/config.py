@@ -164,8 +164,19 @@ class Settings(BaseSettings):
 
     # --- scheduler -------------------------------------------------------------------------
     scheduler_interval_minutes: int = Field(default=15, ge=1)
+    # Retention (pipeline/retention.py, docs/DATA_MODEL.md#retention). The product (articles,
+    # stories, entities, the current analysis) is kept forever; these only bound what no page
+    # shows. Free hosting shortens them (free-hosting.yml) to stay inside 1 GB.
     retention_raw_payload_days: int = Field(default=30, ge=1)
     retention_excerpt_days: int = Field(default=90, ge=1)
+    # processed feed entries the feed has not listed for this long (the payload goes earlier)
+    retention_feed_item_days: int = Field(default=90, ge=7)
+    retention_fetch_days: int = Field(default=90, ge=2)
+    # enrichment attempts that are not an article's current analysis (and cost nothing)
+    retention_superseded_enrichment_days: int = Field(default=90, ge=2)
+    retention_raw_response_days: int = Field(default=90, ge=1)
+    # pipeline runs with their quality results, and alert events
+    retention_run_days: int = Field(default=180, ge=8)
 
     # --- API -------------------------------------------------------------------------------
     admin_api_token: SecretStr | None = None
@@ -179,9 +190,12 @@ class Settings(BaseSettings):
     rate_limit_search_per_minute: int = Field(default=90, ge=1)
     api_cache_ttl_seconds: int = Field(default=120, ge=0)
     # Behind a CDN that caches by CDN-Cache-Control (Vercel, Cloudflare): public answers are
-    # kept at the edge this long (0 = do not send the header). Each answer served from the CDN
-    # is one function call and one database wake-up less on free serverless hosting.
+    # kept at the edge until just after the next pipeline run, at most this long (0 = do not
+    # send the header; api/edge_cache.py). Each answer served from the CDN is one function call
+    # and one database wake-up less on free serverless hosting.
     cdn_cache_seconds: int = Field(default=0, ge=0)
+    # ...and served from the CDN this long when the API fails (0 = never).
+    cdn_stale_if_error_seconds: int = Field(default=7 * 86400, ge=0)
     # Responses computed at once (cache misses) per API process; the rest wait briefly, then
     # get 503. Keep it below the DB pool (DB_POOL_SIZE + DB_MAX_OVERFLOW) so cheap requests
     # always find a connection.

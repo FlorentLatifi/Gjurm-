@@ -4,6 +4,21 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Changed (free-plan headroom, 2026-11-18)
+Neon's free compute (100 CU-hours a month, awake 5 minutes after the last query) was at risk once readers came: a steady audience would keep the database awake all day (≈ 180 CU-hours) and Neon would stop it until the next month ([ADR-034](docs/DECISIONS.md#adr-034-keep-neon-asleep-between-pipeline-runs)).
+- **CDN lifetimes timed to the pipeline.** Public API answers, `/api/v1/status` and the sitemap stay on Vercel's CDN until 2 minutes after the next run should end (at most `CDN_CACHE_SECONDS`, now 1800 on Vercel, was a fixed 300), so the popular answers are fetched again while the run keeps the database awake, and readers see a run's news about 2 minutes after it. `stale-while-revalidate` is one interval and `stale-if-error` 7 days (`CDN_STALE_IF_ERROR_SECONDS`): the site stays readable from the CDN if the database is unreachable. Browsers keep `max-age=60` (status 30).
+- **The uptime monitor no longer wakes the database**: `/health` instead of `/health/ready`, the age of the last successful run computed from `last_success_at` (so the CDN's copy of the status will do), once an hour instead of every 30 minutes.
+- **GitHub's fallback schedule asks GitHub, not the database,** whether the outside clock just started a run: before, every scheduled run ran `gjurme db upgrade` first and woke Neon for 5 minutes, up to 48 times a day.
+- **Retention** drops more of what no page shows, with each period a setting and shorter on free hosting (`free-hosting.yml`): processed feed entries their feed has not listed for 14 days (`RETENTION_FEED_ITEM_DAYS`), enrichment attempts that are not an article's current analysis and cost nothing after 14 days (`RETENTION_SUPERSEDED_ENRICHMENT_DAYS`; paid ones stay for the cost history), raw responses after 14 days, fetches after 30 (`RETENTION_FETCH_DAYS`), runs with their quality results and alerts after 30 (`RETENTION_RUN_DAYS`). Server defaults: 90, 90, 90, 90 and 180 days. A test requires every public API answer to be identical before and after ([DATA_MODEL.md](docs/DATA_MODEL.md#retention)).
+
+### Added (free-plan headroom, 2026-11-18)
+- **`gjurme db-usage`**, and the *Free hosting* workflow's task `db-usage`: the database's size, every table's total, data and index size with its rows, the ten largest indexes, each pipeline stage's average and longest duration over 7 days, and the compute the pipeline alone keeps awake (each run + 5 minutes) in CU-hours per 30 days; the task then prints a dry run of the retention policy. Read-only.
+- Migration 0009: indexes on `raw.feed_items.first_fetch_id` and `core.enrichments.run_id`. Deleting fetches and runs sets those to NULL; without an index each deleted row scanned the referencing table.
+- A test that no connection is *active* or *idle in transaction* while a model answers, the pipeline lock's included: Neon counts only those as activity, so the ENRICH stage does not keep the database awake by waiting (it was not changed).
+
+### Fixed (free-plan headroom, 2026-11-18)
+- The `vercel.json` routing test expected the SPA rewrite without the `_vercel/` exclusion added for Web Analytics.
+
 ### Added (analytics, 2026-11-18)
 - **Vercel Web Analytics** (cookieless, no personal data, $0 on Hobby: 50,000 events a month, collection stops when used up). The same-origin script `/_vercel/insights/script.js` is injected into `index.html` by a Vite build plugin only when `VERCEL` is set: not in dev, not in the Docker/Caddy image (where `/_vercel` does not exist), not in CI or the e2e build. It also counts the SPA's route changes. No new dependency and no bundle growth. The CSP (`script-src 'self'`, `connect-src 'self'`) needs no change; the `vercel.json` SPA rewrite now leaves `_vercel/` alone so it can never answer the script with `index.html`. The About page (both languages), `SECURITY.md`, `BLUEPRINT.md` and the *Measure use* line of the launch checklist say so.
 

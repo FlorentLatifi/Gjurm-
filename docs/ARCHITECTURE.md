@@ -37,7 +37,7 @@ flowchart LR
     SCHED --> PG
     SCHED -->|alerts| HOOK
     BK --> PG
-    GHA -->|/health/ready, /api/v1/status| CADDY
+    GHA -->|/health, /api/v1/status| CADDY
 ```
 
 Network isolation (production compose): `db` sits only on an `internal` network with no route out. `scheduler` and `backup` also join an `egress` network (feeds, LLM API, webhook, off-site storage). `api` reaches the database and nothing else. Only Caddy publishes ports (80/443).

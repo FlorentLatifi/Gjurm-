@@ -351,13 +351,47 @@ def test_cdn_cache_header_only_when_configured(
         create_app(api_settings.model_copy(update={"cdn_cache_seconds": 300}), db)
     )
     public = behind_cdn.get("/api/v1/topics")
-    assert public.headers["cdn-cache-control"] == "public, max-age=300, stale-while-revalidate=300"
+    # no pipeline run yet: nothing will change the answer soon, so the whole CDN_CACHE_SECONDS
+    assert public.headers["cdn-cache-control"] == (
+        "public, max-age=300, stale-while-revalidate=900, stale-if-error=604800"
+    )
     assert public.headers["cache-control"].startswith("public, max-age=60")  # browsers: as before
     assert "cdn-cache-control" in behind_cdn.get("/api/share/sitemap.xml").headers
     # private, failed and uncacheable answers never reach the CDN's cache
     assert "cdn-cache-control" not in behind_cdn.get("/api/v1/admin/runs", headers=AUTH).headers
     assert "cdn-cache-control" not in behind_cdn.get("/api/v1/stories/999999").headers
     assert "cdn-cache-control" not in behind_cdn.get("/health").headers
+
+
+def test_cdn_keeps_answers_until_just_after_the_next_run(
+    db: sessionmaker[Session], api_settings: Settings
+) -> None:
+    """Free hosting (ADR-034): answers expire a couple of minutes after the next pipeline run
+    should end, while that run keeps the database awake; status is cached like the rest."""
+    now = datetime.now(UTC)
+    with db() as s, s.begin():
+        s.add(
+            PipelineRun(
+                trigger="test",
+                stages=["ingest"],
+                status="succeeded",
+                started_at=now - timedelta(minutes=10),
+                finished_at=now - timedelta(minutes=6),
+            )
+        )
+    cfg = api_settings.model_copy(
+        update={"cdn_cache_seconds": 1800, "scheduler_interval_minutes": 30}
+    )
+    client = TestClient(create_app(cfg, db))
+    for path in ("/api/v1/topics", "/api/v1/status", "/api/share/sitemap.xml"):
+        header = client.get(path).headers["cdn-cache-control"]
+        ttl = int(header.split("max-age=")[1].split(",")[0])
+        # next run: started 10 min ago + 30 min interval + 4 min run + 2 min margin
+        assert 25 * 60 <= ttl <= 26 * 60, (path, header)
+        assert header.endswith("stale-while-revalidate=1800, stale-if-error=604800")
+    # browsers keep a short max-age
+    assert client.get("/api/v1/topics").headers["cache-control"].startswith("public, max-age=60")
+    assert client.get("/api/v1/status").headers["cache-control"] == "public, max-age=30"
 
 
 def test_unchanged_answers_revalidate_with_304(client: TestClient, dataset: dict[str, Any]) -> None:

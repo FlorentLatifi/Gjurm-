@@ -21,8 +21,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import CollectorRegistry
 from sqlalchemy.orm import Session, sessionmaker
+from starlette.concurrency import run_in_threadpool
 
 from gjurme import __version__
+from gjurme.api.edge_cache import EdgeClock, cdn_cache_control
 from gjurme.api.metrics import ApiMetrics, PipelineCollector
 from gjurme.api.routers.ops import admin_router, health_router
 from gjurme.api.routers.public import router as public_router
@@ -92,6 +94,7 @@ def create_app(
         settings.api_cache_ttl_seconds, max_computations=settings.api_max_concurrent_computations
     )
     app.state.limiter = RateLimiter()
+    app.state.edge_clock = EdgeClock(session_factory)
     registry = CollectorRegistry()
     registry.register(PipelineCollector(session_factory, settings.llm_daily_budget_usd))
     app.state.registry = registry
@@ -211,12 +214,11 @@ def create_app(
             # share one URL (/stories/{id}), and a cache keyed by URL must never hold the preview.
             and (path.startswith("/api/v1/") or path == "/api/share/sitemap.xml")
         ):
-            # Browsers keep Cache-Control's short max-age; the CDN keeps the answer longer and
-            # refreshes it in the background (RFC 9213).
-            ttl = settings.cdn_cache_seconds
-            response.headers["CDN-Cache-Control"] = (
-                f"public, max-age={ttl}, stale-while-revalidate={ttl}"
-            )
+            # Browsers keep Cache-Control's short max-age; the CDN keeps the answer until just
+            # after the next pipeline run and refreshes it in the background (RFC 9213,
+            # api/edge_cache.py).
+            ttl = await run_in_threadpool(app.state.edge_clock.ttl, settings)
+            response.headers["CDN-Cache-Control"] = cdn_cache_control(ttl, settings)
         if (
             request.method == "GET"
             and response.status_code == 200

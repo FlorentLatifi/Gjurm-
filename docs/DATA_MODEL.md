@@ -349,16 +349,20 @@ ORDER BY a.id LIMIT 2;
 
 ## Retention
 
-Applied daily by the scheduler (`gjurme retention --no-dry-run` does the same by hand; the default is a dry run that only counts).
+Applied daily by the scheduler (`gjurme retention --no-dry-run` does the same by hand; the default is a dry run that only counts, which the free-hosting workflow's task `db-usage` also prints). Every period is a setting; the *server* column is the default, the *free hosting* column is what `free-hosting.yml` sets to stay inside Neon's 1 GB ([ADR-034](DECISIONS.md#adr-034-keep-neon-asleep-between-pipeline-runs)).
 
-| Data | Kept | Then | Why |
-|---|---|---|---|
-| `raw.feed_items.payload` (verbatim feed entry) | 30 days (`RETENTION_RAW_PAYLOAD_DAYS`) after processing | set to NULL; the row, hashes and outcome stay | Reprocessing window; the row keeps dedup working |
-| `core.articles.excerpt` | 90 days (`RETENTION_EXCERPT_DAYS`), whatever the analysis status | set to NULL | Publisher text is only needed as LLM input |
-| `core.enrichments.raw_response` | 90 days | set to NULL | Debugging failed calls |
-| `raw.feed_fetches` | 90 days | deleted | Source-health history |
-| `ops.pipeline_runs`, `ops.alert_events` | 180 days | deleted | Operational history |
-| Articles, enrichments (structured output), entities, topics | indefinitely | — | They are the product: metadata and derived data only |
+| Data | Server | Free hosting | Then | Why it can go |
+|---|---|---|---|---|
+| `raw.feed_items.payload` (verbatim feed entry) | 30 days after first seen, once processed (`RETENTION_RAW_PAYLOAD_DAYS`) | 7 days | set to NULL; the row, hashes and outcome stay | Reprocessing window; the row keeps L1 dedup working |
+| `raw.feed_items` rows, processed, that their feed has not listed since (`last_seen_at`) | 90 days (`RETENTION_FEED_ITEM_DAYS`) | 14 days | deleted | Only L1 dedup reads them, and only for entries a feed still lists; the article is in `core.articles`. Pending entries stay. If a feed listed one again, the canonical URL (L2) or the age limit (`MAX_ITEM_AGE_DAYS`) stops it |
+| `core.articles.excerpt` | 90 days (`RETENTION_EXCERPT_DAYS`), whatever the analysis status | 30 days | set to NULL | Publisher text is only needed as LLM input; never shown |
+| `core.enrichments` rows that are **not** the article's current analysis (failed tries, the keyword rules' analysis a model replaced, older prompt versions), when they cost nothing | 90 days (`RETENTION_SUPERSEDED_ENRICHMENT_DAYS`) | 14 days | deleted | Pages read only the current analysis (`is_current`, copied onto the article); the quality checks and the daily budget read 24 hours. Rows with `cost_usd > 0` stay for the cost history |
+| `core.enrichments.raw_response` | 90 days (`RETENTION_RAW_RESPONSE_DAYS`) | 14 days | set to NULL | Debugging failed calls |
+| `raw.feed_fetches` | 90 days (`RETENTION_FETCH_DAYS`) | 30 days | deleted | Source-health history; the overflow check reads 24 hours, source pages read `core.sources` |
+| `ops.pipeline_runs` (with their `ops.data_quality_results`), `ops.alert_events` | 180 days (`RETENTION_RUN_DAYS`) | 30 days | deleted; an analysis keeps its article, its `run_id` becomes NULL | Operational history; the status page reads the latest run, alert deduplication 6 hours |
+| Articles, current enrichments, topics and entity links, entities, stories, sources | indefinitely | indefinitely | — | They are the product: metadata and derived data only |
+
+A test reads every public API answer before and after retention with the free-hosting periods and requires them to be identical (`tests/integration/test_retention.py`). Deletes follow foreign keys (`feed_items.first_fetch_id`, `enrichments.run_id` are set to NULL); both columns are indexed (migration 0009), or each deleted row would scan the referencing table. Deleted rows free space that PostgreSQL reuses; the database's reported size shrinks only after `VACUUM FULL` of a table.
 
 Takedown is not retention: `POST /api/v1/admin/articles/{id}/hide` sets `is_hidden`, and every public query filters on it immediately ([OPERATIONS.md](OPERATIONS.md#takedown-request)).
 

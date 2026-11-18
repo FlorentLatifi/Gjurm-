@@ -4,7 +4,7 @@ Two adaptations, both outside ``create_app`` so the app itself stays one and the
 
 * **Settings.** ``serverless_defaults`` fills what the dashboard need not repeat: production
   mode, Vercel's own address as the public URL, a small connection pool per function instance
-  and CDN caching. Anything set in the environment wins.
+  and CDN caching timed to the pipeline's 30 minutes. Anything set in the environment wins.
 * **Paths.** ``vercel.json`` rewrites every API path to the one function and names the path that
   was asked for in ``?__path=``. Whether the function then sees the original path or the rewrite
   target, ``VercelPaths`` hands the app the original, and maps the two paths that Caddy rewrites
@@ -33,7 +33,10 @@ def serverless_defaults(env: Mapping[str, str]) -> dict[str, str]:
         "LOG_FORMAT": "json",
         # Vercel replaces X-Forwarded-For with the client's address: it cannot be spoofed.
         "TRUST_PROXY_HEADERS": "true",
-        "CDN_CACHE_SECONDS": "300",
+        # Answers stay on the CDN until just after the next pipeline run (api/edge_cache.py),
+        # at most 30 minutes: the "Free hosting" workflow runs it every 30 minutes.
+        "CDN_CACHE_SECONDS": "1800",
+        "SCHEDULER_INTERVAL_MINUTES": "30",
         # One instance serves many requests; many instances share the database's connections.
         "DB_POOL_SIZE": "1",
         "DB_MAX_OVERFLOW": "2",
