@@ -161,7 +161,10 @@ def test_rewrites_send_api_paths_to_the_function_and_the_rest_to_the_app() -> No
     rewrites = VERCEL["rewrites"]
     fallback = rewrites[-1]
     # last, so the crawler rule and the API win; a missing /assets/ chunk stays a real 404
-    assert fallback == {"source": "/:path((?!api/|assets/).*)", "destination": "/index.html"}
+    assert fallback == {
+        "source": "/:path((?!api/|assets/|_vercel/).*)",
+        "destination": "/index.html",
+    }
     for rule in rewrites[:-1]:
         assert rule["destination"].startswith(f"{FUNCTION}?{PATH_PARAM}="), rule
     assert list(VERCEL["functions"]) == ["api/index.py"]

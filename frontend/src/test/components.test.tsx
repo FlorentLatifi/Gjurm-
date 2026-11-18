@@ -150,6 +150,15 @@ describe("RankList & SentimentBar", () => {
 });
 
 describe("Analysis disclosure banner", () => {
+  const front = (ai_share: number | null, headline_ai_share = ai_share) => ({
+    days: 3,
+    min_sources: 2,
+    stories: ai_share === null ? 0 : 40,
+    articles: ai_share === null ? 0 : 200,
+    ai_share,
+    headline_ai_share,
+  });
+  const noFront = front(null);
   const status = (analysis: PublicStatus["analysis"], demo = false): PublicStatus => ({
     status: "ok",
     last_run_at: null,
@@ -169,9 +178,27 @@ describe("Analysis disclosure banner", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("says plainly when recent articles were analysed by keyword rules", async () => {
-    serve(status({ mode: "mixed", rule_based_share: 0.25, model: "claude-sonnet-5" }));
+    serve(status({ mode: "mixed", rule_based_share: 0.25, model: "claude-sonnet-5", front_page: noFront }));
     wrap(<Shell />);
     expect(await screen.findByText(/25% of recent articles were analysed by keyword rules/)).toBeInTheDocument();
+  });
+
+  it("gives the front page's share of AI analysis and still names the keyword rules", async () => {
+    serve(status({ mode: "mixed", rule_based_share: 0.66, model: "gemini-test", front_page: front(0.874, 0.95) }));
+    wrap(<Shell />);
+    const line = await screen.findByText(
+      /87% of the front page’s articles were analysed by an AI model, the rest by keyword rules, as were 66% of all recent articles/,
+    );
+    expect(line).toBeInTheDocument();
+  });
+
+  it("never rounds the front page's share of AI analysis up", () => {
+    const text = (share: number) =>
+      noticeFor(status({ mode: "mixed", rule_based_share: 0.5, model: "m", front_page: front(share) }))?.text;
+    expect(text(0.999)).toMatch(/^99% of the front page’s articles/);
+    expect(text(0.29)).toMatch(/^29% of the front page’s articles/);
+    expect(text(0)).toMatch(/^0% of the front page’s articles were analysed by an AI model, the rest by keyword rules/);
+    expect(text(1)).toMatch(/^Every article on the front page was analysed by an AI model; 50% of all recent articles by keyword rules/);
   });
 
   it("holds its line while the status loads, so the page does not jump when it arrives", async () => {
@@ -181,13 +208,13 @@ describe("Analysis disclosure banner", () => {
   });
 
   it("names the demo dataset before anything else", () => {
-    expect(noticeFor(status({ mode: "rules", rule_based_share: 1, model: null }, true))?.label).toBe("Demo dataset.");
-    expect(noticeFor(status({ mode: "rules", rule_based_share: 1, model: null }))?.label).toBe("Rule-based analysis.");
+    expect(noticeFor(status({ mode: "rules", rule_based_share: 1, model: null, front_page: noFront }, true))?.label).toBe("Demo dataset.");
+    expect(noticeFor(status({ mode: "rules", rule_based_share: 1, model: null, front_page: noFront }))?.label).toBe("Rule-based analysis.");
     expect(noticeFor(undefined)).toBeNull();
   });
 
   it("is absent when an AI model did the analysis", async () => {
-    serve(status({ mode: "ai", rule_based_share: 0, model: "claude-sonnet-5" }));
+    serve(status({ mode: "ai", rule_based_share: 0, model: "claude-sonnet-5", front_page: noFront }));
     wrap(<Shell />);
     await screen.findAllByText(/updated/i);
     expect(screen.queryByText(/keyword rules/)).not.toBeInTheDocument();

@@ -4,6 +4,13 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Changed (analysis queue, 2026-11-18)
+- **A free model's quota goes to the news readers see.** On the free path the models analyse about a third of the articles and the keyword rules the rest, provisionally (`ENRICH_RULES_UPGRADE_HOURS`), while the front page, the blindspots and the sitemap show only stories of two or more outlets. Of the articles that wait for a better analysis, the model now takes first those of a story on the front page (2+ outlets, started in the last 3 local days), and in each such story first the article whose headline and summary the story shows; then the others, newest first. Articles without any analysis still go before all of them, and the daily quota per run (ADR-033) is unchanged. The run's stats count them (`queued_front_page`). Stories older than 3 days are not favoured, so a *reanalyse* cannot take today's quota for old news.
+- **The banner says how the front page was analysed.** `GET /api/v1/status` → `analysis.front_page` gives, for the stories of 2+ outlets of the last 3 days, how many there are, how many of their articles have an analysis, the share of those a model analysed (`ai_share`) and the share of the stories whose headline comes from a model (`headline_ai_share`). In mixed mode the banner on every page now reads e.g. *"87% of the front page's articles were analysed by an AI model, the rest by keyword rules, as were 66% of all recent articles"* (rounded down; the rules are always named), and the About page (both languages) states both front-page figures.
+
+### Fixed (tests, 2026-11-18)
+- `test_free_hosting` expected the SPA rewrite of `vercel.json` without the `_vercel/` exclusion added for Web Analytics.
+
 ### Added (analytics, 2026-11-18)
 - **Vercel Web Analytics** (cookieless, no personal data, $0 on Hobby: 50,000 events a month, collection stops when used up). The same-origin script `/_vercel/insights/script.js` is injected into `index.html` by a Vite build plugin only when `VERCEL` is set: not in dev, not in the Docker/Caddy image (where `/_vercel` does not exist), not in CI or the e2e build. It also counts the SPA's route changes. No new dependency and no bundle growth. The CSP (`script-src 'self'`, `connect-src 'self'`) needs no change; the `vercel.json` SPA rewrite now leaves `_vercel/` alone so it can never answer the script with `index.html`. The About page (both languages), `SECURITY.md`, `BLUEPRINT.md` and the *Measure use* line of the launch checklist say so.
 

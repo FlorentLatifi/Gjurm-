@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from gjurme.api.app import create_app
 from gjurme.config import Settings
-from gjurme.db.models import Article, Enrichment, PipelineRun, Source
+from gjurme.db.models import Article, Enrichment, PipelineRun, Source, Story
 from gjurme.enrichment.schema import EnrichmentOutput
 from gjurme.enrichment.service import apply_output, requeue
 from gjurme.ingestion.normalize import normalize_key, sha256_hex
@@ -554,14 +554,86 @@ def _current_enrichment(s: Session, article_id: int, provider: str, model: str) 
     )
 
 
+def _story(s: Session, members: list[int], *, rep: int | None, day: date | None = None) -> int:
+    """A story of the given articles, dated ``day`` (by default its first article's)."""
+    arts = s.scalars(select(Article).where(Article.id.in_(members))).all()
+    first = min(a.published_at for a in arts)
+    story = Story(
+        first_published_at=first,
+        last_published_at=max(a.published_at for a in arts),
+        published_date=day or min(a.published_date for a in arts),
+        representative_article_id=rep,
+    )
+    s.add(story)
+    s.flush()
+    s.execute(update(Article).where(Article.id.in_(members)).values(story_id=story.id))
+    return story.id
+
+
+def test_front_page_share_counts_the_stories_the_front_page_shows(
+    client: TestClient, db: sessionmaker[Session]
+) -> None:
+    """The banner's front-page figure: stories of 2+ outlets from the last three local days,
+    all their visible analysed articles, and the article each story shows its headline from."""
+    t = today()
+    with db() as s, s.begin():
+        a, b = add_source(s, "alfa").id, add_source(s, "beta").id
+
+        def art(src: int, title: str, day: date, hour: int, provider: str | None) -> int:
+            aid = make_article(s, src, title, day, hour=hour)
+            if provider:
+                _current_enrichment(s, aid, provider, provider)
+            return aid
+
+        # shown headline analysed by AI, one other article by rules
+        lead = art(a, "Kuvendi voton", t, 9, "anthropic")
+        _story(s, [lead, art(b, "Kuvendi voton sot", t, 8, "fake")], rep=lead)
+        # the representative is hidden: the story shows its earliest visible article (rules)
+        hidden = make_article(s, b, "Qeveria vendos", t, hidden=True, hour=7)
+        early = art(a, "Qeveria vendos sot", t, 8, "fake")
+        _story(s, [hidden, early, art(b, "Qeveria vendos dje", t, 11, "anthropic")], rep=hidden)
+        # a member not analysed yet: not counted in the shares
+        _story(
+            s, [art(a, "Zgjedhjet", t, 10, "fake"), art(b, "Zgjedhjet sot", t, 12, None)], rep=None
+        )
+        # not on the front page: one outlet only, and a story of two outlets four days ago
+        _story(
+            s,
+            [art(a, "Lajm i vetëm", t, 9, "fake"), art(a, "Lajm i vetëm 2", t, 10, "fake")],
+            rep=None,
+        )
+        old = t - timedelta(days=3)
+        _story(
+            s, [art(a, "E vjetër", old, 9, "fake"), art(b, "E vjetër 2", old, 9, "fake")], rep=None
+        )
+    front = client.get("/api/v1/status").json()["analysis"]["front_page"]
+    assert front == {
+        "days": 3,
+        "min_sources": 2,
+        "stories": 3,
+        "articles": 5,  # 6 visible members, one without an analysis
+        "ai_share": 0.4,
+        "headline_ai_share": round(1 / 3, 3),  # the earliest of "Zgjedhjet" is the rules'
+    }
+
+
 def test_analysis_method_is_disclosed(
     client: TestClient, db: sessionmaker[Session], dataset: dict[str, Any]
 ) -> None:
     """Rule-based (keyword) analysis must be labelled as such everywhere the public sees it."""
+    no_front_page = {
+        "days": 3,
+        "min_sources": 2,
+        "stories": 0,
+        "articles": 0,
+        "ai_share": None,
+        "headline_ai_share": None,
+    }
     assert client.get("/api/v1/status").json()["analysis"] == {
         "mode": "none",
         "rule_based_share": None,
         "model": None,
+        "front_page": no_front_page,
     }
     with db() as s, s.begin():
         ids = s.scalars(select(Article.id).where(~Article.is_hidden).order_by(Article.id)).all()
@@ -570,9 +642,22 @@ def test_analysis_method_is_disclosed(
         _current_enrichment(s, ai_id, "anthropic", "claude-sonnet-5")
         for other in ids[2:5]:
             _current_enrichment(s, other, "fake", "fake")
+        # two outlets (beta, alfa) report one story whose headline is the rule-analysed article
+        _story(s, [rules_id, ai_id], rep=rules_id)
     client.app.state.cache.clear()  # the status is cached for 30 s
     analysis = client.get("/api/v1/status").json()["analysis"]
-    assert analysis == {"mode": "mixed", "rule_based_share": 0.8, "model": "claude-sonnet-5"}
+    assert analysis == {
+        "mode": "mixed",
+        "rule_based_share": 0.8,
+        "model": "claude-sonnet-5",
+        "front_page": {
+            **no_front_page,
+            "stories": 1,
+            "articles": 2,
+            "ai_share": 0.5,
+            "headline_ai_share": 0.0,
+        },
+    }
 
     rules = client.get(f"/api/v1/articles/{rules_id}").json()
     assert (rules["analysis_method"], rules["analysis_model"]) == ("rules", None)

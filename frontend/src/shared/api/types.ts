@@ -376,6 +376,17 @@ export interface AnalysisMode {
   mode: "ai" | "rules" | "mixed" | "none";
   rule_based_share: number | null;
   model: string | null;
+  front_page: FrontPageAnalysis;
+}
+
+/** The articles of the stories on the front page (2+ outlets, last 3 days): the model goes to these first. */
+export interface FrontPageAnalysis {
+  days: number;
+  min_sources: number;
+  stories: number;
+  articles: number;
+  ai_share: number | null;
+  headline_ai_share: number | null;
 }
 
 export interface TaxonomyTopic {
