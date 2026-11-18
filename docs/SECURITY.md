@@ -33,7 +33,7 @@ GJURMË is a public, read-only analytics site with one operator. There are no us
 
 ## Privacy
 
-- No cookies, no analytics or tracking scripts, no third-party requests from the browser: system fonts, all assets served from the same origin, and the CSP (`default-src 'self'`) enforces it.
+- No cookies and no third-party requests from the browser: system fonts, all assets served from the same origin, and the CSP (`default-src 'self'`) enforces it. The only analytics is Vercel Web Analytics (cookieless, no personal data), a script Vercel serves from the same origin (`/_vercel/insights/script.js`) and present only in the Vercel deploy.
 - The theme preference is stored in `localStorage` on the visitor's device only.
 - Rate-limit state is kept in memory and not persisted. The API writes no access log. Caddy's access log truncates visitor IPs (IPv4 /16, IPv6 /32) and drops `X-Forwarded-For` before writing, so the About page's "no full IP addresses" statement holds (verified in the running stack). Docker rotates logs at 5 × 10 MB per container.
 - Stored content is publisher metadata plus derived analysis. Excerpts (LLM input) are purged after 90 days and never published ([DATA_MODEL.md](DATA_MODEL.md#retention)).

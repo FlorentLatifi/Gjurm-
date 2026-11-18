@@ -43,7 +43,7 @@
       "destination": "/api/index?__path=health"
     },
     {
-      "source": "/:path((?!api/|assets/).*)",
+      "source": "/:path((?!api/|assets/|_vercel/).*)",
       "destination": "/index.html"
     }
   ],
