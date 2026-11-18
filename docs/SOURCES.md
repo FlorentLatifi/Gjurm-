@@ -114,7 +114,7 @@ The weekly schedule of the *Source validation* workflow re-checks every source, 
 
 ## News sitemaps (2026-11-18)
 
-Outlets without a usable RSS feed were checked for a sitemap that names each article's headline and time, which GJURMË reads like a feed (`ingestion/feed_parser.py`, `parse_sitemap`). Checked from a cloud machine (not GitHub's runners, which some outlets answer with 403):
+Outlets without a usable RSS feed were checked for a sitemap that names each article's headline and time, which GJURMË reads like a feed (`ingestion/feed_parser.py`, `parse_sitemap`). Checked from a cloud machine, then from GitHub's runners by the *Source validation* run (the pipeline's own addresses), which passed for the first five rows and Monitor's `/rss`; all six are enabled:
 
 | Outlet | Address | Result |
 |---|---|---|
