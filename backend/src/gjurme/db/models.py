@@ -72,6 +72,11 @@ SEVERITIES = ("info", "warning", "critical")
 # =============================================================================================
 # core — dimensions
 # =============================================================================================
+# Prefix of Source.disabled_reason when the pipeline switched a source off after failing in a
+# row (an operator's "disabled in sources.yaml" is a decision, not a fault).
+AUTO_DISABLED = "auto-disabled"
+
+
 class Source(Base):
     """Dimension: a news publisher feed. Seeded from ``sources.yaml``.
 

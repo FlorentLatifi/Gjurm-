@@ -19,7 +19,7 @@ from gjurme.api.deps import DB, AppSettings, local_today
 from gjurme.api.schemas import Health, PublicStatus
 from gjurme.api.security import client_ip, require_admin
 from gjurme.config import Settings
-from gjurme.db.models import AlertEvent, Article, PipelineRun, Source
+from gjurme.db.models import AUTO_DISABLED, AlertEvent, Article, PipelineRun, Source
 from gjurme.enrichment.budget import spent_today
 from gjurme.runtime_settings import (
     ENRICHMENT_PAUSE,
@@ -112,14 +112,19 @@ def _public_status(db: Session, settings: Settings) -> dict[str, Any]:
           AND (enrichment_status = 'pending' OR enrichment_attempts < :max_attempts)"""),
         {"max_attempts": settings.enrich_max_attempts},
     ).scalar_one()
-    sources = [
+    rows = [
         dict(r._mapping)
         for r in db.execute(
             text("""
-        SELECT slug, name, is_active, verification_status, last_success_at, consecutive_failures
-        FROM core.sources WHERE slug NOT LIKE 'demo-%' ORDER BY name""")
+        SELECT slug, name, is_active, verification_status, last_success_at, consecutive_failures,
+               coalesce(disabled_reason, '') LIKE :auto AS auto_disabled
+        FROM core.sources WHERE slug NOT LIKE 'demo-%' ORDER BY name"""),
+            {"auto": f"{AUTO_DISABLED}%"},
         )
     ]
+    # Whether the pipeline switched a source off is for the health verdict, not the answer.
+    auto_disabled = {r["slug"] for r in rows if r.pop("auto_disabled")}
+    sources = rows
     demo = bool(
         db.execute(
             text("SELECT EXISTS (SELECT 1 FROM core.sources WHERE slug LIKE 'demo-%')")
@@ -138,8 +143,15 @@ def _public_status(db: Session, settings: Settings) -> dict[str, Any]:
             and s["consecutive_failures"] >= settings.source_failure_partial_threshold
             for s in sources
         )
-        # auto-disabled after failing in a row: no longer failing, no longer collected either
-        or any(not s["is_active"] and s["verification_status"] == "failing" for s in sources)
+        # auto-disabled after failing in a row: no longer failing, no longer collected either.
+        # An outlet the operator switched off in sources.yaml is a decision, not a fault: it
+        # keeps its last verification status but no longer makes the site "degraded".
+        or any(
+            not s["is_active"]
+            and s["verification_status"] == "failing"
+            and s["slug"] in auto_disabled
+            for s in sources
+        )
     ):
         state = "degraded"
     else:

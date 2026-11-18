@@ -185,6 +185,11 @@ def create_app(
             response.headers.setdefault(name, value)
         is_docs = path.startswith(("/api/docs", "/api/redoc"))
         response.headers.setdefault("Content-Security-Policy", DOCS_CSP if is_docs else API_CSP)
+        if path.startswith(("/api/", "/health", "/metrics")) and not path.startswith("/api/share/"):
+            # robots.txt lets search engines fetch /api/v1/, because the pages they render read
+            # it; the JSON itself must never be listed as a search result. The share pages
+            # (link previews, the sitemap) are pages, not API answers.
+            response.headers.setdefault("X-Robots-Tag", "noindex")
         if (
             request.method == "GET"
             and response.status_code == 200

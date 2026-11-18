@@ -98,6 +98,12 @@ jobs:
           robots="$(get -f "$URL/robots.txt" || true)"
           echo "$robots" | grep -qi "^Sitemap: $URL/sitemap.xml" && ok "robots.txt points at $URL/sitemap.xml" \
             || bad "robots.txt does not point at $URL/sitemap.xml: $(echo "$robots" | grep -i sitemap)"
+          # The pages read /api/v1/: a search engine that may not fetch it renders every story empty
+          echo "$robots" | grep -qx "Allow: /api/v1/" && ok "robots.txt lets search engines read the public API the pages render from" \
+            || bad "robots.txt blocks /api/v1/: search engines render the pages without their content"
+          xrt="$(get -o /dev/null -D - "$URL/api/v1/topics" | tr -d '\r' | grep -i '^x-robots-tag:' || true)"
+          echo "$xrt" | grep -qi noindex && ok "API answers carry X-Robots-Tag: noindex" \
+            || bad "API answers lack X-Robots-Tag: noindex (the JSON could be listed in search results)"
 
           # Search engines must be able to verify the site (the file in frontend/public)
           for f in $(ls frontend/public/google*.html 2>/dev/null); do

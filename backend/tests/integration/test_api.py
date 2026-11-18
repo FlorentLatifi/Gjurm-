@@ -330,6 +330,19 @@ def test_security_and_cache_headers(client: TestClient) -> None:
     assert rid.headers["x-request-id"] == "trace-12345678"
 
 
+def test_api_answers_are_fetchable_but_never_indexed(client: TestClient) -> None:
+    """robots.txt lets search engines fetch /api/v1/ (the pages they render read it); the JSON
+    answers themselves carry noindex, the share pages and the sitemap do not."""
+    assert client.get("/api/v1/topics").headers["x-robots-tag"] == "noindex"
+    assert client.get("/api/v1/stories/999999").headers["x-robots-tag"] == "noindex"
+    assert client.get("/health").headers["x-robots-tag"] == "noindex"
+    first = client.get("/api/v1/topics")
+    again = client.get("/api/v1/topics", headers={"If-None-Match": first.headers["etag"]})
+    assert again.status_code == 304 and again.headers["x-robots-tag"] == "noindex"
+    assert "x-robots-tag" not in client.get("/api/share/sitemap.xml").headers
+    assert "x-robots-tag" not in client.get("/api/share/stories/999999").headers
+
+
 def test_cdn_cache_header_only_when_configured(
     db: sessionmaker[Session], api_settings: Settings, client: TestClient
 ) -> None:
@@ -508,6 +521,16 @@ def test_public_status_is_cached_briefly_and_reports_lost_sources(
     assert TestClient(create_app(api_settings, db)).get("/api/v1/status").json()["status"] == (
         "degraded"
     )
+    with db() as s, s.begin():  # the operator then disables it in sources.yaml: a decision
+        s.execute(
+            update(Source)
+            .where(Source.slug == "beta")
+            .values(disabled_reason="disabled in sources.yaml")
+        )
+    switched_off = TestClient(create_app(api_settings, db)).get("/api/v1/status").json()
+    assert switched_off["status"] == "ok"
+    beta = next(s for s in switched_off["sources"] if s["slug"] == "beta")
+    assert beta["verification_status"] == "failing" and "auto_disabled" not in beta
     with db() as s, s.begin():  # nothing is collected any more
         s.execute(update(Source).values(is_active=False))
     assert TestClient(create_app(api_settings, db)).get("/api/v1/status").json()["status"] == (
