@@ -178,3 +178,19 @@ def test_a_person_with_a_connector_is_read_again() -> None:
 def test_more_outlet_aliases() -> None:
     assert "gazeta sinjali" in self_names("Sinjali")
     assert "gazeta online reporteri net" in self_names("Reporteri.net")
+
+
+def test_a_genitive_after_a_connector_keeps_its_ending() -> None:
+    """Live data, 2026-11-18: the merge showed "Vitomiricë të Pejë" and "Maqedonia e Veriu"."""
+    village = [
+        _Stored(15579, "location", "vitomirice te pejes", "Vitomiricë të Pejës", 460),
+        _Stored(90001, "location", "vitomirice te peje", "Vitomiricë të Pejë", 4),
+    ]
+    [plan] = _merge_plan([village])
+    assert plan["keep_id"] == 15579 and plan["name"] == "Vitomiricë të Pejës"
+    country = [
+        _Stored(1, "location", "maqedonia e veriu", "Maqedonia e Veriu", 9),
+        _Stored(2, "location", "maqedonia e veriut", "Maqedonia e Veriut", 160),
+    ]
+    [plan] = _merge_plan([country])
+    assert plan["name"] == "Maqedonia e Veriut"

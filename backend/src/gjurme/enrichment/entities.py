@@ -216,8 +216,13 @@ class _Stored:
 
 def _display_rank(member: _Stored, common: int) -> tuple[int, int, int]:
     """Higher is the better name to show: a nominative form, for a place its definite form
-    ("Kosova", "Serbia"), then the form used most."""
-    ending = _split(member.key)[1][common:]
+    ("Kosova", "Serbia"), then the form used most. After "i", "e", "të" the last word is a
+    genitive by grammar ("Vitomiricë të Pejës", "Maqedonia e Veriut"): there the form used
+    most wins, never one cut to its nominative ("të Pejë", "e Veriu")."""
+    head, last = _split(member.key)
+    if any(t in CONNECTORS for t in head.split()):
+        return (0, 0, member.mentions)
+    ending = last[common:]
     nominative = not ending.endswith(_OBLIQUE)
     definite = member.type == "location" and ending.endswith("a")
     return (int(nominative), int(definite), member.mentions)
