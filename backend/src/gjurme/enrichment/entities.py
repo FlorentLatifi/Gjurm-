@@ -274,10 +274,83 @@ def _merge_plan(groups: list[list[_Stored]]) -> list[dict[str, Any]]:
     return sorted(plan, key=lambda p: (-int(p["mentions"]), int(p["keep_id"])))
 
 
+def _move_links(session: Session, pairs: list[tuple[int, int]]) -> None:
+    """Give every (from, to) pair's articles to ``to``, then delete ``from`` (its own links go
+    with it: ON DELETE CASCADE). Two statements whatever the number of pairs."""
+    if not pairs:
+        return
+    session.execute(
+        text("""
+        INSERT INTO core.article_entities (article_id, entity_id, published_date)
+        SELECT ae.article_id, m.dest, ae.published_date
+        FROM core.article_entities ae
+        JOIN unnest(CAST(:src AS bigint[]), CAST(:dest AS bigint[])) AS m(src, dest)
+          ON ae.entity_id = m.src
+        ON CONFLICT DO NOTHING"""),
+        {"src": [a for a, _ in pairs], "dest": [b for _, b in pairs]},
+    )
+    session.execute(
+        text("DELETE FROM core.entities WHERE id = ANY(CAST(:ids AS bigint[]))"),
+        {"ids": sorted({a for a, _ in pairs})},
+    )
+
+
+def _apply_not_persons(session: Session, junk: list[dict[str, Any]]) -> None:
+    """Move each junk entity's links to what it is (inserted when new), or delete it."""
+    targets = {
+        (j["becomes"]["type"], normalize_key(j["becomes"]["name"])): j["becomes"]["name"]
+        for j in junk
+        if j["becomes"] is not None
+    }
+    if targets:
+        session.execute(
+            text("""
+            INSERT INTO core.entities (type, normalized_key, name)
+            SELECT * FROM unnest(CAST(:types AS text[]), CAST(:keys AS text[]),
+                                 CAST(:names AS text[]))
+            ON CONFLICT (type, normalized_key) DO NOTHING"""),
+            {
+                "types": [t for t, _ in targets],
+                "keys": [k for _, k in targets],
+                "names": list(targets.values()),
+            },
+        )
+    ids = {
+        (r.type, r.normalized_key): r.id
+        for r in session.execute(
+            text("""
+            SELECT e.id, e.type, e.normalized_key FROM core.entities e
+            JOIN unnest(CAST(:types AS text[]), CAST(:keys AS text[])) AS m(type, key)
+              ON e.type = m.type AND e.normalized_key = m.key"""),
+            {"types": [t for t, _ in targets], "keys": [k for _, k in targets]},
+        )
+    }
+    pairs: list[tuple[int, int]] = []
+    gone: list[int] = []
+    for j in junk:
+        if j["becomes"] is None:
+            gone.append(j["entity_id"])
+            continue
+        dest = ids[(j["becomes"]["type"], normalize_key(j["becomes"]["name"]))]
+        if dest != j["entity_id"]:
+            pairs.append((j["entity_id"], dest))
+    _move_links(session, pairs)
+    if gone:
+        session.execute(
+            text("DELETE FROM core.entities WHERE id = ANY(CAST(:ids AS bigint[]))"),
+            {"ids": gone},
+        )
+
+
 def cleanup_entities(session: Session, *, apply: bool, show: int = 40) -> dict[str, Any]:
     """Remove outlets' self-references from their own articles and merge the case forms of a
     person or place into one entity. Without ``apply`` nothing changes: the report lists what
     would. Idempotent: a second run finds nothing."""
+    if apply:
+        # A few large statements instead of one per entity: from a runner far from the database
+        # every statement is a round trip (the per-entity version outlived the workflow's 25
+        # minutes on live data). They may take longer than an API query's 15 s limit.
+        session.execute(text("SET LOCAL statement_timeout = '10min'"))
     # 1. An outlet's own names, on its own articles
     self_refs: list[dict[str, Any]] = []
     for source_name, keys in _self_names_by_outlet().items():
@@ -292,26 +365,25 @@ def cleanup_entities(session: Session, *, apply: bool, show: int = 40) -> dict[s
             GROUP BY e.id, e.name, e.type"""),
             {"source": source_name, "keys": sorted(keys)},
         ).all()
-        for r in rows:
-            self_refs.append(
-                {
-                    "source": source_name,
-                    "entity_id": r.id,
-                    "name": r.name,
-                    "type": r.type,
-                    "links": r.links,
-                }
-            )
-            if apply:
-                session.execute(
-                    text("""
-                    DELETE FROM core.article_entities ae USING core.articles a, core.sources s
-                    WHERE ae.entity_id = :eid AND a.id = ae.article_id AND s.id = a.source_id
-                      AND s.name = :source"""),
-                    {"eid": r.id, "source": source_name},
-                )
+        self_refs += [
+            {"source": source_name, "entity_id": r.id, "name": r.name, "type": r.type,
+             "links": r.links}
+            for r in rows
+        ]  # fmt: skip
     orphans = 0
     if apply and self_refs:
+        session.execute(
+            text("""
+            DELETE FROM core.article_entities ae
+            USING core.articles a, core.sources s,
+                  unnest(CAST(:eids AS bigint[]), CAST(:sources AS text[])) AS m(eid, source)
+            WHERE ae.entity_id = m.eid AND a.id = ae.article_id AND s.id = a.source_id
+              AND s.name = m.source"""),
+            {
+                "eids": [r["entity_id"] for r in self_refs],
+                "sources": [r["source"] for r in self_refs],
+            },
+        )
         orphans = session.execute(
             text("""
             DELETE FROM core.entities e WHERE e.id = ANY(:ids)
@@ -344,28 +416,8 @@ def cleanup_entities(session: Session, *, apply: bool, show: int = 40) -> dict[s
                 "becomes": None if found is None else {"name": found[0], "type": found[1]},
             }
         )
-        if not apply:
-            continue
-        if found is not None:
-            target = session.execute(
-                text("""
-                INSERT INTO core.entities (type, normalized_key, name) VALUES (:t, :k, :n)
-                ON CONFLICT (type, normalized_key) DO UPDATE SET type = EXCLUDED.type
-                RETURNING id"""),
-                {"t": found[1], "k": normalize_key(found[0]), "n": found[0]},
-            ).scalar_one()
-            if target == r.id:
-                continue
-            session.execute(
-                text("""
-                INSERT INTO core.article_entities (article_id, entity_id, published_date)
-                SELECT article_id, :target, published_date FROM core.article_entities
-                WHERE entity_id = :junk
-                ON CONFLICT DO NOTHING"""),
-                {"target": target, "junk": r.id},
-            )
-        # its links go with it (ON DELETE CASCADE)
-        session.execute(text("DELETE FROM core.entities WHERE id = :junk"), {"junk": r.id})
+    if apply and junk:
+        _apply_not_persons(session, junk)
 
     # 3. Case forms of one person or place (after step 2 when applied; a report counts the
     # forms as they are stored now)
@@ -381,25 +433,21 @@ def cleanup_entities(session: Session, *, apply: bool, show: int = 40) -> dict[s
         )
     ]
     plan = _merge_plan(_groups(stored))
-    if apply:
-        for item in plan:
-            others = [m["id"] for m in item["merged"] if m["id"] != item["keep_id"]]
-            session.execute(
-                text("""
-                INSERT INTO core.article_entities (article_id, entity_id, published_date)
-                SELECT article_id, :keep, published_date FROM core.article_entities
-                WHERE entity_id = ANY(:others)
-                ON CONFLICT DO NOTHING"""),
-                {"keep": item["keep_id"], "others": others},
-            )
-            # the forms' links go with them (ON DELETE CASCADE)
-            session.execute(
-                text("DELETE FROM core.entities WHERE id = ANY(:others)"), {"others": others}
-            )
-            session.execute(
-                text("UPDATE core.entities SET name = :name WHERE id = :keep"),
-                {"name": item["name"], "keep": item["keep_id"]},
-            )
+    if apply and plan:
+        pairs = [
+            (m["id"], item["keep_id"])
+            for item in plan
+            for m in item["merged"]
+            if m["id"] != item["keep_id"]
+        ]
+        _move_links(session, pairs)
+        session.execute(
+            text("""
+            UPDATE core.entities e SET name = m.name
+            FROM unnest(CAST(:ids AS bigint[]), CAST(:names AS text[])) AS m(id, name)
+            WHERE e.id = m.id AND e.name <> m.name"""),
+            {"ids": [p["keep_id"] for p in plan], "names": [p["name"] for p in plan]},
+        )
     result = {
         "applied": apply,
         "self_references": self_refs,
