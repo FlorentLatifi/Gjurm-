@@ -143,11 +143,13 @@ Shifrat e GJURMË-s janë vlerësime për fillimin. Kontrolloji herë pas here t
 
 | Shërbimi | Kufiri falas | GJURMË (vlerësim) | Çfarë ndodh në kufi |
 |---|---|---|---|
-| Neon: hapësira | 1 GB | rreth 250–400 MB në muaj në fillim, me 18 media; më ngadalë kur fillon fshirja e të dhënave të vjetra (të dhënat e papërpunuara të feed-eve pas 7 ditësh, përmbledhjet e feed-eve pas 30) | shkrimet ndalen |
-| Neon: koha e punës | 100 orë-CU në muaj | rreth 45 nga run-et, plus vizitorët | databaza ndalet deri në muajin tjetër |
+| Neon: hapësira | 1 GB | lajmet, historitë dhe analiza aktuale rriten rreth 150–250 MB në muaj dhe mbahen; fshihet vetëm ajo që nuk shfaqet askund: të dhënat e papërpunuara të feed-eve pas 7 ditësh (rreshtat pas 14), përmbledhjet e feed-eve pas 30, analizat e zëvendësuara pas 14, historia e run-eve pas 30 | shkrimet ndalen |
+| Neon: koha e punës | 100 orë-CU në muaj | rreth 50–65 nga run-et (secili run + 5 minuta), plus vizitorët që nuk i shërben CDN-ja | databaza ndalet deri në muajin tjetër |
 | Neon: transferimi | 5 GB në muaj | rreth 2–3 GB | njësoj |
-| Vercel | 4 orë CPU, 1 milion thirrje, 100 GB trafik në muaj | përgjigjet ruhen 5 minuta në CDN, prandaj shumica e vizitave nuk e zgjojnë API-në | projekti pezullohet deri në muajin tjetër |
+| Vercel | 4 orë CPU, 1 milion thirrje, 100 GB trafik në muaj | përgjigjet ruhen në CDN deri pak pas run-it të ardhshëm (deri 30 minuta), prandaj shumica e vizitave nuk e zgjojnë as API-në, as databazën | projekti pezullohet deri në muajin tjetër |
 | GitHub Actions | pa kufi për repo publike | 48 run-e në ditë | — |
+
+**Sa po harxhon?** **Actions → Free hosting → Run workflow → task: `db-usage`** tregon madhësinë e databazës dhe të çdo tabele, sa zgjat çdo hap i run-it, sa orë-CU harxhon vetë pipeline-i në 30 ditë, dhe sa rreshta do të fshinte retention-i. Krahasoje me **Neon → Usage**: diferenca janë vizitorët. Detajet te [DEPLOYMENT.md](DEPLOYMENT.md#limits-and-what-to-watch).
 
 Kontrolli `database_size` të paralajmëron kur databaza arrin 80 % të 1 GB-it: si shënim i verdhë te faqja e run-it në GitHub, dhe në telefon nëse ke vendosur njoftimet (B6).
 

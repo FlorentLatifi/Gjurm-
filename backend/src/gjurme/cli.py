@@ -438,6 +438,25 @@ def retention(dry_run: Annotated[bool, typer.Option()] = True) -> None:
         _echo_json(apply_retention(s, settings, dry_run=dry_run))
 
 
+@app.command("db-usage")
+def db_usage(
+    days: Annotated[int, typer.Option(min=1, help="Pipeline runs of the last N days")] = 7,
+    as_json: Annotated[bool, typer.Option("--json", help="JSON instead of a table")] = False,
+) -> None:
+    """Database and table sizes (with indexes), each pipeline stage's average duration, and the
+    compute time the pipeline keeps a scale-to-zero database awake. Reads only."""
+    _settings()
+    from gjurme.db.session import session_scope
+    from gjurme.db.usage import database_usage, format_usage
+
+    with session_scope() as s:
+        usage = database_usage(s, days)
+    if as_json:
+        _echo_json(usage)
+    else:
+        typer.echo(format_usage(usage), nl=False)
+
+
 @app.command("entities-cleanup")
 def entities_cleanup(
     apply: Annotated[bool, typer.Option(help="Make the changes (default: report only)")] = False,

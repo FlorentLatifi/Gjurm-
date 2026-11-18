@@ -1052,3 +1052,44 @@ def test_an_outlet_naming_itself_is_dropped_and_flagged(db, settings) -> None:
         enr = s.scalar(select(Enrichment))
         assert enr is not None
         assert enr.quality_flags == {"entities_self_reference": ["Gazeta Online Reporteri"]}
+
+
+def test_no_transaction_stays_open_while_the_model_answers(db, settings) -> None:
+    """Neon suspends a compute after 5 minutes without an active query, and counts a connection
+    "idle in transaction" as active (docs/DEPLOYMENT.md, "What keeps Neon awake"). While a
+    model answers (up to ENRICH_MAX_SECONDS), every connection of the run, the pipeline lock's
+    included, must be plain idle: the run must not keep the database awake by waiting."""
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.pool import NullPool
+
+    from gjurme.pipeline.runner import run_pipeline
+    from tests.conftest import TEST_DATABASE_URL
+
+    _articles(db, 3)
+    observer = create_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    seen: list[list[str]] = []
+
+    class Watched(ScriptedProvider):
+        def complete(self, system: str, user: str, schema: dict[str, Any]) -> LLMResult:
+            with observer.connect() as conn:
+                seen.append(
+                    list(
+                        conn.execute(
+                            text("""
+                            SELECT state FROM pg_stat_activity
+                            WHERE datname = current_database() AND pid <> pg_backend_pid()
+                              AND backend_type = 'client backend'""")
+                        ).scalars()
+                    )
+                )
+            return super().complete(system, user, schema)
+
+    cfg = settings.model_copy(update={"enrich_concurrency": 1, "llm_batch_size": 1})
+    try:
+        result = run_pipeline(cfg, db, trigger="test", stages=["enrich"], provider=Watched([GOOD]))
+    finally:
+        observer.dispose()
+    assert result.status == "succeeded" and len(seen) == 3
+    for states in seen:
+        assert "idle" in states  # the pipeline lock's connection, at least
+        assert set(states) == {"idle"}, states

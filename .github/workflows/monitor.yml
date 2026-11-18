@@ -6,9 +6,11 @@ name: Uptime monitor
 
 on:
   schedule:
-    # A few minutes after the free-hosting pipeline (11 and 41, ADR-027): a database that sleeps
-    # when idle (Neon) is then usually still awake, so the check does not wake it once more.
-    - cron: "15,45 * * * *"
+    # Once an hour: "stale" means no run for 150 minutes, so a check every 30 minutes found
+    # nothing sooner. The checks do not query the database themselves (ADR-034): on free
+    # hosting a request that wakes Neon keeps it awake (and billed) for 5 minutes, and the
+    # outside clock may run the pipeline at other minutes than this check.
+    - cron: "15 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -22,17 +24,26 @@ jobs:
     env:
       URL: ${{ vars.PUBLIC_URL }}
     steps:
-      - name: Site, API and database reachable
+      - name: Site and API reachable
         run: |
           curl -fsS --retry 3 --retry-delay 10 -o /dev/null "$URL/"
-          curl -fsS --retry 3 --retry-delay 10 "$URL/health/ready"
-      - name: Pipeline is fresh
+          curl -fsS --retry 3 --retry-delay 10 "$URL/health"
+      - name: Pipeline is fresh (and so the database reachable)
+        env:
+          # the status page's 150 minutes, plus the 30 minutes a CDN copy of it may be old
+          STALE_MINUTES: ${{ vars.MONITOR_STALE_MINUTES || '180' }}
         run: |
+          # Usually the CDN's copy (ADR-034): it does not wake the database. The age is
+          # computed here from last_success_at, so a copy served while the database is
+          # unreachable (stale-if-error) still fails the check once it is too old.
           body="$(curl -fsS --retry 3 --retry-delay 10 "$URL/api/v1/status")"
-          echo "$body" | jq '{status, last_success_at, minutes_since_success, articles_last_24h}'
+          echo "$body" | jq '{status, last_success_at, articles_last_24h}'
           status="$(echo "$body" | jq -r .status)"
-          if [ "$status" = "stale" ]; then
-            echo "::error::Pipeline has not completed a run recently (status=stale)"
+          last="$(echo "$body" | jq -r '.last_success_at // empty')"
+          age=$(( ( $(date +%s) - $(date -d "${last:-1970-01-01T00:00:00Z}" +%s) ) / 60 ))
+          echo "last successful run: $age minutes ago"
+          if [ "$status" = "stale" ] || [ "$age" -gt "$STALE_MINUTES" ]; then
+            echo "::error::Pipeline has not completed a run in $age minutes (status=$status)"
             exit 1
           fi
       - name: TLS certificate valid for > 14 days

@@ -50,8 +50,9 @@ def test_serverless_defaults_are_a_valid_production_configuration(
     assert (settings.db_pool_size, settings.db_max_overflow, settings.cdn_cache_seconds) == (
         1,
         2,
-        300,
+        1800,
     )
+    assert settings.scheduler_interval_minutes == 30  # the workflow's cadence (edge_cache.py)
     # fewer concurrent computations than pooled connections, as everywhere
     assert (
         settings.api_max_concurrent_computations < settings.db_pool_size + settings.db_max_overflow
@@ -160,8 +161,12 @@ def test_security_headers_are_the_caddyfiles() -> None:
 def test_rewrites_send_api_paths_to_the_function_and_the_rest_to_the_app() -> None:
     rewrites = VERCEL["rewrites"]
     fallback = rewrites[-1]
-    # last, so the crawler rule and the API win; a missing /assets/ chunk stays a real 404
-    assert fallback == {"source": "/:path((?!api/|assets/).*)", "destination": "/index.html"}
+    # last, so the crawler rule and the API win; a missing /assets/ chunk stays a real 404, and
+    # Vercel's own /_vercel/ paths (Web Analytics' script and beacon) are not the app
+    assert fallback == {
+        "source": "/:path((?!api/|assets/|_vercel/).*)",
+        "destination": "/index.html",
+    }
     for rule in rewrites[:-1]:
         assert rule["destination"].startswith(f"{FUNCTION}?{PATH_PARAM}="), rule
     assert list(VERCEL["functions"]) == ["api/index.py"]

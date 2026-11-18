@@ -365,6 +365,7 @@ class Enrichment(Base):
             postgresql_where=text("status IN ('succeeded', 'cached')"),
         ),
         Index("ix_enrichments_article", "article_id"),
+        Index("ix_enrichments_run", "run_id"),  # retention deletes runs (migration 0009)
         {"schema": "core"},
     )
 
@@ -445,6 +446,7 @@ class FeedItem(Base):
             postgresql_where=text("processed_at IS NULL"),
         ),
         Index("ix_feed_items_first_seen", "first_seen_at"),
+        Index("ix_feed_items_first_fetch", "first_fetch_id"),  # retention deletes fetches
         {"schema": "raw"},
     )
 
