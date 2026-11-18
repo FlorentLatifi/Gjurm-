@@ -1,12 +1,19 @@
-"""Feed parsing (RSS 0.9x/1.0/2.0, Atom) and HTML feed autodiscovery.
+"""Feed parsing (RSS 0.9x/1.0/2.0, Atom, news sitemaps) and HTML feed autodiscovery.
 
 ``feedparser`` is deliberately lenient: malformed XML (``bozo``) often still yields entries.
 We keep such entries but record that the feed was malformed, so data quality can be tracked
 per source instead of dropping everything on the first broken byte.
+
+Some large outlets publish no RSS but a sitemap for search engines that names each article's
+headline and publication time: a Google News sitemap (``<news:title>``,
+``<news:publication_date>``: Klan Kosova, KosovaPress) or a PageMap one (``headline``,
+``publication_date``: A2 CNN). Such a sitemap is read like a feed: headline, link, time and
+photo, no text. A sitemap without headlines is not a feed (titles would need the pages).
 """
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from time import struct_time
@@ -14,7 +21,7 @@ from typing import Any
 from urllib.parse import urljoin
 
 import feedparser
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
 from gjurme.ingestion.normalize import parse_feed_datetime, strip_control
 
@@ -131,7 +138,71 @@ def entry_to_payload(entry: Any) -> dict[str, Any]:
     return {k: _clip(v) for k, v in payload.items()}
 
 
+def _sitemap_text(url: Any, *names: str) -> str | None:
+    for name in names:
+        tag = url.find(name)
+        if tag is not None and tag.get_text(strip=True):
+            return str(tag.get_text(" ", strip=True))
+    return None
+
+
+def _pagemap_attribute(url: Any, name: str) -> str | None:
+    for attr in url.find_all("pagemap:attribute"):
+        if _attr(attr, "name").lower() == name and attr.get_text(strip=True):
+            return str(attr.get_text(" ", strip=True))
+    return None
+
+
+def parse_sitemap(body: bytes) -> ParsedFeed | None:
+    """A news sitemap as a feed, or None when ``body`` is no ``<urlset>`` with headlines.
+
+    Parsed with the HTML parser, which expands no custom entities: a sitemap is a publisher's
+    XML, as untrusted as a feed."""
+    head = body[:4096].lower()
+    if b"<urlset" not in head:
+        return None
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", XMLParsedAsHTMLWarning)
+        soup = BeautifulSoup(body, "html.parser")
+    entries: list[dict[str, Any]] = []
+    for url in soup.find_all("url"):
+        link = _sitemap_text(url, "loc")
+        title = _sitemap_text(url, "news:title") or _pagemap_attribute(url, "headline")
+        if not link or not title:
+            continue
+        published = _sitemap_text(url, "news:publication_date") or _pagemap_attribute(
+            url, "publication_date"
+        )
+        when = parse_feed_datetime({"published": published}) if published else None
+        image = _image_address(_sitemap_text(url, "image:loc"), link)
+        payload: dict[str, Any] = {
+            "title": title,
+            "link": link,
+            "id": link,
+            "summary": None,
+            "content_length": None,
+            "published": published,
+            "published_iso": when.isoformat() if when else None,
+            "author": None,
+            "tags": [],
+            "language": _sitemap_text(url, "news:language"),
+            "image": image,
+        }
+        entries.append({k: _clip(v) for k, v in payload.items()})
+    if not entries:
+        return None
+    publication = soup.find("news:name")
+    return ParsedFeed(
+        entries=entries,
+        title=publication.get_text(strip=True) if publication is not None else None,
+        is_feed=True,
+    )
+
+
 def parse_feed(body: bytes, *, response_headers: dict[str, str] | None = None) -> ParsedFeed:
+    sitemap = parse_sitemap(body)
+    if sitemap is not None:
+        return sitemap
     parsed = feedparser.parse(body, response_headers=response_headers or {})
     feed_meta = parsed.get("feed", {}) or {}
     entries = [entry_to_payload(e) for e in parsed.get("entries", [])]

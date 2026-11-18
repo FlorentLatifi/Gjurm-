@@ -199,22 +199,22 @@ sources:
   - slug: a2news
     name: A2 CNN
     homepage_url: https://a2news.com/
-    feed_url: https://a2news.com/feed/
+    feed_url: https://a2news.com/sitemaps/sitemap-{year}-{month}.xml
     discovery_urls: [https://a2news.com/]
     language: sq
     country: AL
     enabled: false
-    notes: "HTTP 404 on /feed/ (2026-09-28, 2026-10-05). Keep disabled until a working feed is found."
+    notes: "No RSS (/feed/ 404, 2026-09-28, 2026-10-05). One sitemap a month with each article's headline and time (PageMap; 1,353 items on 2026-11-18): read as a feed, {year}-{month} filled in at fetch time. Enable after the Source validation run from GitHub passes and the outlet is rated. Albanian broadcaster."
 
   - slug: kosovapress
     name: Kosovapress
     homepage_url: https://kosovapress.com/
-    feed_url: https://kosovapress.com/feed/
+    feed_url: https://kosovapress.com/news-sitemap.xml
     discovery_urls: [https://kosovapress.com/]
     language: sq
     country: XK
     enabled: false
-    notes: "HTTP 403 to automated requests, also on the autodiscovered feed.kosovapress.com (2026-09-28, 2026-10-05). Not circumvented — excluded."
+    notes: "RSS answered HTTP 403 to automated requests (2026-09-28, 2026-10-05). Its Google News sitemap, which robots.txt lists for every crawler, answered 200 with 2 days of headlines and times (231 items, 2026-11-18): read as a feed. Enable after the Source validation run from GitHub passes and the outlet is rated. Kosovo news agency."
 
   # ------------------------------------------------------------------ held back
   - slug: prishtina-insight
@@ -342,13 +342,13 @@ sources:
   - slug: klan-kosova
     name: Klan Kosova
     homepage_url: https://klankosova.tv/
-    feed_url: https://klankosova.tv/feed/
+    feed_url: https://klankosova.tv/sitemap/news.xml
     discovery_urls: [https://klankosova.tv/]
     language: sq
     country: XK
     enabled: false
     ownership: unknown
-    notes: "/feed/ answers 200 with a page that is not a feed; no feed at the usual paths (2026-10-21). Kosovo broadcaster."
+    notes: "No RSS (/feed/ answers a page, 2026-10-21). Its Google News sitemap lists 2 days of headlines with times (327 items, 2026-11-18): read as a feed. Enable after the Source validation run from GitHub passes and the outlet is rated. Kosovo broadcaster."
 
   - slug: hibrid
     name: Hibrid.info

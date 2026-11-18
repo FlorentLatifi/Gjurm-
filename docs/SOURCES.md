@@ -111,3 +111,20 @@ After editing, `gjurme sources sync` (or the next deploy) applies the ratings; t
 - Failures are isolated per source. After 20 consecutive failures the source is auto-disabled (`is_active = false`, `verification_status = failing`) and an alert asks the operator to check it. It is fetched again every 6 hours and re-enabled automatically when the feed works again. A run in which most sources fail at once is an outage on the server's side and is not counted against any source; `source_freshness_6h` warns while a source is auto-disabled, naming its last error, and fails when no source is collected. `enabled: false` in `sources.yaml` wins over an auto-disable (no more probes, no more warning), and a new `feed_url` enables an auto-disabled source again.
 
 The weekly schedule of the *Source validation* workflow re-checks every source, so a feed that moves or starts blocking shows up in the report even before the pipeline notices.
+
+## News sitemaps (2026-11-18)
+
+Outlets without a usable RSS feed were checked for a sitemap that names each article's headline and time, which GJURMË reads like a feed (`ingestion/feed_parser.py`, `parse_sitemap`). Checked from a cloud machine (not GitHub's runners, which some outlets answer with 403):
+
+| Outlet | Address | Result |
+|---|---|---|
+| Klan Kosova | `https://klankosova.tv/sitemap/news.xml` | Google News sitemap, 327 headlines in 2 days |
+| KosovaPress | `https://kosovapress.com/news-sitemap.xml` | Google News sitemap (listed in robots.txt), 231 headlines in 2 days |
+| A2 CNN | `https://a2news.com/sitemaps/sitemap-{year}-{month}.xml` | PageMap sitemap, 1,353 headlines this month |
+| ATA | `https://ata.gov.al/feed/` | RSS answers 200 here (403 from GitHub's runners on 2026-10-21) |
+| Gazeta Express | `https://www.gazetaexpress.com/feed/` | RSS answers 200 here, 403 from GitHub's runners |
+| Top Channel | sitemap without headlines; RSS 403 | not usable without fetching pages |
+| TV Klan, Ora News, Panorama, Insajderi, Nacionale, RTK | 403 to every path, sitemaps included | ask the outlet |
+| Shqiptarja, Report TV, Syri, Lapsi | no feed, no sitemap with headlines | ask the outlet |
+
+Outlets that answer every automated request with 403 are not circumvented (ADR-003). The way in is to ask: an email to the outlet's web team naming the crawler (`GjurmeBot`, the User-Agent in `HTTP_USER_AGENT`), what it reads (headlines and links, every 30 minutes) and what it gives back (a link to every article). Several of these outlets use Cloudflare, whose owners can allow a crawler in a few clicks.
