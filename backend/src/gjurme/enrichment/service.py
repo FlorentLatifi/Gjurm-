@@ -30,14 +30,24 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import case, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
+from gjurme.analytics.queries import FRONT_PAGE_DAYS, FRONT_PAGE_MIN_SOURCES
 from gjurme.config import Settings
-from gjurme.db.models import Article, ArticleEntity, ArticleTopic, Enrichment, Entity, Source
+from gjurme.db.models import (
+    Article,
+    ArticleEntity,
+    ArticleTopic,
+    Enrichment,
+    Entity,
+    Source,
+    Story,
+)
 from gjurme.enrichment.budget import BudgetGuard, spent_today
 from gjurme.enrichment.entities import (
     drop_self_references,
@@ -123,6 +133,8 @@ def build_provider(settings: Settings) -> LLMProvider:
 class EnrichStats:
     queued: int = 0
     queued_upgrades: int = 0  # of those: analysed by the keyword rules, waiting for a model
+    # of those with an analysis: in a story of 2+ outlets the front page shows (headline first)
+    queued_front_page: int = 0
     batches: int = 0  # requests that carried more than one article
     batch_fallbacks: int = 0  # articles asked for again alone after such a request
     attempted: int = 0
@@ -154,6 +166,7 @@ class EnrichStats:
         return {
             "queued": self.queued,
             "queued_upgrades": self.queued_upgrades,
+            "queued_front_page": self.queued_front_page,
             "batches": self.batches,
             "batch_fallbacks": self.batch_fallbacks,
             "attempted": self.attempted,
@@ -191,6 +204,8 @@ class QueueItem:
     input_hash: str
     # The article has the keyword rules' analysis and keeps it if this attempt fails.
     upgrade: bool = False
+    # It has an analysis and belongs to a story the front page shows (FRONT_PAGE_* below).
+    front_page: bool = False
 
 
 @dataclass(slots=True)
@@ -271,29 +286,77 @@ def load_queue(
     *,
     upgrade_rules: bool = False,
 ) -> list[QueueItem]:
-    """Articles to analyse: first those without any analysis, then those that have one and
-    wait for a better one, each newest first. With ``upgrade_rules`` (a model is asking and
-    ENRICH_RULES_UPGRADE_HOURS is set) the latter include the articles the keyword rules
-    analysed in those hours; and those ``enrich-requeue`` put back (the workflow's
-    *reanalyse*) rank among them by date, not ahead of them: a free model's daily quota goes
-    to today's news before last month's, which readers no longer open."""
+    """Articles to analyse, in this order:
+
+    1. those without any analysis, newest first;
+    2. those that have one and wait for a better one, in a story the front page shows (at least
+       ``FRONT_PAGE_MIN_SOURCES`` outlets, started in the last ``FRONT_PAGE_DAYS`` local days):
+       first the article whose headline and summary the story shows (``analytics.stories``:
+       its representative article, else its earliest visible one), then the others, each
+       newest first;
+    3. the other articles that wait for a better one, newest first.
+
+    New articles are clustered after this stage, so an article reaches its story with the
+    keyword rules' analysis and the model upgrades it in a later run (ENRICH_RULES_UPGRADE_HOURS).
+    With ``upgrade_rules`` (a model is asking and ENRICH_RULES_UPGRADE_HOURS is set) the
+    articles that wait include those the keyword rules analysed in those hours, and those
+    ``enrich-requeue`` put back (the workflow's *reanalyse*) rank among them, not ahead of them:
+    a free model's daily quota goes to the news readers see before last month's. How much of
+    that quota a run may use is quota.py's business (ADR-033), not the order's."""
     is_upgrade = Article.enrichment_status == "succeeded"
     analysed = (
         select(Enrichment.id)
         .where(Enrichment.article_id == Article.id, Enrichment.is_current.is_(True))
         .exists()
     )
+    member = aliased(Article)
+    outlets = (
+        select(func.count(func.distinct(member.source_id)))
+        .where(member.story_id == Article.story_id, member.is_hidden.is_(False))
+        .scalar_subquery()
+    )
+    rep = aliased(Article)
+    shown_rep = (
+        select(rep.id)
+        .where(
+            rep.id == Story.representative_article_id,
+            rep.story_id == Story.id,
+            rep.is_hidden.is_(False),
+        )
+        .scalar_subquery()
+    )
+    earliest = (
+        select(member.id)
+        .where(member.story_id == Article.story_id, member.is_hidden.is_(False))
+        .order_by(member.published_at, member.id)
+        .limit(1)
+        .scalar_subquery()
+    )
+    front_start = datetime.now(ZoneInfo(settings.timezone)).date() - timedelta(
+        days=FRONT_PAGE_DAYS - 1
+    )
+    # 0: the story's headline article, 1: another article of it, 2: not on the front page.
+    # Articles without an analysis go first anyway; the CASE spares them the subqueries.
+    tier = case(
+        (~analysed, 2),
+        (or_(Article.story_id.is_(None), Story.published_date < front_start), 2),
+        (outlets < FRONT_PAGE_MIN_SOURCES, 2),
+        (Article.id == func.coalesce(shown_rep, earliest), 0),
+        else_=1,
+    ).label("tier")
     query = (
         select(
             Article.id,
             Article.enrichment_attempts,
             is_upgrade.label("upgrade"),
+            tier,
             Article.title,
             Article.excerpt,
             Article.published_date,
             Source.name,
         )
         .join(Source, Source.id == Article.source_id)
+        .outerjoin(Story, Story.id == Article.story_id)
         .where(Article.is_hidden.is_(False))
     )
     if article_ids is not None:
@@ -316,7 +379,9 @@ def load_queue(
                 & Article.id.in_(by_rules)
             )
         query = query.where(or_(*due))
-    query = query.order_by(analysed, Article.published_at.desc()).limit(settings.enrich_max_per_run)
+    query = query.order_by(analysed, tier, Article.published_at.desc(), Article.id.desc()).limit(
+        settings.enrich_max_per_run
+    )
     items = []
     for row in session.execute(query):
         art = ArticleInput(
@@ -329,6 +394,7 @@ def load_queue(
                 art,
                 input_hash(art, model),
                 upgrade=article_ids is None and bool(row.upgrade),
+                front_page=article_ids is None and row.tier < 2,
             )
         )
     return items
@@ -811,6 +877,7 @@ def run_enrichment(
         cache = ResultCache(session, (item.input_hash for item in queue), provider.model)
     stats.queued = len(queue)
     stats.queued_upgrades = sum(item.upgrade for item in queue)
+    stats.queued_front_page = sum(item.front_page for item in queue)
     if not queue:
         return stats
     if not is_model:

@@ -42,16 +42,31 @@ export function noticeFor(status: PublicStatus | undefined): Notice | null {
       href: "/about",
     };
   }
-  const { mode, rule_based_share } = status.analysis;
+  const { mode, rule_based_share, front_page } = status.analysis;
   if (mode !== "rules" && mode !== "mixed") return null;
+  const rules = formatPercent(rule_based_share ?? 0);
+  let text: string;
+  if (mode === "rules") {
+    text = t("Topics, tone and names are assigned by keyword rules, not by an AI model — treat them as rough indications.");
+  } else if (front_page.ai_share === null) {
+    text = t("{share} of recent articles were analysed by keyword rules, not by an AI model — treat them as rough indications.", {
+      share: rules,
+    });
+  } else if (front_page.ai_share >= 1) {
+    text = t("Every article on the front page was analysed by an AI model; {rules} of all recent articles by keyword rules — treat those as rough indications.", {
+      rules,
+    });
+  } else {
+    // Rounded down, so the line never claims more AI than there is (99.6% is not "100%");
+    // the epsilon keeps 0.29 at 29% (0.29 * 100 is 28.999… in floating point).
+    text = t("{ai} of the front page’s articles were analysed by an AI model, the rest by keyword rules, as were {rules} of all recent articles — treat those as rough indications.", {
+      ai: formatPercent(Math.floor(front_page.ai_share * 100 + 1e-9) / 100),
+      rules,
+    });
+  }
   return {
     label: t("Rule-based analysis."),
-    text:
-      mode === "rules"
-        ? t("Topics, tone and names are assigned by keyword rules, not by an AI model — treat them as rough indications.")
-        : t("{share} of recent articles were analysed by keyword rules, not by an AI model — treat them as rough indications.", {
-            share: formatPercent(rule_based_share ?? 0),
-          }),
+    text,
     href: "/about#analysis",
   };
 }

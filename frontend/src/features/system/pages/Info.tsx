@@ -10,6 +10,9 @@ import { type AboutProps, CONTACT_IS_EMAIL, CONTACT_URL } from "./about";
 import { AboutSq } from "./AboutSq";
 
 
+/** A share rounded down, so the page never claims more model analysis than there is. */
+const pct = (share: number | null): string => `${Math.floor((share ?? 0) * 100 + 1e-9)}%`;
+
 export function AboutPage() {
   useTitle(t("Methodology"), t("How GJURMË collects, analyses and presents news data, and its limitations."));
   const taxonomy = useTaxonomy();
@@ -52,6 +55,15 @@ function AboutEn({ topics, status }: AboutProps) {
           recent articles were analysed by <em>keyword rules</em> instead of the language model described
           below: topics and tone come from lists of Albanian keywords, names from capitalised words,
           and there is no summary. This is much less accurate. Every article page says which method was used.
+          {status.analysis.mode === "mixed" && status.analysis.front_page.ai_share !== null && (
+            <>
+              {" "}The model gets the stories on the front page (two or more outlets, last three days) first,
+              starting with the article each story takes its headline and summary from:{" "}
+              {pct(status.analysis.front_page.ai_share)} of their articles and{" "}
+              {pct(status.analysis.front_page.headline_ai_share)} of their headlines were analysed by the model;
+              the rest by keyword rules.
+            </>
+          )}
         </p>
       )}
       <ul>

@@ -76,8 +76,44 @@ def analysis_method(provider: str) -> str:
     return "rules" if provider == RULES_PROVIDER else "ai"
 
 
+# The front page (frontend ``FEED_DEFAULT_DAYS``, ``min_sources: 2``): stories that started in the
+# last three local days and that at least two outlets covered. The blindspots and the sitemap list
+# only stories of two or more outlets too. The ENRICH stage gives these stories a model first.
+FRONT_PAGE_DAYS = 3
+FRONT_PAGE_MIN_SOURCES = 2
+
+_FRONT_PAGE_SQL = """
+    WITH mem AS MATERIALIZED (
+      SELECT a.id, a.story_id, a.source_id, a.published_at,
+             st.representative_article_id AS rep, e.provider
+      FROM core.stories st
+      JOIN core.articles a ON a.story_id = st.id AND NOT a.is_hidden
+      LEFT JOIN core.enrichments e ON e.article_id = a.id AND e.is_current
+      WHERE st.published_date >= CAST(:today AS date) - :days + 1
+        -- members are published on or after their story's date: lets the index bound them
+        AND a.published_date >= CAST(:today AS date) - :days + 1),
+    front AS (
+      SELECT story_id FROM mem GROUP BY story_id
+      HAVING count(DISTINCT source_id) >= :min_sources),
+    fm AS (SELECT mem.* FROM mem JOIN front USING (story_id)),
+    -- the article whose headline and summary the story shows (analytics/stories.py: its
+    -- representative article when visible, else its earliest visible one)
+    lead AS (
+      SELECT DISTINCT ON (story_id) provider FROM fm
+      ORDER BY story_id, (id = rep) IS TRUE DESC, published_at, id)
+    SELECT (SELECT count(*) FROM front) AS stories,
+           count(*) FILTER (WHERE provider IS NOT NULL) AS articles,
+           count(*) FILTER (WHERE provider <> :rules) AS ai,
+           (SELECT count(*) FILTER (WHERE provider IS NOT NULL) FROM lead) AS headlines,
+           (SELECT count(*) FILTER (WHERE provider <> :rules) FROM lead) AS headlines_ai
+    FROM fm
+"""
+
+
 def analysis_mode(session: Session, today: date, days: int = 30) -> dict[str, Any]:
-    """How the articles of the last ``days`` were analysed: by an LLM, keyword rules, or both."""
+    """How the articles of the last ``days`` were analysed: by an LLM, keyword rules, or both;
+    and, under ``front_page``, how the articles of the stories the front page shows were (the
+    ENRICH stage gives those a model first, so that share is the one readers mostly see)."""
     row = session.execute(
         text("""
         SELECT count(*) FILTER (WHERE e.provider = :rules) AS rules, count(*) AS total,
@@ -96,10 +132,29 @@ def analysis_mode(session: Session, today: date, days: int = 30) -> dict[str, An
         mode = "rules"
     else:
         mode = "mixed"
+    front = session.execute(
+        text(_FRONT_PAGE_SQL),
+        {
+            "rules": RULES_PROVIDER,
+            "days": FRONT_PAGE_DAYS,
+            "min_sources": FRONT_PAGE_MIN_SOURCES,
+            "today": today,
+        },
+    ).one()
     return {
         "mode": mode,
         "rule_based_share": _f(row.rules / row.total) if row.total else None,
         "model": row.model,
+        "front_page": {
+            "days": FRONT_PAGE_DAYS,
+            "min_sources": FRONT_PAGE_MIN_SOURCES,
+            "stories": front.stories,
+            "articles": front.articles,
+            "ai_share": _f(front.ai / front.articles) if front.articles else None,
+            "headline_ai_share": _f(front.headlines_ai / front.headlines)
+            if front.headlines
+            else None,
+        },
     }
 
 
