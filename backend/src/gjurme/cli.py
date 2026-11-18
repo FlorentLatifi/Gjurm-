@@ -454,6 +454,28 @@ def entities_cleanup(
         _echo_json(cleanup_entities(s, apply=apply, show=show))
 
 
+@app.command("dedup-revisions")
+def dedup_revisions(
+    days: Annotated[int, typer.Option(help="Articles published in the last N days")] = 30,
+    apply: Annotated[bool, typer.Option(help="Make the changes (default: report only)")] = False,
+    show: Annotated[int, typer.Option(help="Revisions to list in the report")] = 40,
+) -> None:
+    """Fold one outlet's edited headlines stored before dedup layer L3b existed: the edit is
+    hidden and linked to the article readers see, which takes the newest wording. Nothing is
+    deleted; an edit can be unhidden like a takedown."""
+    settings = _settings()
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    from gjurme.ingestion.revisions import fold_revisions
+
+    tz = ZoneInfo(settings.timezone)
+    since = datetime.now(tz).date() - timedelta(days=days)
+    factory = _session_factory()
+    with _pipeline_lock(factory), factory() as s, s.begin():
+        _echo_json(fold_revisions(s, tz, since, apply=apply, show=show))
+
+
 @app.command()
 def scheduler(
     once: Annotated[

@@ -129,6 +129,15 @@ The entity pages count a person or place once only when its case forms are one e
 
 On a server: `gjurme entities-cleanup` (report) and `gjurme entities-cleanup --apply`. Both hold the pipeline lock.
 
+### Fold edited headlines stored twice
+
+An outlet that edits a headline after publishing sometimes lists the edit as a new feed entry (KOHA's "skandaloze / skandaloz / skandal"). New ones are folded as they arrive (dedup layer L3b, [ADR-034](DECISIONS.md#adr-034-one-outlets-edited-headline-is-a-revision-not-a-new-article-dedup-layer-l3b)); those stored before need one run:
+
+1. *Actions → Free hosting → Run workflow → task: revisions-report*: lists the revisions it would fold (`by_source`, `examples`: the headline kept and its edit) and changes nothing.
+2. *task: revisions-fold*: the same, applied. Each edit becomes a hidden row (`hidden_reason` "duplicate: same outlet, edited headline (L3b)") with `duplicate_of_id` pointing at the article shown, which takes the newest headline. Nothing is deleted; one edit can be shown again with the admin API's `unhide`. Running it again finds nothing.
+
+On a server: `gjurme dedup-revisions --days 60` (report) and `--apply`. Both hold the pipeline lock.
+
 ### Check or retune story clustering
 `gj stories-review --hours 48` lists the multi-outlet stories, the weakest member of each story (possible wrong merges) and the closest near misses (possible missed merges). The *Source validation* workflow publishes the same report for the live feeds. To change the thresholds: set `STORY_SIMILARITY_THRESHOLD` (similarity to the whole story, default 0.45) or `STORY_MEMBER_SIMILARITY_THRESHOLD` (to its closest report, which also merges two stories that one report matches, default 0.5) in `.env`; lower merges more. Restart, then `gj cluster --rebuild-days 3` (story ids in that period change, so shared story links break). Merges during normal runs keep links working: a merged story's URL opens the story it joined. An article joins a story only once its analysis is done, or after `STORY_ENRICHMENT_WAIT_MINUTES` (default 360) without one, so while enrichment is paused or out of budget new articles reach stories with that delay. See [ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings).
 
