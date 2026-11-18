@@ -42,6 +42,12 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.venv/bin:$PATH" \
     GJURME_VERSION="${VERSION}"
+# The python:*-slim tag is rebuilt later than Debian publishes fixes: on 2026-11-18 it still had
+# zlib1g with a fixable HIGH CVE (CVE-2026-85091). Take the fixed packages at build time, as the
+# web image does with apk (ADR-017).
+RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system --gid 10001 gjurme \
  && useradd --system --uid 10001 --gid gjurme --no-create-home --shell /usr/sbin/nologin gjurme
 WORKDIR /app
