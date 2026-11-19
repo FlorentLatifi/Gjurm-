@@ -139,6 +139,10 @@ Levers, cheapest first: keep dedup and caching on (default), use the Message Bat
 
 Switching models is configuration only (`LLM_MODEL`). The model is part of `input_hash`, so cached results are never reused across models.
 
+## Story summaries
+
+Besides each article's analysis, the SUMMARIZE stage writes one summary per story: what happened, in 2–3 sentences, from all its outlets' first headlines and opening lines ([ADR-035](DECISIONS.md#adr-035-a-summary-of-each-story-from-all-its-outlets-reports), `stories/summaries.py`, prompt `story-v1`). It runs before ENRICH so the free quota serves the front page first: stories of 2+ outlets from the last 3 days, the most covered first, at most `STORY_SUMMARY_MAX_PER_RUN` (20) a run; a story is written again once 3 more outlets joined. An Albanian summary with a capitalised word (past a sentence's start) or a number that the reports do not contain is rejected. The run's stats (`summarize`: `due`, `stored`, `rewritten`, `rejected`, `models`, `quota_capped`) show how it went; a high `rejected` count means the prompt or the model needs a look.
+
 ## Versioning and reprocessing
 
 - `PROMPT_VERSION = "v1.2"` (prompt.py) and `SCHEMA_VERSION = "2026-10-16.1"` (schema.py) are stored on every enrichment row, next to model, tokens, cost, latency, attempt number and the provider's request id.

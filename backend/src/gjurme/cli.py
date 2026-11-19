@@ -269,7 +269,7 @@ def _pipeline_lock(factory: sessionmaker[Session]) -> Iterator[None]:
 @app.command()
 def run(
     stages: Annotated[str, typer.Option(help="Comma-separated stages")] = (
-        "ingest,process,enrich,cluster,quality"
+        "ingest,process,summarize,enrich,cluster,quality"
     ),
     source: Annotated[list[str] | None, typer.Option("--source")] = None,
 ) -> None:

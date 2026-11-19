@@ -18,6 +18,7 @@ import socket
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
 
@@ -67,6 +68,15 @@ class FetchResult:
         return self.status in ("ok", "not_modified")
 
 
+def dated_url(url: str, now: datetime | None = None) -> str:
+    """A feed address with ``{year}`` and ``{month}`` filled in (UTC): an outlet that publishes
+    one sitemap a month (A2 CNN: ``/sitemaps/sitemap-{year}-{month}.xml``)."""
+    if "{" not in url:
+        return url
+    now = now or datetime.now(UTC)
+    return url.replace("{year}", f"{now.year:04d}").replace("{month}", f"{now.month:02d}")
+
+
 @dataclass
 class FeedFetcher:
     client: httpx.Client
@@ -81,7 +91,7 @@ class FeedFetcher:
         self, url: str, etag: str | None = None, last_modified: str | None = None
     ) -> FetchResult:
         started = time.monotonic()
-        result = self._fetch(url, etag, last_modified)
+        result = self._fetch(dated_url(url), etag, last_modified)
         result.duration_ms = int((time.monotonic() - started) * 1000)
         return result
 

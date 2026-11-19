@@ -6,6 +6,8 @@ The review was AI-assisted and commissioned by the operator. It is an editorial 
 
 ## Summary
 
+Added 2026-11-18 and **unrated until they have 14 days of headlines** (re-check from 2026-12-03, [addendum](#addendum-2026-11-19-five-outlets-added-on-2026-11-18)): A2 CNN (AL), ATA (AL, state news agency), Monitor (AL), KosovaPress (XK), Klan Kosova (XK). Gazeta Express is enabled again with its October rating.
+
 | Outlet | Country | Perspective | Factuality | Ownership | Confidence |
 |---|---|---|---|---|---|
 | Telegrafi | XK | center | high | media group (Lluka family) | medium |
@@ -229,11 +231,11 @@ The method rates perspective from headlines in GJURMË's public API. On 2026-11-
 GET https://gjurm.vercel.app/api/v1/articles?source=<slug>&days=14&q=<term>&page_size=40
 ```
 
-Every term of the method (`kurti`, `vetevendosje`, `osmani`, `pdk`, `hamza`, `ldk`, `abdixhiku`, `haradinaj`, `rama`, `socialist`, `berisha`, `demokrat`, `veliaj`, `balluku`) returned `total: 0` for `a2news`, `kosovapress`, `klan-kosova`, `ata` and `monitor`. The same query for `balkanweb` and `rama` returned 145, so the API works. `/api/v1/sources` does not list the five outlets: the change that enables them has not reached production. With n=0 there is nothing to classify, so two of the three signals (framing, balance) cannot be measured. Ownership alone is at most one signal, and one signal does not move a rating. These outlets are not rated center either: the October center ratings rest on headlines that were read, and here there are none.
+Every term of the method (`kurti`, `vetevendosje`, `osmani`, `pdk`, `hamza`, `ldk`, `abdixhiku`, `haradinaj`, `rama`, `socialist`, `berisha`, `demokrat`, `veliaj`, `balluku`) returned `total: 0` for `a2news`, `kosovapress`, `klan-kosova`, `ata` and `monitor`. The same query for `balkanweb` and `rama` returned 145, so the API works. `/api/v1/sources` did not list the five outlets: the change that enables them reached the default branch later that day (FlorentLatifi/Gjurm-#74). With n=0 there is nothing to classify, so two of the three signals (framing, balance) cannot be measured. Ownership alone is at most one signal, and one signal does not move a rating. These outlets are not rated center either: the October center ratings rest on headlines that were read, and here there are none.
 
 Headlines were not taken from the outlets' own feeds or sitemaps instead. That would be a different sample from the one the method names, and it could not be repeated through the public API.
 
-**Next step:** once the five are collected in production, re-run the queries above after at least 14 days (the January 2027 review, with 60 days, is better).
+**Next step:** re-run the queries above from **2026-12-03**, after 14 days of collection, and rate the five if two signals agree. The January 2027 review, with 60 days, confirms or corrects that.
 
 ### Factuality
 

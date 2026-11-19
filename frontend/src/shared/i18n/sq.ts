@@ -253,6 +253,8 @@ export const sq: Record<string, string> = {
     "Raportuar së pari {when} (nuk dihet cila media ishte e para)",
   "(AI summary)": "(përmbledhje nga AI)",
   "(AI summary, in English)": "(përmbledhje nga AI, në anglisht)",
+  "(AI summary of {n} outlet's reports; it can be wrong, read them below)": "(përmbledhje nga AI e raportimit të {n} medias; mund të ketë gabime, lexoni burimet më poshtë)",
+  "(AI summary of {n} outlets' reports; it can be wrong, read them below)": "(përmbledhje nga AI e raportimeve të {n} mediave; mund të ketë gabime, lexoni burimet më poshtë)",
   Timeline: "Kronologjia",
   "Who reported it, and when — each mark is one report.": "Kush e raportoi dhe kur — çdo shenjë është një raportim.",
   "Related stories": "Lajme të ngjashme",

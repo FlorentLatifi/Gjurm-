@@ -62,13 +62,13 @@ sources:
     discovery_urls: [https://www.gazetaexpress.com/]
     language: sq
     country: XK
-    enabled: false
+    enabled: true
     ownership: media_group
     owner: "Media Works (Media A.B.C. Holding B.V.)"
     bias: center
     factuality: mixed
     ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Sampled headlines (21–25 Oct 2026, n=16) are neutral and cover all parties. Former director Berat Buzhala was a PDK member of parliament (2010–13) and the largest shareholder 2018–21; ownership has since passed to a Dutch holding linked to the ABC group (Media Ownership Monitor). Factuality mixed: among the most complained-about outlets at the Kosovo Press Council in 2020–21 (18 complaints, Çohu) and found in breach of the right of reply in an NGO Aktiv case. Confidence: low (perspective), medium (factuality). Next review 2027-01. Evidence: docs/RATINGS.md."
-    notes: "Verified 2026-09-24 — 10 items (short window; frequent polling needed). Disabled 2026-11-17: HTTP 403 to automated requests for days, from the free pipeline's GitHub runners and in the Source validation runs alike; auto-disabled after 20 failures in a row. Not circumvented. The weekly validation shows when the feed answers again; then set enabled: true."
+    notes: "Verified 2026-09-24 — 10 items (short window; frequent polling needed). Disabled 2026-11-17: HTTP 403 to automated requests for days, from the free pipeline's GitHub runners and in the Source validation runs alike; auto-disabled after 20 failures in a row. Not circumvented. The weekly validation shows when the feed answers again; then set enabled: true. 2026-11-18: Source validation from GitHub's runners: RSS answers again, 10 items; enabled."
 
   - slug: kallxo
     name: Kallxo
@@ -199,32 +199,32 @@ sources:
   - slug: a2news
     name: A2 CNN
     homepage_url: https://a2news.com/
-    feed_url: https://a2news.com/feed/
+    feed_url: https://a2news.com/sitemaps/sitemap-{year}-{month}.xml
     discovery_urls: [https://a2news.com/]
     ownership: private
     owner: "Ulaj family (Gener 2 group), per Media Ownership Monitor Albania"
     bias: unrated
     factuality: unrated
-    ratings_note: "Editorial review 2026-11-19 (AI-assisted, commissioned by the operator; method of docs/RATINGS.md, ADR-031). Perspective not rated: GJURMË's public API holds no headline from this outlet (n=0 for every Kosovo and Albania search term, 14 days), because its feed is not yet collected in production, so framing and balance cannot be measured. Owned by the Ulaj family's Gener 2 construction group (Media Ownership Monitor Albania), a large government contractor; no party office of the owners found, so no perspective signal. Factuality not rated: no record found (a 2022 election-commission fine concerned campaign rules, not accuracy). Confidence in ownership: medium. Next review 2027-01. Evidence: docs/RATINGS.md."
+    ratings_note: "Editorial review 2026-11-19 (AI-assisted, commissioned by the operator; method of docs/RATINGS.md, ADR-031). Perspective not rated: GJURMË's public API holds no headline from this outlet (n=0 for every Kosovo and Albania search term, 14 days), because it was not yet collected in production on that day (enabled the same day), so framing and balance cannot be measured; to be re-checked from 2026-12-03, after 14 days of headlines. Owned by the Ulaj family's Gener 2 construction group (Media Ownership Monitor Albania), a large government contractor; no party office of the owners found, so no perspective signal. Factuality not rated: no record found (a 2022 election-commission fine concerned campaign rules, not accuracy). Confidence in ownership: medium. Next review 2027-01. Evidence: docs/RATINGS.md."
     language: sq
     country: AL
-    enabled: false
-    notes: "HTTP 404 on /feed/ (2026-09-28, 2026-10-05). Keep disabled until a working feed is found."
+    enabled: true
+    notes: "No RSS (/feed/ 404, 2026-09-28, 2026-10-05). One sitemap a month with each article's headline and time (PageMap; 1,353 items on 2026-11-18): read as a feed, {year}-{month} filled in at fetch time. 2026-11-18: Source validation from GitHub's runners: ok, 1,353 items; enabled, perspective unrated until reviewed. Albanian broadcaster."
 
   - slug: kosovapress
     name: Kosovapress
     homepage_url: https://kosovapress.com/
-    feed_url: https://kosovapress.com/feed/
+    feed_url: https://kosovapress.com/news-sitemap.xml
     discovery_urls: [https://kosovapress.com/]
     ownership: private
     owner: "Founder and president Skender Krasniqi (shareholders not publicly documented)"
     bias: unrated
     factuality: unrated
-    ratings_note: "Editorial review 2026-11-19 (AI-assisted, commissioned by the operator; method of docs/RATINGS.md, ADR-031). Perspective not rated: GJURMË's public API holds no headline from this outlet (n=0 for every Kosovo and Albania search term, 14 days), because its feed is not yet collected in production, so framing and balance cannot be measured. Kosovo news agency founded in January 1999, during the war, and independent since September 2000, member of the European Alliance of News Agencies since 2022. Owner of record not found; no party tie documented. Factuality not rated: no Press Council record could be checked either way. Confidence: low. Next review 2027-01. Evidence: docs/RATINGS.md."
+    ratings_note: "Editorial review 2026-11-19 (AI-assisted, commissioned by the operator; method of docs/RATINGS.md, ADR-031). Perspective not rated: GJURMË's public API holds no headline from this outlet (n=0 for every Kosovo and Albania search term, 14 days), because it was not yet collected in production on that day (enabled the same day), so framing and balance cannot be measured; to be re-checked from 2026-12-03, after 14 days of headlines. Kosovo news agency founded in January 1999, during the war, and independent since September 2000, member of the European Alliance of News Agencies since 2022. Owner of record not found; no party tie documented. Factuality not rated: no Press Council record could be checked either way. Confidence: low. Next review 2027-01. Evidence: docs/RATINGS.md."
     language: sq
     country: XK
-    enabled: false
-    notes: "HTTP 403 to automated requests, also on the autodiscovered feed.kosovapress.com (2026-09-28, 2026-10-05). Not circumvented — excluded."
+    enabled: true
+    notes: "RSS answered HTTP 403 to automated requests (2026-09-28, 2026-10-05). Its Google News sitemap, which robots.txt lists for every crawler, answered 200 with 2 days of headlines and times (231 items, 2026-11-18): read as a feed. 2026-11-18: Source validation from GitHub's runners: ok, 230 items; enabled, perspective unrated until reviewed. Kosovo news agency."
 
   # ------------------------------------------------------------------ held back
   - slug: prishtina-insight
@@ -352,17 +352,17 @@ sources:
   - slug: klan-kosova
     name: Klan Kosova
     homepage_url: https://klankosova.tv/
-    feed_url: https://klankosova.tv/feed/
+    feed_url: https://klankosova.tv/sitemap/news.xml
     discovery_urls: [https://klankosova.tv/]
     ownership: private
     owner: "KGO Media Investments (holding); press reports name Shkëlqim Devolli"
     bias: unrated
     factuality: unrated
-    ratings_note: "Editorial review 2026-11-19 (AI-assisted, commissioned by the operator; method of docs/RATINGS.md, ADR-031). Perspective not rated: GJURMË's public API holds no headline from this outlet (n=0 for every Kosovo and Albania search term, 14 days), because its feed is not yet collected in production, so framing and balance cannot be measured. One possible signal only: a public conflict with the governing Vetëvendosje camp, after the Ministry of Industry suspended its business certificate in June 2023 (the Commercial Court suspended that decision; IFJ, EFJ, ECPMF and ARTICLE 19 condemned it). One signal does not move a rating, and without headlines not even center can be stated. Factuality not rated: no record found. Confidence: low. Next review 2027-01. Evidence: docs/RATINGS.md."
+    ratings_note: "Editorial review 2026-11-19 (AI-assisted, commissioned by the operator; method of docs/RATINGS.md, ADR-031). Perspective not rated: GJURMË's public API holds no headline from this outlet (n=0 for every Kosovo and Albania search term, 14 days), because it was not yet collected in production on that day (enabled the same day), so framing and balance cannot be measured; to be re-checked from 2026-12-03, after 14 days of headlines. One possible signal only: a public conflict with the governing Vetëvendosje camp, after the Ministry of Industry suspended its business certificate in June 2023 (the Commercial Court suspended that decision; IFJ, EFJ, ECPMF and ARTICLE 19 condemned it). One signal does not move a rating, and without headlines not even center can be stated. Factuality not rated: no record found. Confidence: low. Next review 2027-01. Evidence: docs/RATINGS.md."
     language: sq
     country: XK
-    enabled: false
-    notes: "/feed/ answers 200 with a page that is not a feed; no feed at the usual paths (2026-10-21). Kosovo broadcaster."
+    enabled: true
+    notes: "No RSS (/feed/ answers a page, 2026-10-21). Its Google News sitemap lists 2 days of headlines with times (327 items, 2026-11-18): read as a feed. 2026-11-18: Source validation from GitHub's runners: ok, 329 items; enabled, perspective unrated until reviewed. Kosovo broadcaster."
 
   - slug: hibrid
     name: Hibrid.info
@@ -382,7 +382,7 @@ sources:
   - slug: ekonomia-online
     name: Ekonomia Online
     homepage_url: https://ekonomiaonline.com/
-    feed_url: https://ekonomiaonline.com/sq/rss.xml
+    feed_url: https://ekonomiaonline.com/feed/
     discovery_urls: [https://ekonomiaonline.com/]
     language: sq
     country: XK
@@ -391,7 +391,7 @@ sources:
     bias: center
     factuality: unrated
     ratings_note: "Editorial review 2026-10-25 (AI-assisted, commissioned by the operator). Business and economy portal; sampled political headlines (21–25 Oct 2026, n=12) are statement-based and cover both camps; the owner is not publicly documented. Factuality not rated: no record found. Confidence: low. Next review 2027-01. Evidence: docs/RATINGS.md."
-    notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo business and economy. 2026-11-17: /feed/ answers 404 and the source was auto-disabled; the site now links its feed at /sq/rss.xml (50 items, found by the Source validation workflow)."
+    notes: "Verified 2026-10-21 — 10 items, title/link/date 100%. Kosovo business and economy. 2026-11-17: /feed/ answers 404 and the source was auto-disabled; the site now links its feed at /sq/rss.xml (50 items, found by the Source validation workflow). 2026-11-18: Source validation from GitHub's runners: /sq/rss.xml answers 404 again; /feed/ answers with 10 items."
 
   - slug: shqiptarja
     name: Shqiptarja.com
@@ -471,12 +471,12 @@ sources:
     owner: "Government of Albania (state budget)"
     bias: unrated
     factuality: unrated
-    ratings_note: "Editorial review 2026-11-19 (AI-assisted, commissioned by the operator; method of docs/RATINGS.md, ADR-031). Perspective not rated: GJURMË's public API holds no headline from this outlet (n=0 for every Kosovo and Albania search term, 14 days), because its feed is not yet collected in production, so framing and balance cannot be measured. The Albanian government's official news agency, fully state-funded; the State Media Monitor profile calls it an official government news service. That is one signal (closeness to the governing PS), which alone does not move a rating. Factuality not rated: no record found. Confidence in ownership: high. Next review 2027-01. Evidence: docs/RATINGS.md."
+    ratings_note: "Editorial review 2026-11-19 (AI-assisted, commissioned by the operator; method of docs/RATINGS.md, ADR-031). Perspective not rated: GJURMË's public API holds no headline from this outlet (n=0 for every Kosovo and Albania search term, 14 days), because it was not yet collected in production on that day (enabled the same day), so framing and balance cannot be measured; to be re-checked from 2026-12-03, after 14 days of headlines. The Albanian government's official news agency, fully state-funded; the State Media Monitor profile calls it an official government news service. That is one signal (closeness to the governing PS), which alone does not move a rating. Factuality not rated: no record found. Confidence in ownership: high. Next review 2027-01. Evidence: docs/RATINGS.md."
     language: sq
     country: AL
-    enabled: false
+    enabled: true
     ownership: state
-    notes: "HTTP 403 to automated requests (2026-10-21, twice). Not circumvented — excluded. Albanian state news agency."
+    notes: "HTTP 403 to automated requests (2026-10-21, twice). Not circumvented — excluded. Albanian state news agency. 2026-11-18: Source validation from GitHub's runners: RSS answers, 10 items; enabled."
 
   - slug: panorama
     name: Panorama
@@ -503,17 +503,17 @@ sources:
   - slug: monitor
     name: Monitor
     homepage_url: https://www.monitor.al/
-    feed_url: https://www.monitor.al/feed/
+    feed_url: https://www.monitor.al/rss
     discovery_urls: [https://www.monitor.al/]
     ownership: private
     owner: "Media Union LLC, wholly owned by Union Group (Leka family), per Media Ownership Monitor Albania"
     bias: unrated
     factuality: unrated
-    ratings_note: "Editorial review 2026-11-19 (AI-assisted, commissioned by the operator; method of docs/RATINGS.md, ADR-031). Perspective not rated: GJURMË's public API holds no headline from this outlet (n=0 for every Kosovo and Albania search term, 14 days), because its feed is not yet collected in production, so framing and balance cannot be measured. Albania's business and economy weekly since 2000; no party tie of the owners found, so no perspective signal. Factuality not rated: no record found. Confidence in ownership: medium. Next review 2027-01. Evidence: docs/RATINGS.md."
+    ratings_note: "Editorial review 2026-11-19 (AI-assisted, commissioned by the operator; method of docs/RATINGS.md, ADR-031). Perspective not rated: GJURMË's public API holds no headline from this outlet (n=0 for every Kosovo and Albania search term, 14 days), because it was not yet collected in production on that day (enabled the same day), so framing and balance cannot be measured; to be re-checked from 2026-12-03, after 14 days of headlines. Albania's business and economy weekly since 2000; no party tie of the owners found, so no perspective signal. Factuality not rated: no record found. Confidence in ownership: medium. Next review 2027-01. Evidence: docs/RATINGS.md."
     language: sq
     country: AL
-    enabled: false
-    notes: "robots.txt disallows the feed path (2026-10-21). Respected — excluded. Albanian business and economy magazine."
+    enabled: true
+    notes: "robots.txt disallows the feed path (2026-10-21). Respected — excluded. Albanian business and economy magazine. 2026-11-18: Source validation from GitHub's runners: /rss, which robots.txt allows, answers with 10 items; enabled."
 
   - slug: faktoje
     name: Faktoje.al
