@@ -241,6 +241,10 @@ export interface StorySummary {
   language: string;
   summary_en: string | null;
   summary_sq: string | null;
+  /** The story's own summary from all its outlets' reports, or its lead article's (ADR-035). */
+  summary_scope: "story" | "article" | null;
+  /** With `summary_scope` "story": the outlets it was written from. */
+  summary_outlets: number | null;
   /** The photo an outlet put in its own feed entry, at the outlet's address (ADR-030). */
   image_url: string | null;
   source_slug: string;

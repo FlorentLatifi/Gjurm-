@@ -5787,6 +5787,34 @@
             "title": "Summary Sq",
             "description": "The summary in Albanian (prompt v1.2+)"
           },
+          "summary_scope": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "article"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Scope",
+            "description": "Whose summary this is: the story's own, written by a model from all its outlets' headlines and opening lines (`story`), or its lead article's (`article`); null when there is none (the keyword rules write none)"
+          },
+          "summary_outlets": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Outlets",
+            "description": "With `summary_scope` `story`: how many outlets it was written from"
+          },
           "image_url": {
             "anyOf": [
               {
@@ -5940,6 +5968,8 @@
           "language",
           "summary_en",
           "summary_sq",
+          "summary_scope",
+          "summary_outlets",
           "image_url",
           "source_slug",
           "source_name",
@@ -6041,6 +6071,34 @@
             ],
             "title": "Summary Sq",
             "description": "The summary in Albanian (prompt v1.2+)"
+          },
+          "summary_scope": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "article"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Scope",
+            "description": "Whose summary this is: the story's own, written by a model from all its outlets' headlines and opening lines (`story`), or its lead article's (`article`); null when there is none (the keyword rules write none)"
+          },
+          "summary_outlets": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Outlets",
+            "description": "With `summary_scope` `story`: how many outlets it was written from"
           },
           "image_url": {
             "anyOf": [
@@ -6166,6 +6224,8 @@
           "language",
           "summary_en",
           "summary_sq",
+          "summary_scope",
+          "summary_outlets",
           "image_url",
           "source_slug",
           "source_name",

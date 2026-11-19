@@ -41,6 +41,8 @@ const story: StorySummary = {
   language: "sq",
   summary_en: "Parliament passed the 2027 budget.",
   summary_sq: "Kuvendi miratoi buxhetin e vitit 2027.",
+  summary_scope: "article",
+  summary_outlets: null,
   image_url: null,
   source_slug: "koha",
   source_name: "KOHA",

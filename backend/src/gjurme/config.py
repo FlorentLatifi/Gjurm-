@@ -148,6 +148,20 @@ class Settings(BaseSettings):
     # is final, until `enrich-requeue --provider fake`).
     enrich_rules_upgrade_hours: int = Field(default=0, ge=0)
     enrichment_enabled: bool = True
+    # SUMMARIZE stage (stories/summaries.py, ADR-035): one summary per story of at least
+    # STORY_SUMMARY_MIN_OUTLETS outlets that started in the last STORY_SUMMARY_DAYS local days,
+    # written from all its outlets' headlines and opening lines; written again once
+    # STORY_SUMMARY_REGROW_OUTLETS more outlets have joined. It runs before ENRICH, so a free
+    # model's quota goes to the stories readers open first, at most this many a run.
+    story_summaries: bool = True
+    story_summary_max_per_run: int = Field(default=20, ge=0)
+    story_summary_days: int = Field(default=3, ge=1, le=14)
+    story_summary_min_outlets: int = Field(default=2, ge=2)
+    story_summary_regrow_outlets: int = Field(default=3, ge=1)
+    story_summary_max_seconds: int = Field(default=180, ge=10)
+    # A paid model (Claude) writes summaries only when allowed: their cost is not in the
+    # enrichment ledger that LLM_DAILY_BUDGET_USD reads (≈ $0.0003 a story with Haiku 5.5).
+    story_summary_with_paid_model: bool = False
     allow_fake_llm_in_production: bool = False
 
     # --- stories (clustering of articles that report the same event) -----------------------
