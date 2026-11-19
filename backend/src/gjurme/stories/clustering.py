@@ -34,6 +34,7 @@ same few days. See docs/DECISIONS.md (ADR-020).
 from __future__ import annotations
 
 import logging
+import time
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -67,6 +68,10 @@ log = logging.getLogger(__name__)
 STORY_WINDOW = timedelta(hours=48)  # first to last article of one story
 # Stories whose topic and representative may change because members were (re-)analysed.
 REFRESH_RECENT = timedelta(days=3)
+# A batch covers at most this much publication time. Each batch loads its articles ± the story
+# window, so an outlet that arrives with weeks of back issues (a monthly sitemap) is clustered a
+# day at a time, committed batch by batch, instead of one batch that loads weeks of every outlet.
+BATCH_SPAN = timedelta(hours=24)
 ANALYSED = ("succeeded", "skipped")  # enrichment statuses that will not change by waiting
 
 
@@ -78,6 +83,8 @@ class ClusterStats:
     via_duplicate: int = 0
     stories_merged: int = 0
     stories_refreshed: int = 0
+    batches: int = 0
+    time_limited: bool = False  # stopped starting batches after CLUSTER_MAX_SECONDS
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -87,6 +94,8 @@ class ClusterStats:
             "via_duplicate": self.via_duplicate,
             "stories_merged": self.stories_merged,
             "stories_refreshed": self.stories_refreshed,
+            "batches": self.batches,
+            "time_limited": self.time_limited,
         }
 
 
@@ -214,10 +223,22 @@ def _story_spans(session: Session, ids: set[int]) -> dict[int, tuple[datetime, d
 
 
 def cluster_pending(
-    session: Session, settings: Settings, *, batch_size: int = 2000, max_articles: int = 100_000
+    session: Session,
+    settings: Settings,
+    *,
+    batch_size: int = 2000,
+    max_articles: int = 100_000,
+    max_seconds: float | None = None,
 ) -> ClusterStats:
-    """Assign every unclustered article to a story; commits after each batch."""
+    """Assign every unclustered article to a story, oldest first; commits after each batch.
+
+    A batch spans at most BATCH_SPAN of publication time. No batch starts after
+    ``max_seconds`` (default CLUSTER_MAX_SECONDS, 0 = no limit): the rest waits for the next run,
+    so a backlog never holds the pipeline past its time limit and is cleared run by run.
+    """
     stats = ClusterStats()
+    limit_seconds = settings.cluster_max_seconds if max_seconds is None else max_seconds
+    deadline = time.monotonic() + limit_seconds if limit_seconds else None
     tz = ZoneInfo(settings.timezone)
     unclustered = select(Article.id, Article.published_at).where(Article.story_id.is_(None))
     if settings.enrichment_enabled:
@@ -226,11 +247,17 @@ def cluster_pending(
             or_(Article.enrichment_status.in_(ANALYSED), Article.ingested_at < waited)
         )
     while stats.considered < max_articles:
+        if deadline is not None and stats.batches and time.monotonic() > deadline:
+            stats.time_limited = True
+            break
         pending = session.execute(
             unclustered.order_by(Article.published_at, Article.id).limit(batch_size)
         ).all()
         if not pending:
             break
+        span_end = pending[0].published_at + BATCH_SPAN
+        pending = [p for p in pending if p.published_at <= span_end]
+        stats.batches += 1
         touched = _cluster_batch(
             session,
             settings,
