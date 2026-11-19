@@ -35,7 +35,7 @@ from gjurme.config import Settings
 from gjurme.db.models import AUTO_DISABLED, FeedFetch, FeedItem, Source
 from gjurme.ingestion.feed_parser import parse_feed
 from gjurme.ingestion.fetcher import FeedFetcher, FetchResult, next_page_url
-from gjurme.ingestion.normalize import clean_text, item_key, sha256_hex
+from gjurme.ingestion.normalize import clean_text, is_photo_address, item_key, sha256_hex
 
 log = logging.getLogger(__name__)
 
@@ -180,14 +180,16 @@ class _SourceSnapshot:
     is_active: bool  # False: an auto-disabled source fetched again to see if it recovered
 
 
-# Articles already stored take the photo their unchanged feed entry now carries (ADR-030).
+# Articles already stored take the photo their unchanged feed entry now carries (ADR-030), as
+# this fetch parsed it: a payload stored before the photo rules may name an ad server's pixel.
 _BACKFILL_IMAGES = text(
     """
-    UPDATE core.articles a SET image_url = fi.payload->>'image'
+    UPDATE core.articles a SET image_url = v.image
     FROM raw.feed_items fi
-    WHERE fi.source_id = :source_id AND fi.item_key = ANY(:keys) AND fi.article_id = a.id
+    JOIN unnest(CAST(:keys AS text[]), CAST(:images AS text[])) AS v(item_key, image)
+      ON v.item_key = fi.item_key
+    WHERE fi.source_id = :source_id AND fi.article_id = a.id
       AND a.source_id = fi.source_id AND a.image_url IS NULL
-      AND fi.payload->>'image' LIKE 'https://%'
     """
 )
 
@@ -353,7 +355,16 @@ def _store_items(
         },
     )
     session.execute(stmt)
-    session.execute(_BACKFILL_IMAGES, {"source_id": source_id, "keys": list(prepared)})
+    photos = {
+        key: image
+        for key, item in prepared.items()
+        if isinstance(image := item["payload"].get("image"), str) and is_photo_address(image)
+    }
+    if photos:
+        session.execute(
+            _BACKFILL_IMAGES,
+            {"source_id": source_id, "keys": list(photos), "images": list(photos.values())},
+        )
     return new, changed_count
 
 

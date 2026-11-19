@@ -32,7 +32,7 @@ from gjurme.analytics.queries import (
     _f,
     _rows,
 )
-from gjurme.ingestion.normalize import normalize_key
+from gjurme.ingestion.normalize import is_photo_address, normalize_key
 from gjurme.sources.ratings import bias_group
 
 BLINDSPOT_MIN_RATED = 3
@@ -147,6 +147,17 @@ _MEMBERS_SQL = """
     WHERE a.story_id = ANY(:ids) AND NOT a.is_hidden
     ORDER BY a.story_id, a.published_at, a.id
 """
+
+
+def _members(session: Session, ids: list[int]) -> list[dict[str, Any]]:
+    """The visible articles of these stories in publication order. A photo address stored
+    before the photo rules (ADR-030) that is no photo (an emoji, the outlet's homepage, an ad
+    server's pixel) is not served: every reader's browser would request it."""
+    rows = _rows(session, _MEMBERS_SQL, {"ids": ids})
+    for m in rows:
+        if m["image_url"] and not is_photo_address(m["image_url"]):
+            m["image_url"] = None
+    return rows
 
 
 def _source_countries(session: Session) -> set[str]:
@@ -289,7 +300,7 @@ def _summaries(session: Session, aggs: list[dict[str, Any]]) -> list[dict[str, A
         return []
     heads = {h["id"]: h for h in _rows(session, _HEADS_SQL, {"ids": ids})}
     members: dict[int, list[dict[str, Any]]] = {i: [] for i in ids}
-    for m in _rows(session, _MEMBERS_SQL, {"ids": ids}):
+    for m in _members(session, ids):
         members[m["story_id"]].append(m)
     followed = _source_countries(session)
     return [
@@ -417,7 +428,7 @@ def story_detail(session: Session, story_id: int) -> dict[str, Any] | None:
     if not agg_rows:
         return None
     story = _summaries(session, agg_rows)[0]
-    members = _rows(session, _MEMBERS_SQL, {"ids": [story_id]})
+    members = _members(session, [story_id])
     first = first_report(members)
     first_id = first["id"] if first else None
     story["articles"] = [

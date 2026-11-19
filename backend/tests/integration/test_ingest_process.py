@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from gjurme.config import Settings
@@ -345,6 +345,53 @@ def test_the_feed_photo_is_kept_and_reaches_articles_stored_before(
         "g1": "https://cdn.src.example.com/a.jpg",
         "g2": "https://cdn.src.example.com/b.jpg",
     }
+
+
+def test_a_payload_that_names_no_photo_never_gives_the_article_its_photo(
+    db, settings, make_fetcher
+) -> None:
+    """Payloads stored before the photo rules (ADR-030) may name an ad server's pixel: PROCESS
+    does not take it, nor does the backfill when the entry is seen again; a real photo the
+    entry now carries is taken."""
+    pixel = "https://ads.example.com/www/delivery/lg.php?bannerid=1&zoneid=2"
+    with db() as s, s.begin():
+        add_source(s, "src", "https://src.example.com/feed/")
+    items = [
+        {"title": "Lajmi me piksel reklame", "link": "https://src.example.com/a", "guid": "g1"},
+        {"title": "Lajmi tjeter me piksel", "link": "https://src.example.com/b", "guid": "g2"},
+    ]
+    for item in items:
+        item["pubDate"] = pubdate()
+    body = {"v": rss(items)}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=body["v"])
+
+    fetcher = make_fetcher(handler)
+    ingest_all(db, fetcher, settings)
+    with db() as s, s.begin():  # as the parser stored them before the rules
+        s.execute(
+            text(
+                "UPDATE raw.feed_items"
+                " SET payload = jsonb_set(payload, '{image}', to_jsonb(CAST(:u AS text)))"
+            ),
+            {"u": pixel},
+        )
+    with db() as s:
+        process_pending(s, settings)
+        assert s.scalars(select(Article.image_url)).all() == [None, None]
+    # seen again, unchanged: one entry now with a real photo, the other still with the pixel
+    body["v"] = rss(
+        [
+            {**items[0], "image": "https://cdn.src.example.com/a.jpg"},
+            {**items[1], "image": pixel.replace("&", "&amp;")},
+        ]
+    )
+    stats = ingest_all(db, fetcher, settings)
+    assert stats.sources[0].items_changed == 0
+    with db() as s:
+        images = dict(s.execute(select(Article.guid, Article.image_url)).all())
+    assert images == {"g1": "https://cdn.src.example.com/a.jpg", "g2": None}
 
 
 def _ingest_items(db, settings, make_fetcher, feeds: dict[str, list[dict[str, str]]]) -> None:

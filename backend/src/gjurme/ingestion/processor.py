@@ -34,6 +34,7 @@ from gjurme.ingestion.normalize import (
     canonical_url,
     clean_excerpt,
     clean_text,
+    is_photo_address,
     normalize_key,
     normalize_url,
     resolve_published_at,
@@ -290,9 +291,11 @@ def build_candidate(
 
 
 def _image_url(value: Any) -> str | None:
-    """The feed's photo address, as the parser kept it (absolute https, bounded)."""
-    ok = isinstance(value, str) and value.startswith("https://")
-    return value if ok and len(value) <= 1000 else None
+    """The feed's photo address, as the parser kept it (absolute https, bounded), if it can be
+    a photo: an item parsed before the photo rules (ADR-030) may name an emoji, the outlet's
+    homepage or an ad server's pixel."""
+    ok = isinstance(value, str) and len(value) <= 1000 and is_photo_address(value)
+    return value if ok else None
 
 
 def _find_same_source_title_dup(session: Session, source_id: int, cand: Candidate) -> int | None:

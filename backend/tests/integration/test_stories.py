@@ -796,6 +796,35 @@ def test_story_photo_is_an_outlets_own_unless_it_opted_out(
     assert all(a["image_url"] is None for a in detail["articles"])
 
 
+def test_a_stored_address_that_is_no_photo_is_not_served(
+    client: TestClient, db: sessionmaker[Session], clustered: dict[str, Any]
+) -> None:
+    """Addresses stored before the photo rules (ADR-030): the lead article's ad pixel gives way
+    to another outlet's photo, and no emoji, homepage or pixel reaches a reader's browser."""
+    story_id = clustered["budget_story"]
+    not_photos = [
+        "https://ads.nacionale.com/www/delivery/lg.php?bannerid=483&campaignid=93&zoneid=15",
+        "https://s.w.org/images/core/emoji/17.0.2/72x72/1f5d3.png",
+        "https://www.zeri.info",
+    ]
+    photo = "https://telegrafi.com/media-library/image.jpg?id=68722202&width=980"
+    with db() as s, s.begin():
+        lead = s.scalar(select(Story.representative_article_id).where(Story.id == story_id))
+        others = [a for a in clustered["budget"] if a != lead]
+        stored = dict(zip([lead, *others], [*not_photos, photo], strict=False))
+        for article_id, url in stored.items():
+            s.execute(update(Article).where(Article.id == article_id).values(image_url=url))
+    detail = client.get(f"/api/v1/stories/{story_id}").json()
+    assert detail["image_url"] == photo
+    shown = {a["id"]: a["image_url"] for a in detail["articles"]}
+    assert shown[others[2]] == photo
+    assert {shown[a] for a in (lead, *others[:2])} == {None}
+    feed = client.get("/api/v1/stories", params={"days": 3}).json()["items"]
+    assert next(i for i in feed if i["id"] == story_id)["image_url"] == photo
+    with db() as s:  # nothing stored was changed
+        assert s.scalar(select(Article.image_url).where(Article.id == lead)) == not_photos[0]
+
+
 def test_blindspots(client: TestClient, clustered: dict[str, Any]) -> None:
     body = client.get("/api/v1/stories/blindspots", params={"days": 3}).json()
     assert "Perspective blindspot" in body["method"]

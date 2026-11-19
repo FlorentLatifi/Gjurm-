@@ -23,7 +23,7 @@ from urllib.parse import urljoin
 import feedparser
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
-from gjurme.ingestion.normalize import parse_feed_datetime, strip_control
+from gjurme.ingestion.normalize import is_photo_address, parse_feed_datetime, strip_control
 
 FEED_MIME_TYPES = (
     "application/rss+xml",
@@ -59,9 +59,9 @@ def _clip(value: Any) -> Any:
 
 
 def _image_address(value: Any, base: str | None) -> str | None:
-    """An absolute https address, or None. Relative addresses are resolved against the
-    article's own link and http is upgraded; anything else (data:, javascript:, over-long) is
-    dropped."""
+    """An absolute https address that can be a photo, or None. Relative addresses are resolved
+    against the article's own link and http is upgraded; anything else (data:, javascript:,
+    over-long, a bare homepage, an emoji, a server script: ``is_photo_address``) is dropped."""
     if not isinstance(value, str) or not value.strip():
         return None
     url = urljoin(base or "", value.strip())
@@ -71,7 +71,24 @@ def _image_address(value: Any, base: str | None) -> str | None:
         return None
     if any(c.isspace() or c in "\"'<>" for c in url):
         return None
-    return url
+    return url if is_photo_address(url) else None
+
+
+_EMOJI_CLASSES = ("wp-smiley", "emoji")
+_PIXEL_SIZE = 2  # px: a declared width or height this small is a tracking pixel
+
+
+def _is_decoration(img: Any) -> bool:
+    """An ``<img>`` that is no photo whatever its address: WordPress's emoji (class
+    ``wp-smiley`` / ``emoji``) or an image declared 1–2 px wide or high (a tracking pixel)."""
+    classes = _attr(img, "class").lower()
+    if any(name in classes for name in _EMOJI_CLASSES):
+        return True
+    for side in ("width", "height"):
+        size = _attr(img, side).strip().lower().removesuffix("px").strip()
+        if size.isdigit() and int(size) <= _PIXEL_SIZE:
+            return True
+    return False
 
 
 def _looks_like_image(url: str, mime: str, medium: str) -> bool:
@@ -84,7 +101,8 @@ def _looks_like_image(url: str, mime: str, medium: str) -> bool:
 
 def entry_image(entry: Any) -> str | None:
     """The photo the outlet attached to this entry: Media RSS content, then its thumbnail, then
-    an image enclosure, then the first ``<img>`` in the entry's own HTML (ADR-030)."""
+    an image enclosure, then the first ``<img>`` in the entry's own HTML that is a photo
+    (ADR-030): emoji, tracking pixels and ad servers' scripts are skipped for the next one."""
     base = entry.get("link")
     for media in entry.get("media_content") or []:
         url = _image_address(media.get("url"), base)
@@ -108,9 +126,9 @@ def entry_image(entry: Any) -> str | None:
     for fragment in html:
         if not isinstance(fragment, str) or "<img" not in fragment.lower():
             continue
-        img = BeautifulSoup(fragment, "html.parser").find("img")
-        if img is not None and (url := _image_address(_attr(img, "src"), base)):
-            return url
+        for img in BeautifulSoup(fragment, "html.parser").find_all("img"):
+            if not _is_decoration(img) and (url := _image_address(_attr(img, "src"), base)):
+                return url
     return None
 
 

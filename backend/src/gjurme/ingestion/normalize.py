@@ -216,6 +216,32 @@ def url_hash(url: str) -> str:
     return sha256_hex(canonical_url(url))
 
 
+# What a feed entry can give as its photo without it being one (ADR-030). A reader's browser
+# requests every photo shown, so an ad server's impression pixel there counts each reader.
+_NOT_PHOTO_HOSTS = frozenset({"s.w.org"})  # WordPress's emoji
+_NOT_PHOTO_PATHS = (
+    "/wp-includes/images/smilies/",  # WordPress's own smileys
+    "/www/delivery/",  # the Revive ad server's scripts (lg.php: impression pixel)
+)
+
+
+def is_photo_address(url: str) -> bool:
+    """Whether an image address from a feed can be an outlet's photo: https, with a path (not
+    the outlet's homepage), not a WordPress emoji and not a server script (a ``.php`` path, the
+    Revive ad server). Checked when a feed is parsed and again when a story is read."""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return False
+    host = (parts.hostname or "").lower()
+    path = parts.path.lower()
+    if parts.scheme.lower() != "https" or not host or path in ("", "/"):
+        return False
+    if host in _NOT_PHOTO_HOSTS or any(p in path for p in _NOT_PHOTO_PATHS):
+        return False
+    return not path.endswith(".php")
+
+
 # --------------------------------------------------------------------------------------------
 # Dates
 # --------------------------------------------------------------------------------------------
