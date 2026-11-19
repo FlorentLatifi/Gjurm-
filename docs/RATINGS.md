@@ -27,6 +27,13 @@ The review was AI-assisted and commissioned by the operator. It is an editorial 
 | RTSH | AL | **lean left** | unrated | public broadcaster | medium |
 | Faktoje.al | AL | center | very high | non-profit | high |
 | Portalb.mk | MK | center | high | private | low |
+| A2 CNN ¹ | AL | unrated | unrated | private (Ulaj family, Gener 2) | — |
+| KosovaPress ¹ | XK | unrated | unrated | private (not documented; founder Skender Krasniqi) | — |
+| Klan Kosova ¹ | XK | unrated | unrated | private (KGO Media Investments) | — |
+| ATA ¹ | AL | unrated | unrated | state (Government of Albania) | — |
+| Monitor ¹ | AL | unrated | unrated | private (Union Group, Leka family) | — |
+
+¹ Added to the registry on 2026-11-18 and reviewed on 2026-11-19 ([below](#addendum-2026-11-19-five-outlets-added-on-2026-11-18)). Not rated: GJURMË holds no headline from them yet.
 
 **What this means on the site:**
 - **Albania:** stories now show a real left/right split, because three of the five Albanian outlets lean one way or the other.
@@ -209,6 +216,59 @@ From the [Media Ownership Monitor](https://kosovo.mom-gmr.org/) (BIRN / Reporter
 - **Origins:** Albanian-language portal launched in Skopje in 2012 as a project of the Metamorphosis Foundation ([Metamorphosis](https://metamorphosis.org.mk/en/proekti_arhiva/independent-news-portal-in-albanian-portalb-mk/)).
 - **Transparency:** publishes its editorial guidelines and a [Journalism Trust Initiative transparency report](https://www.jti-app.com/report/AvPy9exXb1edDqkn/9) (2025).
 - **Headlines (n=3):** the opposition SDSM's criticism of Prime Minister Mickoski, and BDI's criticism of a VLEN minister. Both sides covered.
+
+## Addendum 2026-11-19: five outlets added on 2026-11-18
+
+A2 CNN, KosovaPress, Klan Kosova, ATA and Monitor were added to the registry on 2026-11-18 (news sitemaps or RSS, [SOURCES.md](SOURCES.md)) with every rating unrated. This review applied the method above to them. **All five stay unrated in perspective and factuality.** Only ownership is filled in, from public records.
+
+### Why perspective cannot be rated yet
+
+The method rates perspective from headlines in GJURMË's public API. On 2026-11-19 the API holds **no headline** from any of the five:
+
+```
+GET https://gjurm.vercel.app/api/v1/articles?source=<slug>&days=14&q=<term>&page_size=40
+```
+
+Every term of the method (`kurti`, `vetevendosje`, `osmani`, `pdk`, `hamza`, `ldk`, `abdixhiku`, `haradinaj`, `rama`, `socialist`, `berisha`, `demokrat`, `veliaj`, `balluku`) returned `total: 0` for `a2news`, `kosovapress`, `klan-kosova`, `ata` and `monitor`. The same query for `balkanweb` and `rama` returned 145, so the API works. `/api/v1/sources` does not list the five outlets: the change that enables them has not reached production. With n=0 there is nothing to classify, so two of the three signals (framing, balance) cannot be measured. Ownership alone is at most one signal, and one signal does not move a rating. These outlets are not rated center either: the October center ratings rest on headlines that were read, and here there are none.
+
+Headlines were not taken from the outlets' own feeds or sitemaps instead. That would be a different sample from the one the method names, and it could not be repeated through the public API.
+
+**Next step:** once the five are collected in production, re-run the queries above after at least 14 days (the January 2027 review, with 60 days, is better).
+
+### Factuality
+
+None of the five has a record either way that meets the evidence table above: no IFCN or EFCSN membership, and no upheld press-council complaints or documented false claims found. Web searches found nothing about accuracy. The fines found concern campaign rules or have unknown grounds. Not rating is not a judgement.
+
+### A2 CNN (AL): unrated, unrated
+- **Ownership:** the Ulaj brothers, through the construction group Gener 2 ([Media Ownership Monitor Albania, owners](https://albania.mom-rsf.org/en/owners/individual-owners/)). Wikipedia gives the company as G2 Media sh.p.k. The Media Ownership Monitor included A2 CNN in its sample as an international franchise ([MOM Albania, methodology](https://albania.mom-rsf.org/en/about/methodology/)). The CNN brand is licensed ([A2 CNN](https://a2news.com/english/shqiperia/aktualitet/a2-partner-ekskluziv-informativ-per-cnn-fokuson-strategjine-i1150433)).
+- **Ties:** Gener 2 is a large government contractor, for example the Thumanë–Kashar road concession ([Shqiptarja](https://shqiptarja.com/lajm/vendimi-i-keshillit-te-ministrave-miratohet-koncesioni-per-projektimin-dhe-ndertimin-e-aksit-thumanekashar-kontrata-u-anulua-para-2-vitesh)). That is a business tie to the government of the day, not a party office or a public conflict with one camp, so it is noted and **not counted** as a signal.
+- **Headlines:** n=0.
+- **Factuality:** a 2022 fine of 50,000 lekë from the Central Election Commission concerned campaign coverage rules, not accuracy ([KQZ](https://arkiva.kqz.gov.al/wp-content/uploads/2023/01/Vendim-nr.-25-date-19.12.2022-pranim-shqyrtim-K.A-nr.-1213-14-dhe-pezullimi-shqyrtimit.pdf)). Not rated.
+
+### KosovaPress (XK): unrated, unrated
+- **Ownership:** a private news agency, founded on 4 January 1999 during the war and independent since September 2000 ([Wikipedia](https://en.wikipedia.org/wiki/Kosova_Press)). Its own pages name Skender Krasniqi as founder and president ([ABNA-SE](https://abnase.com/kosova-press/)). The shareholders are not publicly documented.
+- **Standards:** a member of the European Alliance of News Agencies since 2022 ([EANA](https://newsalliance.org/news/the-european-alliance-of-news-agencies-welcomes-kosova-press-as-new-member-and-stefano-de-alessandri-ceo-of-ansa-as-new-member-of-the-board)). That is a professional membership, not a published editorial standard, so it does not count as evidence for factuality.
+- **Ties:** none to a party documented.
+- **Headlines:** n=0.
+
+### Klan Kosova (XK): unrated, unrated
+- **Ownership:** its parent is KGO Media Investments ([IFJ](https://www.ifj.org/media-centre/news/detail/category/press-releases/article/kosovo-ifj-efj-and-media-freedom-groups-call-for-klan-kosova-business-certificate-issue-to-be-resolved)). Press reports name Shkëlqim Devolli, of the Devolli Group, as owner ([OBC Transeuropa](https://www.balcanicaucaso.org/en/?p=272220)). Earlier research cites it as an example of concealed ownership ([Peace Institute](https://www.mirovni-institut.si/wp-content/uploads/2012/12/Media-Ownership-and-Finances-in-Kosovo_0.pdf)).
+- **Possible signal (one):** a public conflict with the governing camp. In June 2023 the Ministry of Industry, Entrepreneurship and Trade suspended Klan Kosova's business certificate and filed criminal charges against its representatives. The Commercial Court suspended the decision, and IFJ, EFJ, ECPMF and ARTICLE 19 called it a threat to media freedom ([ARTICLE 19](https://www.article19.org/resources/kosovo-lift-suspension-on-klan-kosova-and-protect-media-freedom/), [Prishtina Insight](https://prishtinainsight.com/courts-decision-to-postpones-govt-decision-to-close-tv-channel-applauded-by-international-community/)). Former staff told reporters the owners pushed an agenda for political influence. Those are anonymous accounts, not documented ties.
+- **Headlines:** n=0. One signal alone, so no lean. It is to be checked against headlines in January.
+
+### ATA, Albanian Telegraphic Agency (AL): unrated, unrated
+- **Ownership:** the official news agency of the Albanian government ([Wikipedia](https://en.wikipedia.org/wiki/Albanian_Telegraphic_Agency)), funded entirely from the state budget. The State Media Monitor profile calls it an official government news service ([State Media Monitor](https://statemediamonitor.com/2025/09/albanian-telegraphic-agency-atsh/)). It is a member of EANA, AMAN and ABNA-SE.
+- **Possible signal (one):** state control means closeness to the government. In Albania today that is the left camp (PS), as with RTSH. Without headlines that is one signal, and it does not move the rating.
+- **Headlines:** n=0.
+
+### Monitor (AL): unrated, unrated
+- **Ownership:** Albania's business and economy weekly, launched in 2000 by Edmond Leka. It is published by Media Union LLC, wholly owned by Union Group (the Leka family), with records in the National Business Registry ([MOM Albania: Monitor](https://albania.mom-rsf.org/en/media/detail/outlet/monitor/), [MOM Albania: Union Grup](https://albania.mom-rsf.org/en/owners/companies/detail/company/company/show/union-grup-llc/)).
+- **Ties:** none to a party documented.
+- **Headlines:** n=0.
+
+### Limits of this addendum
+- Several sources (the Media Ownership Monitor, State Media Monitor, OBC Transeuropa) were reachable only through search-result excerpts, not opened in full, from the review machine. The January review should confirm the ownership entries on the pages themselves.
+- The Kosovo Press Council and the IMC decision registers could not be searched directly.
 
 ## Limits
 - **Five days of headlines.** Event-driven and short. The next review should use at least 60 days and add opinion sections.
