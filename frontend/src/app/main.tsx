@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 
 import { installPreloadRecovery } from "./chunkReload";
+import { installClarity } from "./clarity";
 import { LanguageRoot } from "./LanguageRoot";
 import { installPreferences } from "./preferences";
 import { queryClient } from "./queryClient";
@@ -16,6 +17,7 @@ const root = document.getElementById("root");
 if (root) {
   installPreloadRecovery();
   installPreferences();
+  installClarity(import.meta.env.VITE_CLARITY_ID);
   createRoot(root).render(
     <StrictMode>
       {/* last line of defence: pages have their own boundary inside the shell */}

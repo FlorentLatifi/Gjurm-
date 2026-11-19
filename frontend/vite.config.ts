@@ -58,6 +58,20 @@ function vercelAnalytics(): Plugin {
 }
 
 /**
+ * Microsoft Clarity's project (heatmaps and recordings, cookieless; src/app/clarity.ts, ADR-036).
+ * Set for the production deploy on Vercel only: not in dev, CI, the e2e build, preview deploys or
+ * the Docker/Caddy image. A VITE_CLARITY_ID set in Vercel overrides it; set it empty to turn
+ * Clarity off. The CSP in vercel.json and the Caddyfile allows its hosts.
+ */
+const CLARITY_PROJECT = "zga1xwudy1";
+
+function clarityProject(): void {
+  if (process.env.VITE_CLARITY_ID === undefined && process.env.VERCEL_ENV === "production") {
+    process.env.VITE_CLARITY_ID = CLARITY_PROJECT;
+  }
+}
+
+/**
  * Gives every module the Albanian of the interface strings it uses (src/shared/i18n): one
  * catalog for translators, while each code chunk carries only its own text. The registration is
  * appended, so no code moves (map: null keeps the source map).
@@ -103,6 +117,7 @@ function vercelPublicUrl(): void {
 
 export default defineConfig(({ mode }) => {
   vercelPublicUrl();
+  clarityProject();
   const env = loadEnv(mode, process.cwd(), "VITE_");
   return {
     plugins: [translations(), react(), seoFiles(env.VITE_PUBLIC_URL), vercelAnalytics()],
