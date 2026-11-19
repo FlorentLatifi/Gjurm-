@@ -259,6 +259,8 @@ export const sq: Record<string, string> = {
     "Raportuar së pari {when} (nuk dihet cila media ishte e para)",
   "(AI summary)": "(përmbledhje nga AI)",
   "(AI summary, in English)": "(përmbledhje nga AI, në anglisht)",
+  "(AI summary of {n} outlet's reports; it can be wrong, read them below)": "(përmbledhje nga AI e raportimit të {n} medias; mund të ketë gabime, lexoni burimet më poshtë)",
+  "(AI summary of {n} outlets' reports; it can be wrong, read them below)": "(përmbledhje nga AI e raportimeve të {n} mediave; mund të ketë gabime, lexoni burimet më poshtë)",
   Timeline: "Kronologjia",
   "Who reported it, and when — each mark is one report.": "Kush e raportoi dhe kur — çdo shenjë është një raportim.",
   "Related stories": "Lajme të ngjashme",
@@ -446,6 +448,10 @@ export const sq: Record<string, string> = {
     "Temat, toni dhe emrat caktohen nga rregulla fjalësh kyçe, jo nga një model AI — merrini si tregues të përafërt.",
   "{share} of recent articles were analysed by keyword rules, not by an AI model — treat them as rough indications.":
     "{share} e artikujve të fundit u analizuan me rregulla fjalësh kyçe, jo nga një model AI — merrini si tregues të përafërt.",
+  "Every article on the front page was analysed by an AI model; {rules} of all recent articles by keyword rules — treat those as rough indications.":
+    "Të gjitha lajmet në kryefaqe u analizuan me AI; {rules} e të gjithë artikujve të fundit me rregulla fjalësh kyçe — analiza me rregulla është vetëm tregues i përafërt.",
+  "{ai} of the front page’s articles were analysed by an AI model, the rest by keyword rules, as were {rules} of all recent articles — treat those as rough indications.":
+    "{ai} e lajmeve në kryefaqe u analizuan me AI; pjesa tjetër me rregulla fjalësh kyçe, si edhe {rules} e të gjithë artikujve të fundit — analiza me rregulla është vetëm tregues i përafërt.",
   "How GJURMË collects, analyses and presents news data, and its limitations.":
     "Si i mbledh, i analizon dhe i paraqet GJURMË të dhënat e lajmeve, dhe kufizimet e saj.",
   "Pipeline freshness and source health.": "Freskia e mbledhjes dhe gjendja e burimeve.",

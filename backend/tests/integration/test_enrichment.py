@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from itertools import pairwise
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import func, select, update
@@ -20,6 +21,7 @@ from gjurme.db.models import (
     Entity,
     LLMQuota,
     Source,
+    Story,
 )
 from gjurme.enrichment.pricing import Usage
 from gjurme.enrichment.prompt import PROMPT_VERSION
@@ -784,6 +786,120 @@ def test_todays_rule_analyses_go_before_old_ones_put_back_for_a_model(
         queue = load_queue(s, cfg, "gemini-test", upgrade_rules=True)
     assert [q.article_id for q in queue] == [ids[3], ids[2], ids[1], ids[0]]
     assert [q.upgrade for q in queue] == [False, True, False, False]
+
+
+def test_front_page_stories_get_the_model_first_their_headline_before_the_rest(
+    db, settings, monkeypatch
+) -> None:
+    """Of the articles that wait for a better analysis, a free model's quota goes first to the
+    stories of 2+ outlets on the front page, and within those to the article each story shows
+    its headline and summary from; then to the others by date. An article without any
+    analysis still goes before all of them."""
+    now = datetime.now(UTC)
+    local_today = datetime.now(ZoneInfo(settings.timezone)).date()
+    ids: dict[str, int] = {}
+    with db() as s, s.begin():
+        alfa, beta = add_source(s, "alfa").id, add_source(s, "beta").id
+        for name, src, hours_ago in (
+            ("nothing_yet", alfa, 10),  # the oldest, but without any analysis
+            ("lead", beta, 2),  # the representative of a two-outlet story
+            ("member_old", alfa, 3),
+            ("member_new", alfa, 1),
+            ("hidden_rep", beta, 6),  # its story's representative, taken down
+            ("earliest", alfa, 5),  # ... so that story shows this one
+            ("member_b", beta, 4),
+            ("single", alfa, 0.5),  # a story of one outlet: newer than all, but not shown
+            ("single_2", alfa, 0.6),
+            ("no_story", beta, 0.2),
+            ("old_a", alfa, 120),  # a two-outlet story five days ago, put back by "reanalyse"
+            ("old_b", beta, 121),
+        ):
+            at = now - timedelta(hours=hours_ago)
+            title = f"Lajmi {name}"
+            art = Article(
+                source_id=src,
+                url=f"https://src.example.com/{name}",
+                canonical_url=f"https://src.example.com/{name}",
+                url_hash=sha256_hex(name),
+                title=title,
+                title_normalized=normalize_key(title),
+                title_hash=sha256_hex(title),
+                language="sq",
+                published_at=at,
+                published_date=at.date(),
+                content_hash=sha256_hex(name),
+            )
+            s.add(art)
+            s.flush()
+            ids[name] = art.id
+    cfg = _with_fallback(settings, monkeypatch, None).model_copy(
+        update={"enrich_rules_after_minutes": 60, "enrich_rules_upgrade_hours": 48}
+    )
+    enrich_stage(db, cfg, ScriptedProvider([QUOTA]))  # the rules analyse every article
+    _age(db, [ids["old_a"], ids["old_b"]], hours=121)
+
+    def story(members: list[str], rep: str | None, day: date) -> None:
+        st = Story(
+            first_published_at=now,
+            last_published_at=now,
+            published_date=day,
+            representative_article_id=ids[rep] if rep else None,
+        )
+        s.add(st)
+        s.flush()
+        s.execute(
+            update(Article).where(Article.id.in_([ids[m] for m in members])).values(story_id=st.id)
+        )
+
+    with db() as s, s.begin():
+        story(["lead", "member_old", "member_new"], "lead", local_today)
+        story(["hidden_rep", "earliest", "member_b"], "hidden_rep", local_today)
+        story(["single", "single_2"], "single", local_today)
+        story(["old_a", "old_b"], "old_a", local_today - timedelta(days=5))
+        s.execute(update(Article).where(Article.id == ids["hidden_rep"]).values(is_hidden=True))
+        assert requeue(s, article_ids=[ids["old_a"], ids["old_b"]]) == 2
+        s.execute(  # an article whose analysis is gone
+            update(Enrichment)
+            .where(Enrichment.article_id == ids["nothing_yet"])
+            .values(is_current=False)
+        )
+        s.execute(
+            update(Article)
+            .where(Article.id == ids["nothing_yet"])
+            .values(enrichment_status="pending")
+        )
+
+    name = {v: k for k, v in ids.items()}
+    with db() as s:
+        queue = load_queue(s, cfg, "gemini-test", upgrade_rules=True)
+    assert [name[q.article_id] for q in queue] == [
+        "nothing_yet",
+        "lead",  # the shown headlines, newest first
+        "earliest",
+        "member_new",  # the rest of those stories, newest first
+        "member_old",
+        "member_b",
+        "no_story",  # then by date
+        "single",
+        "single_2",
+        "old_a",
+        "old_b",
+    ]
+    assert [name[q.article_id] for q in queue if q.front_page] == [
+        "lead",
+        "earliest",
+        "member_new",
+        "member_old",
+        "member_b",
+    ]
+
+    # A run that can analyse three articles spends them on the first three.
+    model = ScriptedProvider([GOOD], model="gemini-test", name="openai_compatible")
+    small = cfg.model_copy(update={"enrich_max_per_run": 3})
+    result = enrich_stage(db, small, model)
+    assert (result["queued"], result["queued_front_page"], result["succeeded"]) == (3, 2, 3)
+    upgraded = {name[a] for a, p in _providers(db).items() if p == "openai_compatible"}
+    assert upgraded == {"nothing_yet", "lead", "earliest"}
 
 
 def test_a_failed_upgrade_keeps_the_rules_analysis(db, settings, monkeypatch) -> None:

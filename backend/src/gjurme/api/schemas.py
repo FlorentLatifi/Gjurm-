@@ -402,6 +402,15 @@ class StorySummary(Model):
     language: str
     summary_en: str | None
     summary_sq: str | None = Field(None, description="The summary in Albanian (prompt v1.2+)")
+    summary_scope: Literal["story", "article"] | None = Field(
+        None,
+        description="Whose summary this is: the story's own, written by a model from all its "
+        "outlets' headlines and opening lines (`story`), or its lead article's (`article`); "
+        "null when there is none (the keyword rules write none)",
+    )
+    summary_outlets: int | None = Field(
+        None, description="With `summary_scope` `story`: how many outlets it was written from"
+    )
     image_url: str | None = Field(
         None,
         description="The photo an outlet put in its own feed entry for this story, at the "
@@ -607,6 +616,23 @@ class SourceHealth(Model):
     consecutive_failures: int
 
 
+class FrontPageAnalysis(Model):
+    """How the articles of the stories on the front page were analysed. The analysis queue
+    gives these a model first, the article whose headline and summary a story shows before
+    the story's other articles."""
+
+    days: int = Field(description="Stories that started in the last this many local days")
+    min_sources: int = Field(description="and that at least this many outlets covered")
+    stories: int = Field(description="Number of such stories")
+    articles: int = Field(description="Their visible articles that have an analysis")
+    ai_share: float | None = Field(
+        description="Share of those articles analysed by an LLM (the rest: keyword rules)"
+    )
+    headline_ai_share: float | None = Field(
+        description="Share of those stories whose shown headline article was analysed by an LLM"
+    )
+
+
 class AnalysisMode(Model):
     mode: Literal["ai", "rules", "mixed", "none"] = Field(
         description="How articles of the last 30 days were analysed (LLM, keyword rules, or both)"
@@ -615,6 +641,7 @@ class AnalysisMode(Model):
         description="Share of analysed articles (last 30 days) that used keyword rules"
     )
     model: str | None = Field(description="Most used LLM model, if any")
+    front_page: FrontPageAnalysis
 
 
 class PublicStatus(Model):

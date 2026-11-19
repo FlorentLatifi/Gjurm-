@@ -139,7 +139,7 @@ Legal claims are **not** made here. The design follows the safer technical optio
 - No article-page scraping, no full text; images only as the feed gives them, hotlinked (ADR-030).
 - Polite fetching: identifying `User-Agent` with a contact URL, `robots.txt` checked for the feed path, conditional GET (`ETag` / `Last-Modified`), a minimum 15-minute interval, a response size cap.
 - A takedown path: the contact on the About page, plus the admin endpoint `POST /api/v1/admin/articles/{id}/hide` and `sources disable`. Both are documented in [OPERATIONS.md](OPERATIONS.md).
-- Privacy: no cookies, no analytics trackers, no user data stored. Rate-limit state is in memory only.
+- Privacy: no cookies, no cookies; visits counted by Vercel Web Analytics (cookieless) on the Vercel deploy only, no user data stored. Rate-limit state is in memory only.
 
 ---
 
@@ -169,6 +169,7 @@ flowchart TD
 | L1 | MVP | Feed entry key `(source, sha256(guid or canonical link))`. A refetched entry updates `last_seen_at` only. |
 | L2 | MVP | Canonical URL (lower-cased host, no fragment, tracking params removed, sorted query, no trailing slash) → `url_hash` unique. |
 | L3 | MVP | Same source + normalized-title hash within ±48 h → treated as the same article (slug edits, republishing). |
+| L3b | Added | Same source, headline edited by a typo, an ending or one word within ±3 h → hidden revision linked by `duplicate_of_id`; the article shown takes the newest wording (ADR-034). |
 | L4 | Advanced | Cross-source near-duplicates: trigram similarity of normalized titles ≥ 0.8 **and** only noise words differ, within 48 h → `duplicate_of_id` link (threshold calibrated on real headlines, ADR-008). Both rows are kept, because each outlet's coverage counts, and a "unique stories" metric is exposed. |
 | L5 | Advanced | Enrichment cache: identical `(prompt_version, model, input_hash)` reuses the prior result at zero cost. |
 

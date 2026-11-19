@@ -6,6 +6,9 @@ The review was AI-assisted and commissioned by the operator. It is an editorial 
 
 ## Summary
 
+Added 2026-11-18 and **unrated until the January 2027 review**: A2 CNN (AL), ATA (AL, state news agency), Monitor (AL), KosovaPress (XK), Klan Kosova (XK). Gazeta Express is enabled again with its October rating.
+
+
 | Outlet | Country | Perspective | Factuality | Ownership | Confidence |
 |---|---|---|---|---|---|
 | Telegrafi | XK | center | high | media group (Lluka family) | medium |

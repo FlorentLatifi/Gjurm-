@@ -19,7 +19,7 @@ function PrivacySq() {
     <div className="prose">
       <h1>Privatësia</h1>
       <p>
-        GJURMË nuk ka llogari, nuk përdor cookies dhe nuk ka analitikë apo gjurmues. Më poshtë është
+        GJURMË nuk ka llogari dhe nuk përdor cookies. Vizitat numërohen vetëm me një analitikë pa cookies (shih më poshtë). Më poshtë është
         gjithçka që ruhet për lexuesit, në server, në shfletuesin tuaj dhe te ofruesit e hostimit.
       </p>
 
@@ -57,6 +57,15 @@ function PrivacySq() {
         <strong> Nuk përdoren cookies.</strong>
       </p>
 
+      <h2 id="analytics">Analitika</h2>
+      <p>
+        Faqja përdor <strong>Vercel Web Analytics</strong>, që numëron faqet e hapura dhe vizitorët,
+        pa cookies dhe, sipas përshkrimit të Vercel, pa të dhëna personale, pa profile të lexuesve
+        dhe pa gjurmim mes faqesh. Skripta ngarkohet nga i njëjti domen i GJURMË-s
+        (<code>/_vercel/insights/script.js</code>) dhe ekziston vetëm në faqen e hostuar te Vercel.
+        Nuk ka asnjë analitikë tjetër.
+      </p>
+
       <h2 id="providers">Ofruesit</h2>
       <ul>
         <li><strong>Vercel</strong> e hoston faqen dhe API-në, dhe <strong>Neon</strong> databazën.
@@ -88,7 +97,7 @@ function PrivacyEn() {
     <div className="prose">
       <h1>Privacy</h1>
       <p>
-        GJURMË has no accounts, uses no cookies and has no analytics or trackers. Below is everything
+        GJURMË has no accounts and uses no cookies. Visits are counted only by a cookieless analytics service (see below). Below is everything
         kept about readers: on the server, in your browser and at its hosting providers.
       </p>
 
@@ -123,6 +132,15 @@ function PrivacyEn() {
       <p>
         You can remove all of it by clearing the site’s data in your browser settings.
         <strong> No cookies are used.</strong>
+      </p>
+
+      <h2 id="analytics">Analytics</h2>
+      <p>
+        The site uses <strong>Vercel Web Analytics</strong>, which counts page views and visitors
+        without cookies and, as Vercel describes it, without personal data, reader profiles or
+        cross-site tracking. The script is loaded from GJURMË’s own domain
+        (<code>/_vercel/insights/script.js</code>) and exists only in the site hosted on Vercel.
+        There is no other analytics.
       </p>
 
       <h2 id="providers">Providers</h2>

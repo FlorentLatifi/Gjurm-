@@ -138,7 +138,11 @@ export function StoryPage() {
         {summary && (
           <p className="story-summary">
             <span lang={summary.lang}>{summary.text}</span>{" "}
-            <span className="meta">{summary.lang === getLang() ? t("(AI summary)") : t("(AI summary, in English)")}</span>
+            <span className="meta">
+              {s.summary_scope === "story" && s.summary_outlets
+                ? tn(s.summary_outlets, "(AI summary of {n} outlet's reports; it can be wrong, read them below)", "(AI summary of {n} outlets' reports; it can be wrong, read them below)")
+                : summary.lang === getLang() ? t("(AI summary)") : t("(AI summary, in English)")}
+            </span>
           </p>
         )}
         <p className="story-head__meta">

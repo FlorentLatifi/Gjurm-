@@ -87,8 +87,11 @@ jobs:
           srcs="$(get -f "$URL/api/v1/sources?days=7" || echo '[]')"
           rated="$(echo "$srcs" | jq '[.[]? | select(.bias != "unrated")] | length')"
           listed="$(echo "$srcs" | jq 'length')"
-          [ "$rated" -gt 0 ] && [ "$rated" -eq "$listed" ] && ok "All $listed outlets have a perspective rating" \
-            || bad "$rated of $listed outlets have a perspective rating (sources.yaml synced?)"
+          unrated="$(echo "$srcs" | jq -r '[.[]? | select(.bias == "unrated") | .slug] | join(", ")')"
+          # "unrated" is a rating's honest default (ADR-021): a new outlet waits for its review
+          if [ "$rated" -eq 0 ]; then bad "No outlet has a perspective rating (sources.yaml synced?)"
+          elif [ "$rated" -eq "$listed" ]; then ok "All $listed outlets have a perspective rating"
+          else warn "$rated of $listed outlets rated; waiting for a review: $unrated"; fi
 
           # 4. Search engines: sitemap and robots.txt on the public address
           sitemap="$(get -f "$URL/sitemap.xml" || true)"

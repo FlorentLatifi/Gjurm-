@@ -176,10 +176,11 @@ erDiagram
 | L1 | Same feed entry: `(source, sha256(guid or canonical link))` | `raw.feed_items` unique key; `ON CONFLICT` |
 | L2 | Same canonical URL (lower-case host, no fragment, tracking parameters removed, sorted query, no trailing slash) | `core.articles.url_hash` unique key |
 | L3 | Same source, same normalized-title hash, within ±48 h (slug edits, republication) | processor, `ix_articles_source_title_hash` |
+| L3b | Same source, the headline edited (a typo, an ending, words split or joined, one word added), within ±3 h; never a changed number, negation, day or live update | processor, `ix_articles_source_published`; stored hidden (`hidden_reason`) with `duplicate_of_id` → the visible article, which takes the newest wording ([ADR-034](DECISIONS.md#adr-034-one-outlets-edited-headline-is-a-revision-not-a-new-article-dedup-layer-l3b)) |
 | L4 | Cross-source near-duplicate: trigram similarity ≥ 0.8 **and** the words that differ are only noise tokens (±48 h) | processor, `ix_articles_title_trgm` (GIN); sets `duplicate_of_id`, both rows kept |
 | L5 | Same enrichment input (`prompt_version`, `schema_version`, model, title, excerpt) | `core.enrichments` cache lookup; zero cost |
 
-L4 keeps both rows on purpose: each outlet's coverage is a fact about that outlet. "Unique stories" collapses them (`count(DISTINCT coalesce(duplicate_of_id, id))`). The threshold was calibrated on real headlines ([ADR-008](DECISIONS.md#adr-008-l4-near-duplicate-rule-calibrated-on-real-headlines)).
+L3b keeps the edit's row hidden, so every count leaves it out and its URL stays known; `gjurme dedup-revisions` folds those stored before the rule existed. L4 keeps both rows on purpose: each outlet's coverage is a fact about that outlet. "Unique stories" collapses them (`count(DISTINCT coalesce(duplicate_of_id, id))`). The threshold was calibrated on real headlines ([ADR-008](DECISIONS.md#adr-008-l4-near-duplicate-rule-calibrated-on-real-headlines)).
 
 **Stories are not a dedup layer.** Grouping paraphrases of one event across outlets (`core.stories`) is a later stage with a looser, different method (TF-IDF over headline, excerpt and entities, with name guards and a 48 h span) and never removes or links articles as duplicates ([ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings)).
 

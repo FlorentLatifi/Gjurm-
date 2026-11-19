@@ -24,6 +24,8 @@ RUN npm run build && rm -rf dist/.vite
 # with a patched toolchain and the fixed dependency versions instead of weakening the scan.
 # x/net 0.60.0, go-jose/v4 4.1.6 and klauspost/compress 1.18.7 fix three more HIGH CVEs (Trivy,
 # 2026-10-28); Caddy v2.11.7 still ships the vulnerable x/net and go-jose.
+# x/net 0.62.0 fixes CVE-2026-78661 (HIGH, DoS in x/net/html; Trivy, 2026-11-18) and needs
+# x/crypto 0.58.0 and x/text 0.43.0.
 # Re-evaluate on each Caddy release: once upstream ships the fixes, the pins can go.
 FROM golang:1.27-alpine AS caddy
 ARG CADDY_VERSION=v2.11.4
@@ -39,7 +41,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
       'func main() { caddycmd.Main() }' > main.go \
  && go mod init gjurme/caddy \
  && go get github.com/caddyserver/caddy/v2@${CADDY_VERSION} \
-      golang.org/x/crypto@v0.57.0 golang.org/x/net@v0.60.0 golang.org/x/text@v0.42.0 \
+      golang.org/x/crypto@v0.58.0 golang.org/x/net@v0.62.0 golang.org/x/text@v0.43.0 \
       google.golang.org/grpc@v1.83.2 github.com/go-jose/go-jose/v4@v4.1.6 \
       github.com/klauspost/compress@v1.18.7 \
  && go mod tidy \

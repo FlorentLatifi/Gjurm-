@@ -40,6 +40,24 @@ function seoFiles(publicUrl: string | undefined): Plugin {
 }
 
 /**
+ * Vercel Web Analytics (cookieless, no personal data). The script is served by Vercel itself from
+ * the same origin, so it exists only in a Vercel deploy (VERCEL=1 during its build): not in dev,
+ * not in the Docker/Caddy build, not in CI or the e2e build. The script also counts the route
+ * changes the SPA makes with the History API. Same origin, so the CSP (script-src/connect-src
+ * 'self') needs no change.
+ */
+function vercelAnalytics(): Plugin {
+  return {
+    name: "gjurme-vercel-analytics",
+    apply: "build",
+    transformIndexHtml() {
+      if (!process.env.VERCEL) return [];
+      return [{ tag: "script", attrs: { defer: true, src: "/_vercel/insights/script.js" }, injectTo: "head" }];
+    },
+  };
+}
+
+/**
  * Gives every module the Albanian of the interface strings it uses (src/shared/i18n): one
  * catalog for translators, while each code chunk carries only its own text. The registration is
  * appended, so no code moves (map: null keeps the source map).
@@ -87,7 +105,7 @@ export default defineConfig(({ mode }) => {
   vercelPublicUrl();
   const env = loadEnv(mode, process.cwd(), "VITE_");
   return {
-    plugins: [translations(), react(), seoFiles(env.VITE_PUBLIC_URL)],
+    plugins: [translations(), react(), seoFiles(env.VITE_PUBLIC_URL), vercelAnalytics()],
     resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
     server: {
       port: 5173,

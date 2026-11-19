@@ -42,6 +42,17 @@ export function AboutSq({ topics, status }: AboutProps) {
           me <em>rregulla fjalësh kyçe</em> në vend të modelit gjuhësor të përshkruar më poshtë: temat
           dhe toni vijnë nga lista fjalësh shqipe, emrat nga fjalët me shkronjë të madhe, dhe nuk ka
           përmbledhje. Kjo është shumë më pak e saktë. Çdo faqe artikulli tregon cila metodë u përdor.
+          {status.analysis.mode === "mixed" && status.analysis.front_page.ai_share !== null && (
+            <>
+              {" "}Modeli merr së pari lajmet e kryefaqes (të raportuara nga dy ose më shumë media, në tri
+              ditët e fundit), duke filluar nga artikulli prej të cilit lajmi merr titullin dhe
+              përmbledhjen:{" "}
+              {formatPercent(Math.floor(status.analysis.front_page.ai_share * 100 + 1e-9) / 100)} e
+              artikujve të tyre dhe{" "}
+              {formatPercent(Math.floor((status.analysis.front_page.headline_ai_share ?? 0) * 100 + 1e-9) / 100)}{" "}
+              e titujve u analizuan nga modeli; pjesa tjetër me rregulla fjalësh kyçe.
+            </>
+          )}
         </p>
       )}
       <ul>

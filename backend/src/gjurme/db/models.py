@@ -192,6 +192,13 @@ class Story(Base):
     merged_into_id: Mapped[int | None] = mapped_column(
         ForeignKey("core.stories.id", ondelete="SET NULL")
     )
+    # The story's own summary, written by a model from its outlets' reports (SUMMARIZE stage,
+    # stories/summaries.py); written again when more outlets join. None: not written yet.
+    summary_sq: Mapped[str | None] = mapped_column(Text)
+    summary_en: Mapped[str | None] = mapped_column(Text)
+    summary_model: Mapped[str | None] = mapped_column(Text)
+    summary_at: Mapped[datetime | None] = mapped_column(TZ)
+    summary_outlets: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(TZ, server_default=func.now(), onupdate=func.now())
 

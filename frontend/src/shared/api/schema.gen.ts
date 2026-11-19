@@ -638,6 +638,7 @@ export interface components {
              * @description Most used LLM model, if any
              */
             model: string | null;
+            front_page: components["schemas"]["FrontPageAnalysis"];
         };
         /** ArticleDetail */
         ArticleDetail: {
@@ -1058,6 +1059,44 @@ export interface components {
             low: number;
             /** Unrated */
             unrated: number;
+        };
+        /**
+         * FrontPageAnalysis
+         * @description How the articles of the stories on the front page were analysed. The analysis queue
+         *     gives these a model first, the article whose headline and summary a story shows before
+         *     the story's other articles.
+         */
+        FrontPageAnalysis: {
+            /**
+             * Days
+             * @description Stories that started in the last this many local days
+             */
+            days: number;
+            /**
+             * Min Sources
+             * @description and that at least this many outlets covered
+             */
+            min_sources: number;
+            /**
+             * Stories
+             * @description Number of such stories
+             */
+            stories: number;
+            /**
+             * Articles
+             * @description Their visible articles that have an analysis
+             */
+            articles: number;
+            /**
+             * Ai Share
+             * @description Share of those articles analysed by an LLM (the rest: keyword rules)
+             */
+            ai_share: number | null;
+            /**
+             * Headline Ai Share
+             * @description Share of those stories whose shown headline article was analysed by an LLM
+             */
+            headline_ai_share: number | null;
         };
         /** GroupedPoint */
         GroupedPoint: {
@@ -1567,6 +1606,16 @@ export interface components {
              */
             summary_sq: string | null;
             /**
+             * Summary Scope
+             * @description Whose summary this is: the story's own, written by a model from all its outlets' headlines and opening lines (`story`), or its lead article's (`article`); null when there is none (the keyword rules write none)
+             */
+            summary_scope: ("story" | "article") | null;
+            /**
+             * Summary Outlets
+             * @description With `summary_scope` `story`: how many outlets it was written from
+             */
+            summary_outlets: number | null;
+            /**
              * Image Url
              * @description The photo an outlet put in its own feed entry for this story, at the outlet's address (never copied); none when no outlet gave one or it opted out
              */
@@ -1657,6 +1706,16 @@ export interface components {
              * @description The summary in Albanian (prompt v1.2+)
              */
             summary_sq: string | null;
+            /**
+             * Summary Scope
+             * @description Whose summary this is: the story's own, written by a model from all its outlets' headlines and opening lines (`story`), or its lead article's (`article`); null when there is none (the keyword rules write none)
+             */
+            summary_scope: ("story" | "article") | null;
+            /**
+             * Summary Outlets
+             * @description With `summary_scope` `story`: how many outlets it was written from
+             */
+            summary_outlets: number | null;
             /**
              * Image Url
              * @description The photo an outlet put in its own feed entry for this story, at the outlet's address (never copied); none when no outlet gave one or it opted out

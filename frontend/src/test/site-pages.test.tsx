@@ -54,7 +54,7 @@ describe("Privacy", () => {
     expect(within(browser).getByText(READING_KEY)).toBeInTheDocument();
     expect(within(browser).getByText("sessionStorage")).toBeInTheDocument();
     expect(document.getElementById("rights")!.nextElementSibling).toHaveTextContent(OPERATOR.replyWithin[lang]);
-    expect(document.querySelectorAll("h2")).toHaveLength(4);
+    expect(document.querySelectorAll("h2")).toHaveLength(5);
   });
 });
 

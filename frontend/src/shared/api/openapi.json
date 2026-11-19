@@ -3074,13 +3074,17 @@
             ],
             "title": "Model",
             "description": "Most used LLM model, if any"
+          },
+          "front_page": {
+            "$ref": "#/components/schemas/FrontPageAnalysis"
           }
         },
         "type": "object",
         "required": [
           "mode",
           "rule_based_share",
-          "model"
+          "model",
+          "front_page"
         ],
         "title": "AnalysisMode"
       },
@@ -4275,6 +4279,65 @@
           "unrated"
         ],
         "title": "FactualityCoverage"
+      },
+      "FrontPageAnalysis": {
+        "properties": {
+          "days": {
+            "type": "integer",
+            "title": "Days",
+            "description": "Stories that started in the last this many local days"
+          },
+          "min_sources": {
+            "type": "integer",
+            "title": "Min Sources",
+            "description": "and that at least this many outlets covered"
+          },
+          "stories": {
+            "type": "integer",
+            "title": "Stories",
+            "description": "Number of such stories"
+          },
+          "articles": {
+            "type": "integer",
+            "title": "Articles",
+            "description": "Their visible articles that have an analysis"
+          },
+          "ai_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Share",
+            "description": "Share of those articles analysed by an LLM (the rest: keyword rules)"
+          },
+          "headline_ai_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline Ai Share",
+            "description": "Share of those stories whose shown headline article was analysed by an LLM"
+          }
+        },
+        "type": "object",
+        "required": [
+          "days",
+          "min_sources",
+          "stories",
+          "articles",
+          "ai_share",
+          "headline_ai_share"
+        ],
+        "title": "FrontPageAnalysis",
+        "description": "How the articles of the stories on the front page were analysed. The analysis queue\ngives these a model first, the article whose headline and summary a story shows before\nthe story's other articles."
       },
       "GroupedPoint": {
         "properties": {
@@ -5724,6 +5787,34 @@
             "title": "Summary Sq",
             "description": "The summary in Albanian (prompt v1.2+)"
           },
+          "summary_scope": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "article"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Scope",
+            "description": "Whose summary this is: the story's own, written by a model from all its outlets' headlines and opening lines (`story`), or its lead article's (`article`); null when there is none (the keyword rules write none)"
+          },
+          "summary_outlets": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Outlets",
+            "description": "With `summary_scope` `story`: how many outlets it was written from"
+          },
           "image_url": {
             "anyOf": [
               {
@@ -5877,6 +5968,8 @@
           "language",
           "summary_en",
           "summary_sq",
+          "summary_scope",
+          "summary_outlets",
           "image_url",
           "source_slug",
           "source_name",
@@ -5978,6 +6071,34 @@
             ],
             "title": "Summary Sq",
             "description": "The summary in Albanian (prompt v1.2+)"
+          },
+          "summary_scope": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "article"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Scope",
+            "description": "Whose summary this is: the story's own, written by a model from all its outlets' headlines and opening lines (`story`), or its lead article's (`article`); null when there is none (the keyword rules write none)"
+          },
+          "summary_outlets": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Outlets",
+            "description": "With `summary_scope` `story`: how many outlets it was written from"
           },
           "image_url": {
             "anyOf": [
@@ -6103,6 +6224,8 @@
           "language",
           "summary_en",
           "summary_sq",
+          "summary_scope",
+          "summary_outlets",
           "image_url",
           "source_slug",
           "source_name",
