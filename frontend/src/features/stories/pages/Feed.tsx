@@ -169,7 +169,7 @@ export default function StoriesPage() {
             ) : (
               <EmptyState>{t("No blindspot in this period.")}</EmptyState>
             )}
-            <Link className="more-link" to="/blindspot" aria-label={t("All blindspots")}>{t("View the blindspot feed")} →</Link>
+            <Link className="more-link" to="/blindspot">{t("View the blindspot feed")} →</Link>
           </section>
           <section className="card" aria-labelledby="mybias-heading">
             <div className="card__head">

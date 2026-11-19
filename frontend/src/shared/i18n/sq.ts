@@ -302,7 +302,6 @@ export const sq: Record<string, string> = {
   "Stories one side — or one country's outlets — barely covered.":
     "Lajme që njëra anë — ose mediat e një shteti — mezi i prekën.",
   "No blindspot in this period.": "Asnjë pikë e verbër në këtë periudhë.",
-  "All blindspots": "Të gjitha pikat e verbra",
   "Which outlets you read here, by perspective and region.": "Cilat media lexoni këtu, sipas këndvështrimit dhe rajonit.",
   "You opened {n} article recently.": "Kohët e fundit hapët {n} artikull.",
   "You opened {n} articles recently.": "Kohët e fundit hapët {n} artikuj.",

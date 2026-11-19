@@ -4,6 +4,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Fixed (accessibility, 2026-11-19)
+- The front page's link to the blindspot feed was named "All blindspots" for screen readers while it reads "View the blindspot feed": a voice user saying what they see could not activate it (Lighthouse / axe `label-content-name-mismatch`). Its name is now its text.
+
 ### Fixed (clustering, 2026-11-19)
 - **A backlog no longer stops story clustering.** A2 CNN's monthly sitemap brought about 1,000 headlines from the past two weeks at once. CLUSTER took the oldest 2,000 unclustered articles as one batch and loaded them ± 48 h: three weeks of every outlet. It ran past the free pipeline's 25-minute limit twice in a row (19 Nov, 11:00 and 11:25 UTC), was cancelled before committing, and no new story was made. A batch now spans at most 24 hours of publication time (each loads about five days, like a normal run), each batch is committed, and no batch starts after `CLUSTER_MAX_SECONDS` (420): the rest waits for the next run. The run's log line adds `batches` and `time_limited`.
 
