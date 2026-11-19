@@ -888,6 +888,7 @@ def test_sitemap_lists_pages_outlets_topics_and_multi_outlet_stories(
     xml = resp.text
     assert xml.startswith('<?xml version="1.0" encoding="UTF-8"?>')
     assert "<loc>http://localhost:5173/</loc>" in xml and "/blindspot</loc>" in xml
+    assert "/who-we-are</loc>" in xml and "/privacy</loc>" in xml
     budget = clustered["budget_story"]
     assert f"<loc>http://localhost:5173/stories/{budget}</loc><lastmod>" in xml
     single = story_of(db, clustered["fire_gjakove"])

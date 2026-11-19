@@ -182,12 +182,9 @@ function AboutEn({ topics, status }: AboutProps) {
             article link (issues are public).
           </>
         )}{" "}
-        GJURMË uses no cookies. Visits are counted without cookies and without personal data through
-        Vercel Web Analytics (page views and visitor counts only, no profiles and no cross-site
-        tracking); its own logs keep no full IP addresses
-        (they are truncated or hashed before being written), though the hosting provider may keep
-        its access logs for a short time. The reading record behind “My news bias” stays in your
-        browser.
+        Who runs the project, outlets’ right of reply and the reply deadline are on{" "}
+        <Link to="/who-we-are">Who we are</Link>; what is kept about readers is on{" "}
+        <Link to="/privacy">Privacy</Link>.
       </p>
       <p>
         Developers: the full data is available through the documented <a href="/api/docs">public API</a>.

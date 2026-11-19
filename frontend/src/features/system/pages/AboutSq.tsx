@@ -178,11 +178,9 @@ export function AboutSq({ topics, status }: AboutProps) {
             artikullit (kërkesat janë publike).
           </>
         )}{" "}
-        GJURMË nuk përdor cookies. Vizitat numërohen pa cookies dhe pa të dhëna personale përmes Vercel Web
-        Analytics (vetëm faqe të hapura dhe numri i vizitorëve, pa profile e pa gjurmim mes faqesh); regjistrat e vetë GJURMË-s nuk mbajnë adresa
-        IP të plota (ato shkurtohen ose kthehen në kod para se të shkruhen), ndonëse ofruesi i hostimit
-        mund t’i mbajë regjistrat e vet të qasjes për pak kohë. Shënimi i leximit për “Anshmëria ime”
-        mbetet në shfletuesin tuaj.
+        Kush e drejton projektin, e drejta e përgjigjes e mediave dhe afati i përgjigjes janë te{" "}
+        <Link to="/who-we-are">Kush jemi</Link>; çfarë ruhet për lexuesit, te{" "}
+        <Link to="/privacy">Privatësia</Link>.
       </p>
       <p>
         Për zhvilluesit: të gjitha të dhënat janë të qasshme përmes{" "}
