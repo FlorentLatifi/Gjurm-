@@ -468,7 +468,6 @@ sources:
     homepage_url: https://ata.gov.al/
     feed_url: https://ata.gov.al/feed/
     discovery_urls: [https://ata.gov.al/]
-    ownership: state
     owner: "Government of Albania (state budget)"
     bias: unrated
     factuality: unrated
@@ -476,6 +475,7 @@ sources:
     language: sq
     country: AL
     enabled: false
+    ownership: state
     notes: "HTTP 403 to automated requests (2026-10-21, twice). Not circumvented — excluded. Albanian state news agency."
 
   - slug: panorama
