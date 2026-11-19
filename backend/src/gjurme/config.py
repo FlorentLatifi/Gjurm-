@@ -159,6 +159,9 @@ class Settings(BaseSettings):
     story_summary_min_outlets: int = Field(default=2, ge=2)
     story_summary_regrow_outlets: int = Field(default=3, ge=1)
     story_summary_max_seconds: int = Field(default=180, ge=10)
+    # CLUSTER stops starting batches after this many seconds (0 = no limit); the rest waits for
+    # the next run. Keeps a backlog (an outlet's back issues) inside the pipeline's time limit.
+    cluster_max_seconds: int = Field(default=420, ge=0)
     # A paid model (Claude) writes summaries only when allowed: their cost is not in the
     # enrichment ledger that LLM_DAILY_BUDGET_USD reads (≈ $0.0003 a story with Haiku 5.5).
     story_summary_with_paid_model: bool = False

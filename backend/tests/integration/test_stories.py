@@ -313,6 +313,44 @@ def test_clustering_waits_for_the_analysis_and_keeps_lookalikes_apart_without_on
     assert story_of(db, fresh) is not None
 
 
+def test_clustering_clears_a_backlog_a_day_at_a_time(
+    db: sessionmaker[Session], settings: Settings
+) -> None:
+    """An outlet's back issues (days of headlines at once) are clustered in day-long batches,
+    each committed; a time limit stops starting batches and the next run goes on."""
+    days = 4
+    ids: list[list[int]] = []
+    with db() as s, s.begin():
+        a, b = rated_source(s, "qendra"), rated_source(s, "djathtas")
+        for d in range(days):
+            at = NOW - timedelta(hours=26 * (days - d))  # a day and more apart
+            title = f"Kuvendi miraton ligjin numër {d + 10} për rrugët"
+            ids.append(
+                [
+                    article(s, a, title, at, entities=[("Kuvendi", "organization")]),
+                    article(
+                        s,
+                        b,
+                        title,
+                        at + timedelta(minutes=30),
+                        entities=[("Kuvendi", "organization")],
+                    ),
+                ]
+            )
+    with db() as s:  # a limit already spent: one batch (the oldest day), then stop
+        stats = cluster_pending(s, settings, max_seconds=0.000001)
+    assert stats.batches == 1 and stats.time_limited
+    assert stats.considered == 2
+    assert story_of(db, ids[0][0]) is not None and story_of(db, ids[1][0]) is None
+
+    with db() as s:  # the next run, without a limit, clears the rest a day at a time
+        stats = cluster_pending(s, settings, max_seconds=0)
+    assert stats.considered == (days - 1) * 2 and stats.batches == days - 1
+    assert not stats.time_limited
+    for pair in ids:
+        assert story_of(db, pair[0]) == story_of(db, pair[1]) is not None
+
+
 def test_clustering_does_not_wait_when_analysis_is_turned_off(
     db: sessionmaker[Session], settings: Settings
 ) -> None:
