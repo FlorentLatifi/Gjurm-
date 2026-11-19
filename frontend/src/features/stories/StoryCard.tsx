@@ -6,6 +6,7 @@ import type { StorySummary } from "@/shared/api/types";
 import { formatRelative, summaryFor } from "@/shared/lib/format";
 import { blindspotLabel, type Lens } from "@/shared/model/ratings";
 import { storyQuery } from "./api";
+import { COVER_SIZES, outletSizes } from "./photoSizes";
 import { coverageCounts, StoryCoverage } from "./StoryCoverage";
 import "./stories.css";
 import { localName, t, tn } from "@/shared/i18n";
@@ -115,18 +116,24 @@ export function StoryCard({
 
 /**
  * A story's picture: the photo an outlet put in its own feed entry, loaded from the outlet's
- * site and never copied (ADR-030). A story without one — or whose photo fails to load — is set
- * in type alone, as a paper sets most of its stories.
+ * site and never copied (ADR-030). Where the outlet's server has smaller sizes of it, the browser
+ * picks the one the box needs (photoSizes.ts); if that fails, the feed's own address is tried. A
+ * story without a photo — or whose photo fails to load — is set in type alone, as a paper sets
+ * most of its stories.
  */
-export function Cover({ story, className = "" }: { story: StorySummary; className?: string }) {
-  const [broken, setBroken] = useState<string | null>(null);
-  const photo = story.image_url && story.image_url !== broken ? story.image_url : null;
-  if (!photo) return null;
+export function Cover({ story, className = "", sizes }: { story: StorySummary; className?: string; sizes: string }) {
+  // what failed for which photo: the outlet's sizes (try the feed's address), or the photo itself
+  const [failed, setFailed] = useState<{ photo: string; all: boolean } | null>(null);
+  const photo = story.image_url;
+  const tried = failed?.photo === photo ? failed : null;
+  if (!photo || tried?.all) return null;
+  const srcSet = tried ? undefined : outletSizes(photo);
   return (
     <div className={`cover ${className}`}>
       {/* decorative: the headline beside it says what the story is */}
-      <img className="cover__photo" src={photo} alt="" loading="lazy" decoding="async"
-        referrerPolicy="no-referrer" onError={() => setBroken(photo)} />
+      <img key={srcSet ? "sizes" : "feed"} className="cover__photo" srcSet={srcSet} sizes={srcSet && sizes} src={photo}
+        alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer"
+        onError={() => setFailed({ photo, all: !srcSet })} />
     </div>
   );
 }
@@ -161,7 +168,7 @@ export function HeroStory({ story, lens }: { story: StorySummary; lens: Lens }) 
         </p>
         {story.blindspots.length > 0 && <p className="story-card__badges"><BlindspotBadges story={story} /></p>}
       </div>
-      <Cover story={story} className="story-hero__cover" />
+      <Cover story={story} className="story-hero__cover" sizes={COVER_SIZES.hero} />
     </article>
   );
 }
@@ -179,7 +186,7 @@ export function StoryRow({ story, lens }: { story: StorySummary; lens: Lens }) {
           <Link to={`/stories/${story.id}`} {...prefetch}>{story.title}</Link>
         </h3>
       </div>
-      <Cover story={story} className="story-row__cover" />
+      <Cover story={story} className="story-row__cover" sizes={COVER_SIZES.row} />
       <div className="story-row__cov">
         <StoryCoverage coverage={story.coverage} lens={lens} size="sm" labels="none" missing={story.blindspots} />
         <CoverageLine story={story} lens={lens} />

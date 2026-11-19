@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, renderHook, screen } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -7,7 +7,8 @@ import { MemoryRouter } from "react-router-dom";
 import { ArticleList } from "@/features/articles/ArticleList";
 import { missingSide, readingCoverage } from "@/features/reading/readingCoverage";
 import { ShareStory } from "@/features/stories/ShareStory";
-import { StoryCard } from "@/features/stories/StoryCard";
+import { outletSizes } from "@/features/stories/photoSizes";
+import { StoryCard, StoryRow } from "@/features/stories/StoryCard";
 import { StoryCoverage } from "@/features/stories/StoryCoverage";
 import type { Coverage, SourceStat, StorySummary } from "@/shared/api/types";
 import { availableLenses, biasGroup, blindspotLabel, type Lens, LENSES, noneRated, segments } from "@/shared/model/ratings";
@@ -129,6 +130,52 @@ describe("StoryCard", () => {
   it("hides the placeholder summary of keyword-rule analysis", () => {
     wrap(<StoryCard story={{ ...story, summary_en: "[headline, no AI summary] x", summary_sq: "[headline, no AI summary] x" }} lens="region" />);
     expect(screen.queryByText(/no AI summary/)).not.toBeInTheDocument();
+  });
+});
+
+describe("outlet photo sizes (ADR-030)", () => {
+  it("asks Telegrafi's media library for smaller widths, the feed's own as the largest", () => {
+    expect(outletSizes("https://telegrafi.com/media-library/image.jpg?id=68722202&width=980")).toBe(
+      "https://telegrafi.com/media-library/image.jpg?id=68722202&width=320 320w, " +
+        "https://telegrafi.com/media-library/image.jpg?id=68722202&width=640 640w, " +
+        "https://telegrafi.com/media-library/image.jpg?id=68722202&width=980 980w",
+    );
+    // already small: nothing smaller to offer
+    expect(outletSizes("https://telegrafi.com/media-library/image.jpg?id=1&width=300")).toBeUndefined();
+  });
+
+  it("adds KOHA's w parameter and keeps the full photo for wide boxes", () => {
+    const src = "https://resources.koha.net/images/2026/November/19/c88d9fe8.webp?q=80";
+    expect(outletSizes(src)).toBe(`${src}&w=320 320w, ${src}&w=640 640w, ${src} 1280w`);
+  });
+
+  it("names WordPress's 300 px copy from the size in the address, rounded as PHP does", () => {
+    const base = "https://ekonomiaonline.com/wp-content/uploads/2026/11/";
+    expect(outletSizes(`${base}Jakup-Nura-1333x1000.jpg`)).toBe(`${base}Jakup-Nura-300x225.jpg 300w, ${base}Jakup-Nura-1333x1000.jpg 1333w`);
+    expect(outletSizes(`${base}2-2-1330x1000.jpg`)).toMatch(/^\S+-300x226\.jpg 300w/);
+    expect(outletSizes(`${base}Albin-Kurti-ne-Kuvend-1500x1000.jpg`)).toMatch(/^\S+-300x200\.jpg 300w/);
+    // no size in the name: the copy's height cannot be known
+    expect(outletSizes(`${base}22222.jpg`)).toBeUndefined();
+  });
+
+  it("offers nothing for other outlets or addresses that are not https", () => {
+    expect(outletSizes("https://www.zeri.info/uploads/zeri.info/images/2026/November/19/auto_x.jpg")).toBeUndefined();
+    expect(outletSizes("http://telegrafi.com/media-library/image.jpg?id=1&width=980")).toBeUndefined();
+    expect(outletSizes("not a url")).toBeUndefined();
+  });
+
+  it("falls back to the feed's photo when a smaller size fails, then to type alone", () => {
+    const src = "https://telegrafi.com/media-library/image.jpg?id=5&width=980";
+    const { container } = wrap(<StoryRow story={{ ...story, image_url: src }} lens="perspective" />);
+    const img = () => container.querySelector("img.cover__photo");
+    expect(img()).toHaveAttribute("srcset", expect.stringContaining("width=320 320w"));
+    expect(img()).toHaveAttribute("sizes", "(min-width: 900px) 236px, 84px");
+    fireEvent.error(img()!);
+    expect(img()).not.toHaveAttribute("srcset");
+    expect(img()).toHaveAttribute("src", src);
+    fireEvent.error(img()!);
+    expect(img()).toBeNull();
+    expect(screen.getByRole("link", { name: story.title })).toBeInTheDocument();
   });
 });
 

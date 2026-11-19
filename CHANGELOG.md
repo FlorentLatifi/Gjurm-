@@ -4,6 +4,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Changed (performance, 2026-11-19)
+- **Smaller photos from the outlets' own servers** (ADR-030, amended). A Lighthouse run put the front page's photos about 0.9 MB over what their boxes need. Where the outlet's image server offers smaller sizes, a cover's `<img>` gets a `srcset` and `sizes` (84 px on a phone, at most 236 px; the lead story at most 432 px) and the browser takes the smallest that fills the box: Telegrafi (`width=`, 63 → 12 KB for a story row), KOHA (`w=`, 71 → 19 KB) and Ekonomia Online's WordPress 300 px copy (266 → 20 KB), each checked against the outlet's server. The addresses stay the outlet's own; a size that fails falls back to the feed's photo, then to type alone. Zëri's server has no smaller sizes.
+
 ### Fixed (accessibility, 2026-11-19)
 - The front page's link to the blindspot feed was named "All blindspots" for screen readers while it reads "View the blindspot feed": a voice user saying what they see could not activate it (Lighthouse / axe `label-content-name-mismatch`). Its name is now its text.
 
