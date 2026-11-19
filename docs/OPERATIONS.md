@@ -139,7 +139,19 @@ An outlet that edits a headline after publishing sometimes lists the edit as a n
 On a server: `gjurme dedup-revisions --days 60` (report) and `--apply`. Both hold the pipeline lock.
 
 ### Check or retune story clustering
-`gj stories-review --hours 48` lists the multi-outlet stories, the weakest member of each story (possible wrong merges) and the closest near misses (possible missed merges). The *Source validation* workflow publishes the same report for the live feeds. To change the thresholds: set `STORY_SIMILARITY_THRESHOLD` (similarity to the whole story, default 0.45) or `STORY_MEMBER_SIMILARITY_THRESHOLD` (to its closest report, which also merges two stories that one report matches, default 0.5) in `.env`; lower merges more. Restart, then `gj cluster --rebuild-days 3` (story ids in that period change, so shared story links break). Merges during normal runs keep links working: a merged story's URL opens the story it joined. An article joins a story only once its analysis is done, or after `STORY_ENRICHMENT_WAIT_MINUTES` (default 360) without one, so while enrichment is paused or out of budget new articles reach stories with that delay. See [ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings).
+**Measure first.** `gj stories-eval` (in `backend/`, no database needed) scores the clustering on the hand-labelled live news in `tests/fixtures/stories/`: precision (pairs of articles in one story that report one event) and recall (pairs of one event that share a story), with the worst pairs listed. Try a value before setting it, e.g. `gj stories-eval --member-threshold 0.45`; how to add a sample from the live feeds is in [TESTING.md](TESTING.md#story-clustering-against-labelled-news). `gj stories-review --hours 48` lists the multi-outlet stories, the weakest member of each story (possible wrong merges) and the closest near misses (possible missed merges) on a running database; the *Source validation* workflow publishes it for the live feeds.
+
+**Settings** (`.env` on a server; repository variables of the same name on the free path, which `free-hosting.yml` passes on):
+
+| Setting | Default | What it does |
+|---|---|---|
+| `STORY_SIMILARITY_THRESHOLD` | 0.45 | cosine of an article to a story's centroid that lets it join |
+| `STORY_MEMBER_SIMILARITY_THRESHOLD` | 0.4 | cosine to one of the story's reports that lets it join (a big story's centroid is diluted) |
+| `STORY_MERGE_SIMILARITY_THRESHOLD` | 0.5 | cosine of an article to a second story that merges the two stories |
+| `STORY_IDF_POWER` | 0.5 | IDF weights raised to this power; below 1 narrows the gap between rare and common words (1 = plain TF-IDF) |
+| `STORY_ENRICHMENT_WAIT_MINUTES` | 360 | how long an article waits for its analysis before it is clustered without one |
+
+Lower thresholds merge more. New values apply to articles clustered from the next run on; to re-cluster the last days, `gj cluster --rebuild-days 3` (story ids in that period change, so shared story links break; on the free path run it from a computer with `DATABASE_URL` set to the Neon database). Merges during normal runs keep links working: a merged story's URL opens the story it joined. An article joins a story only once its analysis is done, or after `STORY_ENRICHMENT_WAIT_MINUTES` without one, so while enrichment is paused or out of budget new articles reach stories with that delay. See [ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings).
 
 ### Rate an outlet
 Edit `bias`, `factuality`, `ownership`, `owner` and `ratings_note` in `sources.yaml` ([SOURCES.md](SOURCES.md#ratings)), commit and deploy; the `migrate` step syncs them. Ratings apply to every story at once (coverage is computed at query time).

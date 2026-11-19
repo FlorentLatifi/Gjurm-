@@ -135,7 +135,8 @@ backend/src/gjurme/
                        pricing, service (queue, cache, persistence)
   analytics/queries.py every analytical query (parameterized SQL)
   analytics/stories.py story feed, story detail, blindspots, source profiles
-  stories/             similarity (tokens, TF-IDF, name guards), clustering stage, review report
+  stories/             similarity (tokens, TF-IDF, name guards), clustering stage, review report,
+                       evaluation on labelled live news (export, scores)
   quality/checks.py    16 data-quality checks
   alerts/engine.py     alert rules, dedup, webhook delivery
   pipeline/            runner, advisory locking, scheduler loop, retention

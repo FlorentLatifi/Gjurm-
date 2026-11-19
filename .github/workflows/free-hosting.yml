@@ -120,6 +120,13 @@ jobs:
       ENRICH_RULES_UPGRADE_HOURS: ${{ vars.ENRICH_RULES_UPGRADE_HOURS || '48' }}
       # Every run stops analysing after 10 minutes; what is left waits for the next run.
       ENRICH_MAX_SECONDS: ${{ vars.ENRICH_MAX_SECONDS || '600' }}
+      # Story clustering (ADR-020). The defaults are the code's, measured on hand-labelled live
+      # news (docs/TESTING.md, `gjurme stories-eval`); a repository variable overrides one to
+      # try another value. New values apply to articles clustered from the next run on.
+      STORY_SIMILARITY_THRESHOLD: ${{ vars.STORY_SIMILARITY_THRESHOLD || '0.45' }}
+      STORY_MEMBER_SIMILARITY_THRESHOLD: ${{ vars.STORY_MEMBER_SIMILARITY_THRESHOLD || '0.4' }}
+      STORY_MERGE_SIMILARITY_THRESHOLD: ${{ vars.STORY_MERGE_SIMILARITY_THRESHOLD || '0.5' }}
+      STORY_IDF_POWER: ${{ vars.STORY_IDF_POWER || '0.5' }}
       ALLOW_FAKE_LLM_IN_PRODUCTION: "true"
       HEALTHCHECK_PING_URL: ${{ secrets.HEALTHCHECK_PING_URL }}
       ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}

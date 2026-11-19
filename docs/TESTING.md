@@ -2,12 +2,13 @@
 
 | Layer | Tool | Count | Runs |
 |---|---|---|---|
-| Backend unit | pytest | 191 | CI `backend` job, locally `uv run pytest tests/unit` |
-| Backend integration (real PostgreSQL 16) | pytest | 109 | CI `backend` job (Postgres service container) |
+| Backend unit | pytest | 266 | CI `backend` job, locally `uv run pytest tests/unit` |
+| Backend integration (real PostgreSQL 16) | pytest | 190 | CI `backend` job (Postgres service container) |
 | Frontend unit / component | Vitest + Testing Library | 53 | CI `frontend` job |
 | Frontend static guards | layer boundaries (ESLint), API contract (tsc), bundle budgets, colour tokens | 4 checks | CI `frontend` job |
 | End-to-end (full Docker stack, demo data, real browser) | Playwright + axe-core | 36 scenarios × 2 viewports = 72 | CI `e2e` job |
-| Live sources (real feeds on GitHub runners) | `gjurme` CLI in a workflow | 1 pipeline run + story clustering review | *Source validation* workflow (weekly + manual) |
+| Live sources (real feeds on GitHub runners) | `gjurme` CLI in a workflow | 1 pipeline run + story clustering review + story-evaluation sample | *Source validation* workflow (weekly + manual) |
+| Story clustering against labelled live news | `gjurme stories-eval` | 2 samples of 301 live articles | CI `backend` job (a unit test holds the scores), locally ([below](#story-clustering-against-labelled-news)) |
 | Performance (365k articles) | `backend/scripts/benchmark.py` | 19 queries | manual ([below](#performance)) |
 
 Backend coverage gate: **85%** (currently 90%). CI on GitHub passed all four check jobs (backend, frontend, security, E2E) for the full stack, for example [run #1](https://github.com/FlorentLatifi/Gjurm-/actions/runs/36052875049).
@@ -38,7 +39,7 @@ The integration fixtures migrate a fresh test database once per session with the
 
 ## What the suites cover
 
-**Unit (191).**
+**Unit (266).**
 - Normalization: HTML stripping, Unicode NFC, mojibake repair for `ë`/`ç`, zero-width characters, URL canonicalization and tracking parameters, date parsing including time zones, future and missing dates.
 - Feed parsing: RSS/Atom, malformed XML recovery, autodiscovery.
 - Fetcher: robots.txt (allow, disallow, 404 → allowed, 5xx → disallowed, caching), conditional GET/304, timeouts, oversize (declared and streamed), redirects (followed, loop, to a private address → blocked), DNS SSRF guard.
@@ -46,8 +47,9 @@ The integration fixtures migrate a fresh test database once per session with the
 - Alert rules and payload formats; configuration guards.
 - API contract: the committed OpenAPI schema the frontend's types are generated from matches the API exactly, and response fields that are always present are declared required.
 - Story similarity: Albanian folding and stemming, IDF weighting, the name guard (shared, partial and conflicting places and people; noisy entity types), "a shared person is not a shared event", and hand-written calibration pairs against the default threshold.
+- Story evaluation: event labels and their parts, pair scores, the samples' format (derived data only), and the default settings' precision and recall on the labelled live news.
 
-**Integration (109).**
+**Integration (190).**
 - Ingest → process: idempotency (a second run creates 0 rows), per-source failure isolation, 304 handling, auto-disable after the threshold, dedup L1–L4; an overflowing feed followed to its next pages until known items (not on a first fetch, at most pages 2–3, a feed that serves page 1 again or a missing page 2 ends it without a failure); a busy feed without a page 2 read a second time at the end of the run, other sources once.
 - Enrichment: daily budget enforcement (including spend from earlier runs), circuit breaker, fatal errors that keep attempts, invalid output recorded and retried, refusal terminal, cache hits, re-enrichment keeping history with one current row, the kill switch, hidden articles never sent to the LLM.
 - Anthropic wire: the real SDK against a fake Messages API, covering request body, usage, cost, refusal, `max_tokens`, 401/403/404 fatal, 400 non-retryable, 429/529 retried, connection failure.
@@ -114,6 +116,37 @@ Tests found real bugs, not only regressions. The notable ones:
 - Layout shift on a cold load measured 0.23 (desktop) and 0.33 (mobile): the demo / analysis notice arrived after the status request and pushed the page down, and the footer jumped while a page's code loaded. Now ≤ 0.002.
 - Writing the API contract check found the API declaring always-present fields as optional and tone and entity types as plain strings; the schema now says what the API returns.
 - A redesign that looked better was measured slower: a preloaded 47 KB interface font and React Router's data router delayed first content by ~0.45 s on a slow phone connection. Both were reverted; the numbers are below.
+
+## Story clustering against labelled news
+
+Stories are the core of the site: without good grouping there is no coverage comparison, blindspot or "reported first". `tests/fixtures/stories/` holds samples of **real articles from the live feeds, labelled by hand with the event each one reports**, and `gjurme stories-eval` scores the clustering on them. No database and no network; it runs the CLUSTER stage's own grouping (`stories.clustering.group`) on the samples.
+
+```bash
+cd backend
+uv run gjurme stories-eval                                   # current settings, worst pairs listed
+uv run gjurme stories-eval --member-threshold 0.45 --errors 0   # try a value before setting it
+```
+
+**Scores.** Over pairs of articles. *Precision*: of the pairs the clustering put in one story, the share that report one event (a wrong pair is two events merged: coverage misstated). *Recall*: of the pairs that report one event, the share put in one story (a missed pair is an event split: less coverage, maybe a false blindspot). Pairs grow with the square of an event's size, so the report also counts the stories that mix events and the events that are split.
+
+**Results (2026-11-17).** Two samples of the evening of 17 November: 301 articles from 18 outlets at 21:37 UTC, and the same feeds 24 minutes later (271 articles in common, 30 new: the final whistle of Ireland – Kosovo, Kurti on production, …). The settings were chosen on the first; the pairs with a new article were the check.
+
+| Sample | Settings | Precision | Recall | Events split |
+|---|---|---|---|---|
+| 21:37 (chosen on) | before: 0.45 / 0.5 / IDF 1 | 0.993 | 0.638 | 17 of 46 |
+| | after: 0.45 / 0.4 / IDF^0.5 | 0.994 | 0.767 | 11 of 46 |
+| 22:01 | before | 0.991 | 0.564 | 16 of 47 |
+| | after | 0.993 | 0.744 | 10 of 47 |
+| 22:01, pairs with a new article (the check) | before | — (0 wrong) | 0.422 (19 of 45) | |
+| | after | — (0 wrong) | 0.711 (32 of 45) | |
+
+Settings are `STORY_SIMILARITY_THRESHOLD` / `STORY_MEMBER_SIMILARITY_THRESHOLD` / `STORY_IDF_POWER`; merges stay at `STORY_MERGE_SIMILARITY_THRESHOLD` 0.5. Clustering in 30-minute runs, as production does, gives the same ranking (first sample: recall 0.652 before, 0.781 after). What was tried and why this was chosen is in [ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings).
+
+**What a sample holds.** Only metadata and derived data (ADR-003): headline, outlet, time, URL, the analysis' entity names, and the excerpt as its *content words* — the folded, stopword-free words of its first 40 words, deduplicated and sorted: what the clustering reads, never the text. Clustered from this alone, the 2026-11-17 sample gives exactly the stories the live pipeline stored for it (checked: precision = recall = 1 against the stored stories; `test_story_sample_exports_derived_data_and_scores_like_the_stored_stories` checks the same on the test data).
+
+**Labels.** `event` names the event an article reports; articles with the same label must share a story; `null` is an event no other article in the sample reports. `event/part` marks a part of a larger event: the same part must share a story (the 1-0 goal of a match, one reaction to a verdict reported by three outlets); different parts of one event are *related* and scored neither way (the match's goals may be one story or several; the verdict and its reactions too). `related: [...]` lists other events an article belongs to as well (a party leader on the verdict at a press conference about other things). Two events that look alike but are different (two ambassadors received the same day) get different labels. The labels of the 2026-11-17 samples were written by Claude Code from the headlines, entity names and excerpt words; a spot check by a person is welcome — change a label you disagree with and the scores follow.
+
+**Adding a sample.** Run the *Source validation* workflow by hand with `story_sample` ticked (it also prints the sample on pushes that change the clustering), copy the JSON between `STORIES_SAMPLE_BEGIN` and `STORIES_SAMPLE_END` from the *Story evaluation sample* step (or take `stories-sample.json` from the run's artifact) into `tests/fixtures/stories/live-YYYY-MM-DD.json`, drop the `story` field (the clustering's own answer, a starting point only), add `event` labels, and add an `about` line. The workflow analyses every article with the keyword rules, as production does sooner or later. Samples from different days and hours matter more than one big sample: one evening is dominated by its two or three big events. Every sample counts in `gjurme stories-eval` and in `test_live_sample_scores_with_the_default_settings`, which fails when a change lowers precision or recall on them below the numbers recorded in [ADR-020](DECISIONS.md#adr-020-stories-by-tf-idf-clustering-with-name-guards-no-embeddings).
 
 ## Performance
 

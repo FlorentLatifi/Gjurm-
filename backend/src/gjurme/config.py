@@ -165,13 +165,18 @@ class Settings(BaseSettings):
     allow_fake_llm_in_production: bool = False
 
     # --- stories (clustering of articles that report the same event) -----------------------
-    # Cosine similarity of an article to a story's TF-IDF centroid needed to join it. Hand
-    # calibrated (ADR-020): lower merges more paraphrases but also more different events.
+    # Measured on hand-labelled live news (`gjurme stories-eval`, docs/TESTING.md; ADR-020):
+    # lower thresholds merge more paraphrases but also more different events.
+    # Cosine similarity of an article to a story's TF-IDF centroid needed to join it.
     story_similarity_threshold: float = Field(default=0.45, gt=0, lt=1)
     # Cosine similarity to a single member that also lets an article join a story (a large
-    # story's centroid is diluted by its other reports), and that an article needs to a second
-    # story to merge the two. Higher than the centroid threshold: one report is weaker evidence.
-    story_member_similarity_threshold: float = Field(default=0.5, gt=0, lt=1)
+    # story's centroid is diluted by its other reports).
+    story_member_similarity_threshold: float = Field(default=0.4, gt=0, lt=1)
+    # Cosine of an article to a second story that merges the two stories. Higher than the
+    # member threshold: merging two whole stories on one report needs stronger evidence.
+    story_merge_similarity_threshold: float = Field(default=0.5, gt=0, lt=1)
+    # IDF weights are raised to this power: below 1 narrows the gap between rare and common words.
+    story_idf_power: float = Field(default=0.5, gt=0, le=2)
     # How long an article waits for its analysis before it is clustered without one. The guards
     # that keep look-alike events apart read the analysis' place and person names.
     story_enrichment_wait_minutes: int = Field(default=360, ge=0)

@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from gjurme.ingestion.normalize import normalize_key
@@ -88,23 +88,26 @@ def stem(token: str) -> str:
     return token
 
 
-def tokens(text: str | None, *, max_words: int | None = None) -> list[str]:
-    """Folded, stopword-free, stemmed content tokens of ``text``."""
+def content_words(text: str | None, *, max_words: int | None = None) -> list[str]:
+    """Folded words of ``text`` that carry content, before stemming: no stopwords, outlet labels,
+    words under three letters or one-digit numbers. ``max_words`` cuts ``text`` first."""
     if not text:
         return []
     words = normalize_key(text).split()
     if max_words is not None:
         words = words[:max_words]
-    out: list[str] = []
-    for w in words:
-        if w.isdigit():
-            if len(w) >= 2:
-                out.append(w)
-            continue
-        if len(w) < 3 or w in STOPWORDS or w in NOISE_TOKENS:
-            continue
-        out.append(stem(w))
-    return out
+    return [
+        w
+        for w in words
+        if (len(w) >= 2 if w.isdigit() else len(w) >= 3)
+        and w not in STOPWORDS
+        and w not in NOISE_TOKENS
+    ]
+
+
+def tokens(text: str | None, *, max_words: int | None = None) -> list[str]:
+    """Folded, stopword-free, stemmed content tokens of ``text``."""
+    return [stem(w) for w in content_words(text, max_words=max_words)]
 
 
 BROAD_PLACES = frozenset(stem(w) for w in _BROAD_PLACE_WORDS)
@@ -232,14 +235,29 @@ def headline_places(doc: Doc, known_places: frozenset[str]) -> Names:
     return Names(places=doc.headline & known_places, numbers=doc.names.numbers, words=doc.headline)
 
 
-def idf_table(docs: Iterable[Doc]) -> dict[str, float]:
-    """Smoothed inverse document frequency: ln((N + 1) / (df + 1)) + 1."""
+def resolve_names(docs: Sequence[Doc], more_places: frozenset[str] = frozenset()) -> None:
+    """Set the guard names of a batch of ``docs`` in place: the batch's place lexicon applied
+    to every analysed doc; for docs without an analysis, the headline words known as places
+    (the lexicon plus ``more_places``)."""
+    lexicon = place_lexicon(docs)
+    for d in docs:
+        d.names = apply_place_lexicon(d.names, lexicon)
+    known = lexicon | more_places
+    for d in docs:
+        if not d.has_entities:
+            d.names = headline_places(d, known)
+
+
+def idf_table(docs: Iterable[Doc], *, power: float = 1.0) -> dict[str, float]:
+    """Smoothed inverse document frequency, ln((N + 1) / (df + 1)) + 1, raised to ``power``.
+
+    A power below 1 narrows the gap between rare and common terms (STORY_IDF_POWER)."""
     df: Counter[str] = Counter()
     n = 0
     for d in docs:
         n += 1
         df.update(d.terms.keys())
-    return {term: math.log((n + 1) / (count + 1)) + 1.0 for term, count in df.items()}
+    return {term: (math.log((n + 1) / (count + 1)) + 1.0) ** power for term, count in df.items()}
 
 
 def vector(doc: Doc, idf: Mapping[str, float]) -> dict[str, float]:

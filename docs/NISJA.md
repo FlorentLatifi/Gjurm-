@@ -401,7 +401,11 @@ Grupimi bëhet automatikisht me çdo run: çdo 30 minuta pa server (Pjesa B), ç
 gj stories-review --hours 48        # historitë me disa media, anëtarët më të dobët, "gati-bashkimet"
 ```
 
-Workflow-i *Source validation* në GitHub e publikon të njëjtin raport për feed-et reale, pa server. Nëse historitë bashkojnë ngjarje të ndryshme, rrite `STORY_SIMILARITY_THRESHOLD` te `.env` (p.sh. 0.5) dhe `STORY_MEMBER_SIMILARITY_THRESHOLD` (p.sh. 0.6); nëse i ndajnë shumë, uli (p.sh. 0.4 dhe 0.45). Pastaj `gj cluster --rebuild-days 3`.
+Workflow-i *Source validation* në GitHub e publikon të njëjtin raport për feed-et reale, pa server.
+
+Para se të ndryshosh ndonjë prag, **mate**: `gjurme stories-eval` (te `backend/`, pa databazë) e krahason grupimin me lajme reale të shënuara me dorë (`tests/fixtures/stories/`) dhe jep *precision* (sa nga çiftet që u bashkuan janë vërtet e njëjta ngjarje) dhe *recall* (sa nga çiftet e së njëjtës ngjarje u bashkuan), me çiftet më të gabuara. Provo një vlerë pa e vendosur: `uv run gjurme stories-eval --member-threshold 0.45`.
+
+Pragjet: `STORY_SIMILARITY_THRESHOLD` (0.45, me historinë si tërësi), `STORY_MEMBER_SIMILARITY_THRESHOLD` (0.4, me lajmin më të afërt të historisë), `STORY_MERGE_SIMILARITY_THRESHOLD` (0.5, kur një lajm bashkon dy histori) dhe `STORY_IDF_POWER` (0.5, rrënja katrore e peshave IDF). Në server vendosen te `.env`; pa server (Pjesa B) si *variables* të repository-t me të njëjtin emër (Settings → Secrets and variables → Actions → Variables). Nëse historitë bashkojnë ngjarje të ndryshme, rriti; nëse i ndajnë shumë, uli. Vlerat e reja vlejnë për lajmet që grupohen nga run-i i ardhshëm; për të rigrupuar ditët e fundit: `gj cluster --rebuild-days 3` (linket e historive të atyre ditëve ndryshojnë).
 
 ---
 

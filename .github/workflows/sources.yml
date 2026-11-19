@@ -15,6 +15,10 @@ on:
         description: "Print a balanced sample of N headlines (no excerpts) for an offline quality review (0 = off, max 60)"
         type: number
         default: 0
+      story_sample:
+        description: "Print a story-evaluation sample to label (headlines, entities, excerpt content words; docs/TESTING.md)"
+        type: boolean
+        default: false
   schedule:
     - cron: "17 6 * * 1" # weekly, Monday 06:17 UTC
   push:
@@ -176,10 +180,13 @@ jobs:
             echo '```'
           } > "$review"
           cat "$review" >> "$GITHUB_STEP_SUMMARY"
+      # Every article, as in production where each one is analysed sooner or later: with the
+      # default 150 per run half of a fresh database stayed unanalysed, and so unclustered.
       - name: Enrich (heuristic, no key configured)
         if: env.HAS_LLM_KEY != 'true'
         env:
           LLM_PROVIDER: fake
+          ENRICH_MAX_PER_RUN: 2000
         run: uv run gjurme run --stages enrich,cluster,quality | tee "$RUNNER_TEMP/run-enrich.json"
       # Stories on live headlines: merged stories, weakest members and near misses, so the
       # clustering thresholds (ADR-020) can be checked on real coverage. Headlines only.
@@ -188,6 +195,18 @@ jobs:
           uv run gjurme stories-review --hours 72 --markdown "$RUNNER_TEMP/stories-review.md" > /dev/null
           cat "$RUNNER_TEMP/stories-review.md" >> "$GITHUB_STEP_SUMMARY"
           echo "STORIES_REVIEW_BEGIN"; cat "$RUNNER_TEMP/stories-review.md"; echo "STORIES_REVIEW_END"
+      # Candidate articles for the story-evaluation set (tests/fixtures/stories/): derived data
+      # only — headline, outlet, time, URL, entity names and the excerpt's content words as a
+      # sorted set, never its text. Printed on manual runs that ask for it and on pushes that
+      # change the clustering; always in the artifact.
+      - name: Story evaluation sample (derived data only)
+        env:
+          PRINT_SAMPLE: ${{ inputs.story_sample || github.event_name == 'push' }}
+        run: |
+          uv run gjurme stories-sample --hours 72 --out "$RUNNER_TEMP/stories-sample.json"
+          if [[ "$PRINT_SAMPLE" == "true" ]]; then
+            echo "STORIES_SAMPLE_BEGIN"; cat "$RUNNER_TEMP/stories-sample.json"; echo "STORIES_SAMPLE_END"
+          fi
       - name: Sample of stored articles
         if: always()
         run: |
@@ -216,5 +235,6 @@ jobs:
             ${{ runner.temp }}/run-*.json
             ${{ runner.temp }}/claude-quality-review.md
             ${{ runner.temp }}/stories-review.md
+            ${{ runner.temp }}/stories-sample.json
           if-no-files-found: ignore
           retention-days: 30

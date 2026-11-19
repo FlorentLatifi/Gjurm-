@@ -68,7 +68,7 @@ def review_report(session: Session, settings: Settings, *, hours: int = 48, top:
             {"ids": [r.id for r in rows]},
         )
     }
-    idf = idf_table(r.doc for r in rows)
+    idf = idf_table((r.doc for r in rows), power=settings.story_idf_power)
     vec = {r.id: vector(r.doc, idf) for r in rows}
     by_story: dict[int, list[int]] = defaultdict(list)
     for r in rows:

@@ -368,6 +368,57 @@ def stories_review(
         markdown.write_text(report, "utf-8")
 
 
+@app.command("stories-sample")
+def stories_sample(
+    out: Annotated[Path, typer.Option(help="Write the sample (JSON) here")],
+    hours: Annotated[int, typer.Option(help="Look-back window")] = 72,
+) -> None:
+    """Export the latest articles as a story-evaluation sample to label (derived data only:
+    headlines, entities and the excerpt's content words, never its text; ADR-003)."""
+    _settings(validate=False)
+    from gjurme.stories.evaluation import dumps, export_sample
+
+    with _session_factory()() as s:
+        sample = export_sample(s, hours=hours)
+    out.write_text(dumps(sample), "utf-8")
+    typer.echo(f"{len(sample['articles'])} articles → {out}")
+
+
+@app.command("stories-eval")
+def stories_eval(
+    paths: Annotated[
+        list[Path] | None,
+        typer.Argument(help="Labelled samples, files or directories [tests/fixtures/stories]"),
+    ] = None,
+    threshold: Annotated[float | None, typer.Option(help="Centroid threshold to try")] = None,
+    member_threshold: Annotated[float | None, typer.Option(help="Member threshold")] = None,
+    merge_threshold: Annotated[float | None, typer.Option(help="Merge threshold")] = None,
+    idf_power: Annotated[float | None, typer.Option(help="IDF power")] = None,
+    errors: Annotated[int, typer.Option(help="Wrong and missed pairs to list")] = 20,
+) -> None:
+    """Score story clustering on hand-labelled real news: precision and recall over article
+    pairs (no database; docs/TESTING.md). Parameters default to the current settings."""
+    settings = _settings(validate=False)
+    from dataclasses import replace
+
+    from gjurme.stories.clustering import ClusterParams
+    from gjurme.stories.evaluation import load_samples, report
+
+    params = ClusterParams.from_settings(settings)
+    overrides = {
+        "threshold": threshold,
+        "member_threshold": member_threshold,
+        "merge_threshold": merge_threshold,
+        "idf_power": idf_power,
+    }
+    params = replace(params, **{k: v for k, v in overrides.items() if v is not None})
+    samples = load_samples(paths or [Path("tests/fixtures/stories")])
+    if not samples:
+        typer.echo("no samples found", err=True)
+        raise typer.Exit(2)
+    typer.echo(report(samples, params, errors=errors)[1])
+
+
 @app.command("enrich-requeue")
 def enrich_requeue(
     older_than_version: Annotated[str | None, typer.Option(help="Prompt version cut-off")] = None,
